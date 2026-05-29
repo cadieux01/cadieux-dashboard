@@ -1,0 +1,272 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Sora", system-ui, sans-serif;
+  --font-body: "Manrope", system-ui, sans-serif;
+
+  --color-slate-950: #07111f;
+  --color-slate-900: #0d1728;
+  --color-slate-800: #172236;
+  --color-slate-700: #24324a;
+  --color-slate-600: #52637e;
+  --color-slate-500: #8090aa;
+  --color-slate-400: #aab7ca;
+  --color-slate-300: #d5deea;
+  --color-slate-200: #e9eef5;
+  --color-slate-100: #f6f8fb;
+
+  --color-amber-500: #f2b36d;
+  --color-amber-400: #f7c890;
+
+  --color-emerald-500: #52c9a8;
+  --color-emerald-400: #8ee1cb;
+
+  --color-rose-500: #f28b9d;
+  --color-rose-400: #f7afbb;
+
+  --color-indigo-600: #5d7cf4;
+  --color-indigo-500: #7f95ff;
+  --color-indigo-400: #b0beff;
+}
+
+:root {
+  --app-bg: #07111f;
+  --app-bg-secondary: #0b1628;
+  --app-surface: rgba(11, 22, 40, 0.82);
+  --app-surface-strong: rgba(13, 23, 40, 0.94);
+  --app-surface-soft: rgba(255, 255, 255, 0.04);
+  --app-border: rgba(164, 179, 201, 0.18);
+  --app-border-strong: rgba(202, 214, 231, 0.24);
+  --app-text: #f5f7fb;
+  --app-text-muted: #aab7ca;
+  --app-text-soft: #7b8da8;
+  --app-accent: #8ee1cb;
+  --app-accent-strong: #7f95ff;
+  --app-shadow: 0 22px 80px rgba(2, 6, 23, 0.38);
+}
+
+html {
+  color-scheme: dark;
+  background: var(--app-bg);
+}
+
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(127, 149, 255, 0.12), transparent 24%),
+    radial-gradient(circle at 85% 18%, rgba(82, 201, 168, 0.16), transparent 22%),
+    linear-gradient(180deg, #091423 0%, #07111f 46%, #060d18 100%);
+  color: var(--app-text);
+  font-family: var(--font-body);
+  letter-spacing: -0.01em;
+}
+
+::selection {
+  background: rgba(127, 149, 255, 0.38);
+  color: #ffffff;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(170, 183, 202, 0.32) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(170, 183, 202, 0.25);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+input,
+select,
+textarea,
+button {
+  font: inherit;
+}
+
+.dashboard-page {
+  position: relative;
+  padding: 1rem;
+}
+
+@media (min-width: 640px) {
+  .dashboard-page {
+    padding: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .dashboard-page {
+    padding: 2rem;
+  }
+}
+
+.dashboard-page::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 280px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 100%);
+  pointer-events: none;
+}
+
+.dashboard-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--app-text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  backdrop-filter: blur(14px);
+}
+
+.dashboard-title {
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 3vw, 3.4rem);
+  font-weight: 700;
+  line-height: 1.04;
+  letter-spacing: -0.05em;
+}
+
+.dashboard-copy {
+  max-width: 46rem;
+  color: var(--app-text-muted);
+  font-size: 0.98rem;
+  line-height: 1.7;
+}
+
+.dashboard-panel {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--app-border);
+  background: linear-gradient(180deg, rgba(13, 23, 40, 0.95), rgba(11, 22, 40, 0.88));
+  box-shadow: var(--app-shadow);
+  backdrop-filter: blur(22px);
+}
+
+.dashboard-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent 28%);
+  pointer-events: none;
+}
+
+.dashboard-subpanel {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.035);
+  backdrop-filter: blur(18px);
+}
+
+.dashboard-input,
+.dashboard-select,
+.dashboard-textarea {
+  width: 100%;
+  border: 1px solid rgba(170, 183, 202, 0.16);
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--app-text);
+  border-radius: 1rem;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+}
+
+.dashboard-input,
+.dashboard-select {
+  min-height: 46px;
+  padding: 0.75rem 0.95rem;
+}
+
+.dashboard-textarea {
+  min-height: 112px;
+  padding: 0.85rem 0.95rem;
+  resize: vertical;
+}
+
+.dashboard-input::placeholder,
+.dashboard-textarea::placeholder {
+  color: var(--app-text-soft);
+}
+
+.dashboard-input:focus,
+.dashboard-select:focus,
+.dashboard-textarea:focus {
+  outline: none;
+  border-color: rgba(127, 149, 255, 0.55);
+  box-shadow:
+    0 0 0 4px rgba(127, 149, 255, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.065);
+}
+
+.dashboard-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 999px;
+  padding: 0.75rem 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease, background-color 160ms ease;
+}
+
+.dashboard-button:hover {
+  transform: translateY(-1px);
+}
+
+.dashboard-button-primary {
+  border: 1px solid rgba(142, 225, 203, 0.22);
+  background: linear-gradient(135deg, rgba(82, 201, 168, 0.2), rgba(127, 149, 255, 0.18));
+  color: #f8fbff;
+  box-shadow: 0 16px 32px rgba(14, 30, 54, 0.32);
+}
+
+.dashboard-button-secondary {
+  border: 1px solid rgba(170, 183, 202, 0.16);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--app-text-muted);
+}
+
+.dashboard-button-secondary:hover {
+  color: var(--app-text);
+  border-color: rgba(170, 183, 202, 0.28);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.dashboard-fab {
+  border: 1px solid rgba(127, 149, 255, 0.22);
+  background: linear-gradient(135deg, rgba(127, 149, 255, 0.9), rgba(82, 201, 168, 0.82));
+  box-shadow: 0 18px 40px rgba(9, 19, 34, 0.45);
+}
+
+.dashboard-table thead {
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.dashboard-table tbody tr {
+  transition: background-color 160ms ease, transform 160ms ease;
+}
+
+.dashboard-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.03);
+}

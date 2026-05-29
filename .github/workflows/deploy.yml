@@ -1,0 +1,137 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: |
+          echo "=== Build Configuration ==="
+          echo "VITE_SUPABASE_URL is set: $([ -n "$VITE_SUPABASE_URL" ] && echo 'YES' || echo 'NO')"
+          echo "VITE_SUPABASE_ANON_KEY is set: $([ -n "$VITE_SUPABASE_ANON_KEY" ] && echo 'YES' || echo 'NO')"
+          echo ""
+          echo "Checking vite.config.js..."
+          cat vite.config.js
+          echo ""
+          echo "Checking index.html before build..."
+          grep -n 'src=' index.html || echo "No src attributes found"
+          echo ""
+          echo "Starting build..."
+          npm run build 2>&1 | tee build.log || (echo "Build failed!" && cat build.log && exit 1)
+          echo ""
+          echo "Build completed successfully"
+          echo ""
+          echo "Checking dist directory structure..."
+          find dist -type f -name "*.html" -o -name "*.js" -o -name "*.css" | head -20
+
+      - name: Verify build output
+        run: |
+          echo "=== Build Verification ==="
+          echo "Checking if dist directory exists..."
+          ls -la dist/ || echo "ERROR: dist directory not found!"
+          echo ""
+          echo "Checking if index.html exists..."
+          if [ -f dist/index.html ]; then
+            echo "✅ index.html found"
+            echo ""
+            echo "Checking index.html content (full file)..."
+            cat dist/index.html
+            echo ""
+            echo "=== CRITICAL CHECK: Looking for /src/main.jsx ==="
+            if grep -q '/src/main.jsx' dist/index.html; then
+              echo "❌❌❌ CRITICAL ERROR: Built HTML still contains /src/main.jsx!"
+              echo "This means Vite did NOT process the HTML correctly."
+              echo "The build should have replaced /src/main.jsx with bundled assets."
+              echo ""
+              echo "Full index.html content:"
+              cat dist/index.html
+              exit 1
+            else
+              echo "✅ No /src/main.jsx found (good - build processed correctly)"
+            fi
+            echo ""
+            echo "Checking for bundled script tags..."
+            grep -o '<script[^>]*src="[^"]*"' dist/index.html || echo "No script tags found"
+            echo ""
+            echo "Checking for asset paths (should include /sunny/)..."
+            grep -o 'src="[^"]*"' dist/index.html | head -3
+            grep -o 'href="[^"]*"' dist/index.html | head -3
+          else
+            echo "❌ ERROR: dist/index.html not found!"
+            exit 1
+          fi
+          echo ""
+          echo "Checking assets directory..."
+          ls -la dist/assets/ 2>/dev/null || echo "⚠️  No assets directory (might be normal if no assets)"
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Copy 404.html for GitHub Pages SPA routing
+        run: |
+          cp public/404.html dist/404.html || echo "404.html not found in public, skipping"
+
+      - name: Final verification before upload
+        run: |
+          echo "=== Final Check Before Upload ==="
+          echo "Files in dist directory:"
+          ls -la dist/
+          echo ""
+          echo "Verifying index.html one more time..."
+          if grep -q '/src/main.jsx' dist/index.html; then
+            echo "❌ FATAL: index.html still has /src/main.jsx - ABORTING DEPLOYMENT"
+            exit 1
+          fi
+          echo "✅ index.html is correct"
+          echo ""
+          echo "Checking what script tags exist..."
+          grep '<script' dist/index.html
+          echo ""
+          echo "✅ All checks passed - ready to deploy"
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './dist'
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
