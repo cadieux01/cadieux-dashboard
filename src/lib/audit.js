@@ -1,16 +1,41 @@
 import { supabase } from './supabase'
 import { formatDateDDMMYY } from './date'
 
+// Maps a dashboard entity_type to the broader audit "category" used by
+// the Audit Logs page filters. Public-schema triggers (super-admin panel)
+// write their own category values directly; this only covers the
+// dashboard-originated entity types.
+const ENTITY_TO_CATEGORY = {
+  sale: 'sale',
+  retract: 'sale',
+  lead: 'customer',
+  trainer: 'partner',
+  user: 'partner',
+  order: 'order',
+  order_invitation: 'order',
+}
+
+/**
+ * Resolve the audit category for a dashboard entity type.
+ * Falls back to the entity type itself, then 'other'.
+ */
+export function categoryForEntity(entityType) {
+  if (!entityType) return 'other'
+  return ENTITY_TO_CATEGORY[entityType] || entityType
+}
+
 /**
  * Log an audit event
  * @param {Object} params
- * @param {string} params.actionType - 'CREATE', 'UPDATE', 'DELETE'
- * @param {string} params.entityType - 'sale', 'lead', 'trainer', 'retract'
+ * @param {string} params.actionType - 'CREATE' | 'UPDATE' | 'DELETE' | 'LOGIN' | 'FEEDBACK_REPLY'
+ * @param {string} params.entityType - 'sale', 'lead', 'trainer', 'retract', 'user'
  * @param {string} params.entityId - ID of the affected record
  * @param {string} params.description - Human-readable description
  * @param {Object} params.oldValues - Previous values (for updates)
  * @param {Object} params.newValues - New values
  * @param {Object} params.metadata - Additional context
+ * @param {string} [params.category] - Override category (else derived from entityType)
+ * @param {string} [params.source] - Origin of the event (default 'dashboard')
  */
 export async function logAuditEvent({
   actionType,
@@ -20,6 +45,8 @@ export async function logAuditEvent({
   oldValues = null,
   newValues = null,
   metadata = null,
+  category = null,
+  source = 'dashboard',
 }) {
   try {
     // Get current user and profile
@@ -46,10 +73,12 @@ export async function logAuditEvent({
         action_type: actionType,
         entity_type: entityType,
         entity_id: entityId,
+        category: category || categoryForEntity(entityType),
         description,
         old_values: oldValues,
         new_values: newValues,
         metadata: metadata,
+        source,
       })
 
     if (error) {

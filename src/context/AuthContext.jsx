@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, useRef } from 'react'
 import { supabase } from '../lib/supabase'
+import { logAuditEvent } from '../lib/audit'
 
 const AuthContext = createContext({})
 
@@ -233,6 +234,16 @@ export function AuthProvider({ children }) {
       const signInPromise = supabase.auth.signInWithPassword({ email, password })
       const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('signIn timeout after 12000ms')), 12000))
       const { data, error } = await Promise.race([signInPromise, timeoutPromise])
+      // Best-effort LOGIN audit. Never block or fail the sign-in on it.
+      if (!error && data?.user) {
+        void logAuditEvent({
+          actionType: 'LOGIN',
+          entityType: 'user',
+          entityId: data.user.id,
+          category: 'settings',
+          description: `Signed in: ${data.user.email || email}`,
+        }).catch(() => {})
+      }
       return { data, error }
     } catch (e) {
       return { data: null, error: { message: e?.message || 'Sign in failed' } }
