@@ -99,5 +99,5 @@ export const router = createBrowserRouter([
     element: <Navigate to="/login" replace />,
   },
 ], {
-  basename: '/sunny',
+  basename: '/',
 })
