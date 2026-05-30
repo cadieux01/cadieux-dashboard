@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import SessionTimeout from './SessionTimeout'
 
 const adminNavigation = [
   {
@@ -150,6 +151,10 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen bg-transparent text-slate-100 lg:flex">
+      {/* Idle auto-logout — signs out + redirects to /login after 60min
+          of inactivity, with a 5-minute warning. Mounted here so it
+          covers every authenticated screen but never the public Login. */}
+      <SessionTimeout />
       {/* Mobile menu button */}
       <button
         onClick={toggleMobileMenu}
