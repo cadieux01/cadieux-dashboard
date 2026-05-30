@@ -5,6 +5,7 @@ import FormField from '../components/FormField'
 import { logAuditEvent } from '../lib/audit'
 import { createUser } from '../lib/adminApi'
 import { isValidPhone, normalizePhone } from '../lib/phone'
+import ShareCredentials from '../components/ShareCredentials'
 
 // Onboarding flow: admins can create both partners and sales execs;
 // sales can create partners only. Both roles log in with a phone +
@@ -16,9 +17,8 @@ export default function Onboarding() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false)
   const [isErrorModalOpen, setIsErrorModalOpen] = useState(false)
-  const [successData, setSuccessData] = useState(null)
+  const [shareData, setShareData] = useState(null)
   const [formData, setFormData] = useState({
     phone: '',
     password: '',
@@ -100,15 +100,17 @@ export default function Onboarding() {
         },
       })
 
-      setSuccessData({
+      // Open the credential-share card while the plaintext password is still
+      // in memory — it cannot be retrieved after this point.
+      setShareData({
+        name: formData.full_name.trim(),
         phone: result.phone,
-        userId: result.userId,
+        password: formData.password,
         role: targetRole,
       })
       setSuccess(`${roleLabel} user created successfully! Phone: ${result.phone}`)
       resetForm()
       setIsModalOpen(false)
-      setIsSuccessModalOpen(true)
     } catch (err) {
       setError(err.message || `Failed to create ${roleLabel.toLowerCase()}`)
       setIsErrorModalOpen(true)
@@ -239,58 +241,19 @@ export default function Onboarding() {
         </form>
       </Modal>
 
-      {/* Success Popup */}
-      <Modal
-        isOpen={isSuccessModalOpen}
-        onClose={() => {
-          setIsSuccessModalOpen(false)
-          setSuccess('')
-          setSuccessData(null)
-        }}
-        title={
-          successData?.role === 'sales'
-            ? 'Sales Executive Created Successfully!'
-            : 'Partner Created Successfully!'
-        }
-      >
-        <div className="text-center">
-          <div className="w-16 h-16 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-          </div>
-          <h3 className="text-lg font-semibold text-white mb-2">
-            {successData?.role === 'sales'
-              ? 'Sales Executive Onboarded Successfully'
-              : 'Partner Onboarded Successfully'}
-          </h3>
-          <p className="text-slate-400 mb-4">
-            The account has been created and is ready to use.
-          </p>
-          {successData && (
-            <div className="bg-slate-800/50 rounded-lg p-4 mb-4 text-left">
-              <p className="text-sm text-slate-300">
-                <span className="font-medium">Login phone:</span> {successData.phone}
-              </p>
-              {successData.userId && (
-                <p className="text-sm text-slate-300 mt-1">
-                  <span className="font-medium">User ID:</span> {successData.userId}
-                </p>
-              )}
-            </div>
-          )}
-          <button
-            onClick={() => {
-              setIsSuccessModalOpen(false)
-              setSuccess('')
-              setSuccessData(null)
-            }}
-            className="w-full px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-colors font-medium"
-          >
-            OK
-          </button>
-        </div>
-      </Modal>
+      {/* Share-credentials card (shown right after a successful create) */}
+      {shareData && (
+        <ShareCredentials
+          name={shareData.name}
+          phone={shareData.phone}
+          password={shareData.password}
+          role={shareData.role}
+          onClose={() => {
+            setShareData(null)
+            setSuccess('')
+          }}
+        />
+      )}
 
       {/* Error Popup */}
       <Modal

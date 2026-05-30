@@ -8,6 +8,7 @@ import { logAuditEvent } from '../lib/audit'
 import { formatDateDDMMYY } from '../lib/date'
 import { createUser, deactivateUser, deleteUser, reactivateUser } from '../lib/adminApi'
 import { displayLogin, isValidPhone, normalizePhone } from '../lib/phone'
+import ShareCredentials from '../components/ShareCredentials'
 
 export default function SalesExec() {
   const [execs, setExecs] = useState([])
@@ -17,6 +18,7 @@ export default function SalesExec() {
   const [creatingExec, setCreatingExec] = useState(false)
   const [banner, setBanner] = useState(null)
   const [busyId, setBusyId] = useState(null)
+  const [shareData, setShareData] = useState(null)
   const [addFormData, setAddFormData] = useState({
     phone: '',
     password: '',
@@ -137,6 +139,15 @@ export default function SalesExec() {
         message: `Created "${addFormData.full_name.trim()}" with login ${result.phone}.`,
       })
 
+      // Surface the credential-share card while the plaintext password is
+      // still in memory — it cannot be retrieved after this point.
+      setShareData({
+        name: addFormData.full_name.trim(),
+        phone: result.phone,
+        password: addFormData.password,
+        role: 'sales',
+      })
+
       handleCloseAddExecModal()
       await fetchExecs()
     } catch (error) {
@@ -249,11 +260,30 @@ export default function SalesExec() {
     return <span className="inline-flex rounded-full border border-slate-700 bg-slate-800 px-2.5 py-1 text-xs text-slate-400">Deleted</span>
   }
 
+  // Reshare from the list: the plaintext password is gone, so we can only
+  // reshare the phone + login URL. ShareCredentials renders the "contact
+  // admin to reset" note when password is null.
+  const handleReshare = (exec) => {
+    setShareData({
+      name: exec.full_name || '',
+      phone: execPhone(exec),
+      password: null,
+      role: 'sales',
+    })
+  }
+
   const rowActions = (exec) => {
     const status = exec.status || 'active'
     const busy = busyId === exec.id
     return (
       <div className="flex items-center justify-end gap-2">
+        <button
+          onClick={() => handleReshare(exec)}
+          title="Share login (phone + URL, no password)"
+          className="rounded bg-indigo-500/20 px-2 py-1 text-xs text-indigo-400 transition-colors hover:bg-indigo-500/30"
+        >
+          📤
+        </button>
         {status === 'inactive' ? (
           <button
             onClick={() => handleReactivate(exec)}
@@ -516,6 +546,16 @@ export default function SalesExec() {
           </div>
         </form>
       </Modal>
+
+      {shareData && (
+        <ShareCredentials
+          name={shareData.name}
+          phone={shareData.phone}
+          password={shareData.password}
+          role={shareData.role}
+          onClose={() => setShareData(null)}
+        />
+      )}
     </div>
   )
 }

@@ -8,6 +8,7 @@ import { logAuditEvent } from '../lib/audit'
 import { formatDateDDMMYY } from '../lib/date'
 import { createUser, deactivateUser, deleteUser, reactivateUser } from '../lib/adminApi'
 import { displayLogin, isValidPhone, normalizePhone } from '../lib/phone'
+import ShareCredentials from '../components/ShareCredentials'
 
 // A partner's "display phone" is either the dedicated `phone` column or the
 // digits embedded in the synthetic `<digits>@cadieux.partner` auth email.
@@ -26,6 +27,7 @@ export default function Partners() {
   const [creatingPartner, setCreatingPartner] = useState(false)
   const [banner, setBanner] = useState(null)
   const [busyId, setBusyId] = useState(null)
+  const [shareData, setShareData] = useState(null)
   const [addFormData, setAddFormData] = useState({
     phone: '',
     password: '',
@@ -140,6 +142,15 @@ export default function Partners() {
         message: `Created "${addFormData.full_name.trim()}" with login ${result.phone}.`,
       })
 
+      // Surface the credential-share card while the plaintext password is
+      // still in memory — it cannot be retrieved after this point.
+      setShareData({
+        name: addFormData.full_name.trim(),
+        phone: result.phone,
+        password: addFormData.password,
+        role: 'partner',
+      })
+
       handleCloseAddPartnerModal()
       await fetchPartners()
     } catch (error) {
@@ -252,11 +263,30 @@ export default function Partners() {
     return <span className="inline-flex rounded-full border border-slate-700 bg-slate-800 px-2.5 py-1 text-xs text-slate-400">Deleted</span>
   }
 
+  // Reshare from the list: the plaintext password is gone, so we can only
+  // reshare the phone + login URL. ShareCredentials renders the "contact
+  // admin to reset" note when password is null.
+  const handleReshare = (partner) => {
+    setShareData({
+      name: partner.full_name || '',
+      phone: partnerPhone(partner),
+      password: null,
+      role: 'partner',
+    })
+  }
+
   const rowActions = (partner) => {
     const status = partner.status || 'active'
     const busy = busyId === partner.id
     return (
       <div className="flex items-center justify-end gap-2">
+        <button
+          onClick={() => handleReshare(partner)}
+          title="Share login (phone + URL, no password)"
+          className="rounded bg-indigo-500/20 px-2 py-1 text-xs text-indigo-400 transition-colors hover:bg-indigo-500/30"
+        >
+          📤
+        </button>
         {status === 'inactive' ? (
           <button
             onClick={() => handleReactivate(partner)}
@@ -519,6 +549,16 @@ export default function Partners() {
           </div>
         </form>
       </Modal>
+
+      {shareData && (
+        <ShareCredentials
+          name={shareData.name}
+          phone={shareData.phone}
+          password={shareData.password}
+          role={shareData.role}
+          onClose={() => setShareData(null)}
+        />
+      )}
     </div>
   )
 }
