@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import KPICard from '../components/KPICard'
 import { formatDateDDMMYY } from '../lib/date'
+import { displayLogin, extractPhone } from '../lib/phone'
 
 export default function PartnerProfile() {
   const { profile } = useAuth()
@@ -138,12 +139,14 @@ export default function PartnerProfile() {
             <p className="text-sm sm:text-base md:text-lg text-white mt-1">{profile?.full_name || 'N/A'}</p>
           </div>
           <div>
-            <label className="text-xs sm:text-sm font-medium text-slate-400">Email</label>
-            <p className="text-sm sm:text-base md:text-lg text-white mt-1 break-words">{profile?.email || 'N/A'}</p>
+            <label className="text-xs sm:text-sm font-medium text-slate-400">Login</label>
+            <p className="text-sm sm:text-base md:text-lg text-white mt-1 break-words">{displayLogin(profile?.email) || 'N/A'}</p>
           </div>
           <div>
             <label className="text-xs sm:text-sm font-medium text-slate-400">Phone Number</label>
-            <p className="text-sm sm:text-base md:text-lg text-white mt-1">{profile?.phone_number || 'N/A'}</p>
+            <p className="text-sm sm:text-base md:text-lg text-white mt-1">
+              {profile?.phone || extractPhone(profile?.email) || profile?.phone_number || 'N/A'}
+            </p>
           </div>
           <div>
             <label className="text-xs sm:text-sm font-medium text-slate-400">Role</label>

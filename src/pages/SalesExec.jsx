@@ -6,6 +6,8 @@ import Modal from '../components/Modal'
 import FormField from '../components/FormField'
 import { logAuditEvent } from '../lib/audit'
 import { formatDateDDMMYY } from '../lib/date'
+import { createUser, deactivateUser, deleteUser, reactivateUser } from '../lib/adminApi'
+import { displayLogin, isValidPhone, normalizePhone } from '../lib/phone'
 
 export default function SalesExec() {
   const [execs, setExecs] = useState([])
@@ -14,22 +16,11 @@ export default function SalesExec() {
   const [isAddExecModalOpen, setIsAddExecModalOpen] = useState(false)
   const [creatingExec, setCreatingExec] = useState(false)
   const [banner, setBanner] = useState(null)
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
-  const [editingExecId, setEditingExecId] = useState(null)
-  const [editingExecOriginal, setEditingExecOriginal] = useState(null)
-  const [savingEdit, setSavingEdit] = useState(false)
-  const [deletingExec, setDeletingExec] = useState(false)
+  const [busyId, setBusyId] = useState(null)
   const [addFormData, setAddFormData] = useState({
-    email: '',
+    phone: '',
     password: '',
     full_name: '',
-    date_of_birth: '',
-    phone_number: '',
-    notes: '',
-  })
-  const [editFormData, setEditFormData] = useState({
-    full_name: '',
-    phone_number: '',
     notes: '',
   })
 
@@ -41,7 +32,7 @@ export default function SalesExec() {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, email, full_name, phone_number, notes, created_at, role')
+        .select('id, email, full_name, phone, phone_number, notes, status, created_at, role')
         .eq('role', 'sales')
         .order('created_at', { ascending: false })
 
@@ -59,252 +50,43 @@ export default function SalesExec() {
     }
   }
 
+  // Real phone to show: prefer the dedicated phone column, fall back to the
+  // synthetic login email (`<phone>@cadieux.sales`).
+  const execPhone = (exec) => exec.phone || exec.phone_number || displayLogin(exec.email) || 'N/A'
+
   const filteredExecs = useMemo(() => {
     if (!searchQuery.trim()) return execs
     const query = searchQuery.toLowerCase()
     return execs.filter((exec) => {
       const matchesName = exec.full_name?.toLowerCase().includes(query)
-      const matchesEmail = exec.email?.toLowerCase().includes(query)
-      const matchesPhone = exec.phone_number?.toLowerCase().includes(query)
-      return matchesName || matchesEmail || matchesPhone
+      const matchesPhone = execPhone(exec).toLowerCase().includes(query)
+      const matchesNotes = exec.notes?.toLowerCase().includes(query)
+      return matchesName || matchesPhone || matchesNotes
     })
   }, [execs, searchQuery])
 
-  const execsWithPhone = execs.filter((exec) => exec.phone_number).length
-  const execsCreatedLast30Days = execs.filter((exec) => {
-    if (!exec.created_at) return false
-    const createdDate = new Date(exec.created_at)
-    const thirtyDaysAgo = new Date()
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
-    return createdDate >= thirtyDaysAgo
-  }).length
-
-  const renderExecCard = (exec) => (
-    <div key={exec.id} className="rounded-xl border border-slate-800 bg-slate-900 p-4">
-      <div className="mb-3">
-        <p className="font-semibold text-white">{exec.full_name || 'N/A'}</p>
-        <p className="text-xs text-slate-500">{exec.email || 'N/A'}</p>
-      </div>
-      <div className="mb-3 grid grid-cols-2 gap-3">
-        <div>
-          <p className="text-xs text-slate-500">Phone</p>
-          <p className="text-sm text-slate-300">{exec.phone_number || 'N/A'}</p>
-        </div>
-        <div>
-          <p className="text-xs text-slate-500">Created</p>
-          <p className="text-sm text-slate-300">
-            {exec.created_at ? formatDateDDMMYY(exec.created_at) : 'N/A'}
-          </p>
-        </div>
-        <div className="col-span-2">
-          <p className="text-xs text-slate-500">Credentials</p>
-          <div className="mt-1 inline-flex rounded-full border border-slate-700 bg-slate-800 px-2.5 py-1 text-xs text-slate-300">
-            Password hidden
-          </div>
-        </div>
-      </div>
-      <div className="flex items-center gap-2">
-        <button
-          onClick={() => handleOpenEditModal(exec)}
-          className="flex-1 rounded bg-indigo-500/20 px-3 py-2 text-xs text-indigo-400 transition-colors hover:bg-indigo-500/30"
-        >
-          Edit
-        </button>
-      </div>
-    </div>
-  )
+  const activeExecs = execs.filter((exec) => (exec.status || 'active') === 'active').length
+  const inactiveExecs = execs.filter((exec) => exec.status === 'inactive').length
 
   const handleCloseAddExecModal = () => {
     setIsAddExecModalOpen(false)
     setAddFormData({
-      email: '',
+      phone: '',
       password: '',
       full_name: '',
-      date_of_birth: '',
-      phone_number: '',
       notes: '',
     })
-  }
-
-  const createExecUserViaBackend = async (data) => {
-    const { data: currentSession } = await supabase.auth.getSession()
-    const originalAccessToken = currentSession?.session?.access_token
-    const originalRefreshToken = currentSession?.session?.refresh_token
-    const originalUserId = currentSession?.session?.user?.id
-
-    try {
-      const normalizedEmail = data.email.trim().toLowerCase()
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: normalizedEmail,
-        password: data.password,
-        options: {
-          emailRedirectTo: undefined,
-          data: {
-            full_name: data.full_name || '',
-            role: 'sales',
-          },
-        },
-      })
-
-      if (authError) {
-        const errorMsg = authError.message.toLowerCase()
-        if (
-          errorMsg.includes('already registered') ||
-          errorMsg.includes('already exists') ||
-          (errorMsg.includes('invalid') && errorMsg.includes('email'))
-        ) {
-          const { data: existingUser } = await supabase
-            .from('profiles')
-            .select('id, email, role')
-            .eq('email', normalizedEmail)
-            .single()
-
-          if (existingUser) {
-            throw new Error(`A user with email "${data.email}" already exists (Role: ${existingUser.role}). Please use a different email.`)
-          } else {
-            throw new Error(`Email "${data.email}" is already registered in the system. Please use a different email address.`)
-          }
-        }
-        throw authError
-      }
-
-      if (!authData.user) {
-        throw new Error('Failed to create user')
-      }
-
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-
-      const { data: existingProfile, error: existingProfileError } = await supabase
-        .from('profiles')
-        .select('id, role')
-        .eq('id', authData.user.id)
-        .maybeSingle()
-
-      if (existingProfileError) {
-        throw new Error(`Failed to check profile: ${existingProfileError.message}`)
-      }
-
-      if (existingProfile) {
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .update({
-            full_name: data.full_name || null,
-            date_of_birth: data.date_of_birth || null,
-            phone_number: data.phone_number || null,
-            notes: data.notes || null,
-          })
-          .eq('id', authData.user.id)
-
-        if (profileError) {
-          throw new Error(`Failed to update profile: ${profileError.message}`)
-        }
-      } else {
-        const { error: insertError } = await supabase
-          .from('profiles')
-          .insert({
-            id: authData.user.id,
-            email: normalizedEmail,
-            role: 'sales',
-            full_name: data.full_name || null,
-            date_of_birth: data.date_of_birth || null,
-            phone_number: data.phone_number || null,
-            notes: data.notes || null,
-          })
-          .select()
-          .single()
-
-        if (insertError) {
-          throw new Error(`Failed to create profile: ${insertError.message}`)
-        }
-      }
-
-      const { data: newSession } = await supabase.auth.getSession()
-      const newUserId = newSession?.session?.user?.id
-
-      if (originalAccessToken && originalRefreshToken && originalUserId && newUserId !== originalUserId) {
-        try {
-          window.__isRestoringSession = true
-
-          const { error: sessionError } = await supabase.auth.setSession({
-            access_token: originalAccessToken,
-            refresh_token: originalRefreshToken,
-          })
-
-          if (sessionError) {
-            window.__isRestoringSession = false
-            throw sessionError
-          }
-
-          let restored = false
-          for (let i = 0; i < 15; i++) {
-            await new Promise((resolve) => setTimeout(resolve, 100))
-            const { data: checkSession } = await supabase.auth.getSession()
-            if (checkSession?.session?.user?.id === originalUserId) {
-              restored = true
-              await new Promise((resolve) => setTimeout(resolve, 300))
-              break
-            }
-          }
-
-          if (!restored) {
-            window.__isRestoringSession = false
-          } else {
-            await new Promise((resolve) => setTimeout(resolve, 200))
-            try {
-              await supabase
-                .from('profiles')
-                .select('*')
-                .eq('id', originalUserId)
-                .single()
-              await new Promise((resolve) => setTimeout(resolve, 100))
-            } catch (_e) {
-              // ignore, session restoration is best-effort
-            }
-            window.__isRestoringSession = false
-          }
-        } catch (_sessionError) {
-          window.__isRestoringSession = false
-        }
-      }
-
-      return {
-        success: true,
-        userId: authData.user.id,
-        email: normalizedEmail,
-        role: 'sales',
-      }
-    } catch (error) {
-      if (typeof window !== 'undefined') {
-        window.__isRestoringSession = false
-      }
-      if (originalAccessToken && originalRefreshToken && originalUserId) {
-        const { data: currentSessionAfterError } = await supabase.auth.getSession()
-        const currentUserIdAfterError = currentSessionAfterError?.session?.user?.id
-
-        if (currentUserIdAfterError !== originalUserId) {
-          try {
-            await supabase.auth.setSession({
-              access_token: originalAccessToken,
-              refresh_token: originalRefreshToken,
-            })
-          } catch (_restoreError) {
-            // ignore session restore failure in error path
-          }
-        }
-      }
-      throw error
-    }
   }
 
   const handleCreateExec = async (e) => {
     e.preventDefault()
     setBanner(null)
 
-    if (!addFormData.email.trim()) {
+    if (!isValidPhone(addFormData.phone)) {
       setBanner({
         type: 'warning',
-        title: 'Email required',
-        message: 'Please enter a sales exec email.',
+        title: 'Valid phone required',
+        message: 'Enter a valid 10-digit mobile number (starting 6-9).',
       })
       return
     }
@@ -318,28 +100,41 @@ export default function SalesExec() {
       return
     }
 
+    if (!addFormData.full_name.trim()) {
+      setBanner({
+        type: 'warning',
+        title: 'Name required',
+        message: 'Please enter the sales exec full name.',
+      })
+      return
+    }
+
     setCreatingExec(true)
     try {
-      const result = await createExecUserViaBackend(addFormData)
+      const result = await createUser({
+        phone: addFormData.phone,
+        password: addFormData.password,
+        full_name: addFormData.full_name,
+        role: 'sales',
+        notes: addFormData.notes,
+      })
 
       await logAuditEvent({
         actionType: 'CREATE',
         entityType: 'user',
         entityId: result.userId,
-        description: `Onboarded new Sales Executive: ${addFormData.full_name || result.email}`,
+        description: `Onboarded new Sales Executive: ${addFormData.full_name.trim()} (${result.phone})`,
         newValues: {
-          email: result.email,
+          phone: result.phone,
           role: 'sales',
-          full_name: addFormData.full_name || null,
-          phone_number: addFormData.phone_number || null,
+          full_name: addFormData.full_name.trim(),
         },
       })
 
-      const execLabel = addFormData.full_name?.trim() || result.email
       setBanner({
         type: 'success',
         title: 'Sales exec created',
-        message: `Created "${execLabel}" with credential email ${result.email}.`,
+        message: `Created "${addFormData.full_name.trim()}" with login ${result.phone}.`,
       })
 
       handleCloseAddExecModal()
@@ -356,137 +151,161 @@ export default function SalesExec() {
     }
   }
 
-  const handleOpenEditModal = (exec) => {
-    setEditingExecId(exec.id)
-    setEditingExecOriginal(exec)
-    setEditFormData({
-      full_name: exec.full_name || '',
-      phone_number: exec.phone_number || '',
-      notes: exec.notes || '',
-    })
-    setIsEditModalOpen(true)
-  }
-
-  const handleCloseEditModal = () => {
-    setIsEditModalOpen(false)
-    setEditingExecId(null)
-    setEditingExecOriginal(null)
-    setEditFormData({
-      full_name: '',
-      phone_number: '',
-      notes: '',
-    })
-  }
-
-  const handleSaveExec = async () => {
-    if (!editingExecId) return
-    if (!editFormData.full_name.trim()) {
-      setBanner({
-        type: 'warning',
-        title: 'Name required',
-        message: 'Sales exec name cannot be empty.',
-      })
+  const handleDeactivate = async (exec) => {
+    const phone = exec.phone || exec.phone_number || normalizePhone(displayLogin(exec.email))
+    if (!isValidPhone(phone)) {
+      setBanner({ type: 'error', title: 'Cannot deactivate', message: 'No valid phone on file for this exec.' })
       return
     }
+    if (!confirm(`Deactivate "${exec.full_name || phone}"?\n\nThey lose dashboard access but all their data is kept.`)) return
 
-    setSavingEdit(true)
+    setBusyId(exec.id)
+    setBanner(null)
     try {
-      const updatePayload = {
-        full_name: editFormData.full_name.trim(),
-        phone_number: editFormData.phone_number.trim() || null,
-        notes: editFormData.notes.trim() || null,
-      }
-
-      const { error } = await supabase
-        .from('profiles')
-        .update(updatePayload)
-        .eq('id', editingExecId)
-        .eq('role', 'sales')
-
-      if (error) throw error
-
+      await deactivateUser(phone)
       await logAuditEvent({
         actionType: 'UPDATE',
         entityType: 'user',
-        entityId: editingExecId,
-        description: `Updated sales executive profile: ${updatePayload.full_name}`,
-        oldValues: {
-          full_name: editingExecOriginal?.full_name || null,
-          phone_number: editingExecOriginal?.phone_number || null,
-          notes: editingExecOriginal?.notes || null,
-        },
-        newValues: updatePayload,
+        entityId: exec.id,
+        description: `Deactivated sales executive: ${exec.full_name || phone} (${phone})`,
       })
-
-      setBanner({
-        type: 'success',
-        title: 'Sales exec updated',
-        message: `${updatePayload.full_name} details were updated successfully.`,
-      })
-      handleCloseEditModal()
+      setBanner({ type: 'success', title: 'Sales exec deactivated', message: `${exec.full_name || phone} can no longer log in. Data kept.` })
       await fetchExecs()
     } catch (error) {
-      console.error('Error updating sales exec:', error)
-      setBanner({
-        type: 'error',
-        title: 'Failed to update sales exec',
-        message: error.message,
-      })
+      console.error('Error deactivating sales exec:', error)
+      setBanner({ type: 'error', title: 'Failed to deactivate', message: error.message })
     } finally {
-      setSavingEdit(false)
+      setBusyId(null)
     }
   }
 
-  const handleDeleteExec = async () => {
-    if (!editingExecId || !editingExecOriginal) return
-
-    const confirmed = confirm(
-      `Delete sales exec "${editingExecOriginal.full_name || editingExecOriginal.email}"?\n\nThis removes their profile from the app and they will lose dashboard access.`
-    )
-    if (!confirmed) return
-
-    setDeletingExec(true)
+  const handleReactivate = async (exec) => {
+    const phone = exec.phone || exec.phone_number || normalizePhone(displayLogin(exec.email))
+    if (!isValidPhone(phone)) {
+      setBanner({ type: 'error', title: 'Cannot reactivate', message: 'No valid phone on file for this exec.' })
+      return
+    }
+    setBusyId(exec.id)
+    setBanner(null)
     try {
-      const { error: profileDeleteError } = await supabase
-        .from('profiles')
-        .delete()
-        .eq('id', editingExecId)
-        .eq('role', 'sales')
+      await reactivateUser(phone)
+      await logAuditEvent({
+        actionType: 'UPDATE',
+        entityType: 'user',
+        entityId: exec.id,
+        description: `Reactivated sales executive: ${exec.full_name || phone} (${phone})`,
+      })
+      setBanner({ type: 'success', title: 'Sales exec reactivated', message: `${exec.full_name || phone} can log in again.` })
+      await fetchExecs()
+    } catch (error) {
+      console.error('Error reactivating sales exec:', error)
+      setBanner({ type: 'error', title: 'Failed to reactivate', message: error.message })
+    } finally {
+      setBusyId(null)
+    }
+  }
 
-      if (profileDeleteError) throw profileDeleteError
+  const handleDelete = async (exec) => {
+    const phone = exec.phone || exec.phone_number || normalizePhone(displayLogin(exec.email))
+    if (!isValidPhone(phone)) {
+      setBanner({ type: 'error', title: 'Cannot delete', message: 'No valid phone on file for this exec.' })
+      return
+    }
+    if (!confirm(`Delete login for "${exec.full_name || phone}"?\n\nThis removes their login but KEEPS all their data and history.`)) return
 
+    setBusyId(exec.id)
+    setBanner(null)
+    try {
+      await deleteUser(phone)
       await logAuditEvent({
         actionType: 'DELETE',
         entityType: 'user',
-        entityId: editingExecId,
-        description: `Deleted sales executive profile: ${editingExecOriginal.full_name || editingExecOriginal.email}`,
+        entityId: exec.id,
+        description: `Deleted login for sales executive: ${exec.full_name || phone} (${phone})`,
         oldValues: {
-          email: editingExecOriginal.email || null,
-          full_name: editingExecOriginal.full_name || null,
-          phone_number: editingExecOriginal.phone_number || null,
-          notes: editingExecOriginal.notes || null,
+          phone,
+          full_name: exec.full_name || null,
           role: 'sales',
         },
       })
-
-      setBanner({
-        type: 'success',
-        title: 'Sales exec deleted',
-        message: `${editingExecOriginal.full_name || editingExecOriginal.email} was removed from the app.`,
-      })
-      handleCloseEditModal()
+      setBanner({ type: 'success', title: 'Login deleted', message: `${exec.full_name || phone}'s login was removed. Data kept.` })
       await fetchExecs()
     } catch (error) {
       console.error('Error deleting sales exec:', error)
-      setBanner({
-        type: 'error',
-        title: 'Failed to delete sales exec',
-        message: error.message || 'An unexpected error occurred while deleting the sales exec.',
-      })
+      setBanner({ type: 'error', title: 'Failed to delete', message: error.message })
     } finally {
-      setDeletingExec(false)
+      setBusyId(null)
     }
   }
+
+  const statusBadge = (status) => {
+    const s = status || 'active'
+    if (s === 'active') {
+      return <span className="inline-flex rounded-full border border-emerald-700 bg-emerald-500/10 px-2.5 py-1 text-xs text-emerald-400">Active</span>
+    }
+    if (s === 'inactive') {
+      return <span className="inline-flex rounded-full border border-amber-700 bg-amber-500/10 px-2.5 py-1 text-xs text-amber-400">Deactivated</span>
+    }
+    return <span className="inline-flex rounded-full border border-slate-700 bg-slate-800 px-2.5 py-1 text-xs text-slate-400">Deleted</span>
+  }
+
+  const rowActions = (exec) => {
+    const status = exec.status || 'active'
+    const busy = busyId === exec.id
+    return (
+      <div className="flex items-center justify-end gap-2">
+        {status === 'inactive' ? (
+          <button
+            onClick={() => handleReactivate(exec)}
+            disabled={busy}
+            className="rounded bg-emerald-500/20 px-3 py-1 text-xs text-emerald-400 transition-colors hover:bg-emerald-500/30 disabled:opacity-50"
+          >
+            {busy ? '...' : 'Reactivate'}
+          </button>
+        ) : status === 'active' ? (
+          <button
+            onClick={() => handleDeactivate(exec)}
+            disabled={busy}
+            className="rounded bg-amber-500/20 px-3 py-1 text-xs text-amber-400 transition-colors hover:bg-amber-500/30 disabled:opacity-50"
+          >
+            {busy ? '...' : 'Deactivate'}
+          </button>
+        ) : null}
+        <button
+          onClick={() => handleDelete(exec)}
+          disabled={busy}
+          className="rounded bg-rose-500/20 px-3 py-1 text-xs text-rose-400 transition-colors hover:bg-rose-500/30 disabled:opacity-50"
+        >
+          {busy ? '...' : 'Delete'}
+        </button>
+      </div>
+    )
+  }
+
+  const renderExecCard = (exec) => (
+    <div key={exec.id} className="rounded-xl border border-slate-800 bg-slate-900 p-4">
+      <div className="mb-3 flex items-start justify-between gap-2">
+        <div>
+          <p className="font-semibold text-white">{exec.full_name || 'N/A'}</p>
+          <p className="text-xs text-slate-500">{execPhone(exec)}</p>
+        </div>
+        {statusBadge(exec.status)}
+      </div>
+      <div className="mb-3 grid grid-cols-2 gap-3">
+        <div>
+          <p className="text-xs text-slate-500">Created</p>
+          <p className="text-sm text-slate-300">
+            {exec.created_at ? formatDateDDMMYY(exec.created_at) : 'N/A'}
+          </p>
+        </div>
+        <div className="col-span-2">
+          <p className="text-xs text-slate-500">Notes</p>
+          <p className="text-sm text-slate-300">{exec.notes || '—'}</p>
+        </div>
+      </div>
+      {rowActions(exec)}
+    </div>
+  )
 
   if (loading) {
     return (
@@ -530,15 +349,15 @@ export default function SalesExec() {
       <div className="mb-6">
         <AlertBanner
           type="info"
-          title="Credential security"
-          message="Passwords are hidden in the admin UI."
+          title="Phone login"
+          message="Sales execs log in with their phone number and password. Deleting a login keeps all their data."
         />
       </div>
 
       <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-3">
         <KPICard title="Total Execs" value={execs.length} color="indigo" />
-        <KPICard title="With Phone" value={execsWithPhone} color="emerald" />
-        <KPICard title="Added (30 Days)" value={execsCreatedLast30Days} color="amber" />
+        <KPICard title="Active" value={activeExecs} color="emerald" />
+        <KPICard title="Deactivated" value={inactiveExecs} color="amber" />
       </div>
 
       <div className="mb-6 rounded-xl border border-slate-800 bg-slate-900 p-4">
@@ -555,7 +374,7 @@ export default function SalesExec() {
               </svg>
               <input
                 type="text"
-                placeholder="Search by name, email, or phone..."
+                placeholder="Search by name, phone, or notes..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full rounded-lg border border-slate-700 bg-slate-800 py-2 pl-10 pr-4 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -593,11 +412,11 @@ export default function SalesExec() {
           <table className="w-full">
             <thead className="bg-slate-800/50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-400">Exec</th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-400">Credential Email</th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-400">Name</th>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-400">Phone</th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-400">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-400">Notes</th>
                 <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-400">Created</th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-400">Credentials</th>
                 <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-400">Actions</th>
               </tr>
             </thead>
@@ -611,31 +430,18 @@ export default function SalesExec() {
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    <p className="text-slate-300">{exec.email || 'N/A'}</p>
+                    <p className="text-slate-300">{execPhone(exec)}</p>
                   </td>
+                  <td className="px-6 py-4">{statusBadge(exec.status)}</td>
                   <td className="px-6 py-4">
-                    <p className="text-slate-300">{exec.phone_number || 'N/A'}</p>
+                    <p className="max-w-xs truncate text-slate-300">{exec.notes || '—'}</p>
                   </td>
                   <td className="px-6 py-4">
                     <p className="text-slate-300">
                       {exec.created_at ? formatDateDDMMYY(exec.created_at) : 'N/A'}
                     </p>
                   </td>
-                  <td className="px-6 py-4">
-                    <div className="inline-flex rounded-full border border-slate-700 bg-slate-800 px-2.5 py-1 text-xs text-slate-300">
-                      Password hidden
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <button
-                        onClick={() => handleOpenEditModal(exec)}
-                        className="rounded bg-indigo-500/20 px-3 py-1 text-xs text-indigo-400 transition-colors hover:bg-indigo-500/30"
-                      >
-                        Edit
-                      </button>
-                    </div>
-                  </td>
+                  <td className="px-6 py-4 text-right">{rowActions(exec)}</td>
                 </tr>
               ))}
               {filteredExecs.length === 0 && (
@@ -657,11 +463,11 @@ export default function SalesExec() {
       >
         <form onSubmit={handleCreateExec}>
           <FormField
-            label="Email"
-            type="email"
-            value={addFormData.email}
-            onChange={(value) => setAddFormData({ ...addFormData, email: value })}
-            placeholder="sales@example.com"
+            label="Phone Number"
+            type="tel"
+            value={addFormData.phone}
+            onChange={(value) => setAddFormData({ ...addFormData, phone: value })}
+            placeholder="9876543210"
             required
           />
 
@@ -680,21 +486,7 @@ export default function SalesExec() {
             value={addFormData.full_name}
             onChange={(value) => setAddFormData({ ...addFormData, full_name: value })}
             placeholder="Sales exec name"
-          />
-
-          <FormField
-            label="Date of Birth"
-            type="date"
-            value={addFormData.date_of_birth}
-            onChange={(value) => setAddFormData({ ...addFormData, date_of_birth: value })}
-          />
-
-          <FormField
-            label="Phone Number"
-            type="tel"
-            value={addFormData.phone_number}
-            onChange={(value) => setAddFormData({ ...addFormData, phone_number: value })}
-            placeholder="+1234567890"
+            required
           />
 
           <FormField
@@ -720,75 +512,6 @@ export default function SalesExec() {
               disabled={creatingExec}
             >
               {creatingExec ? 'Creating...' : 'Create Exec'}
-            </button>
-          </div>
-        </form>
-      </Modal>
-
-      <Modal
-        isOpen={isEditModalOpen}
-        onClose={handleCloseEditModal}
-        title="Edit Sales Exec"
-      >
-        <form
-          onSubmit={(e) => {
-            e.preventDefault()
-            handleSaveExec()
-          }}
-        >
-          <div className="mb-4">
-            <label className="mb-2 block text-sm font-medium text-slate-300">Credential Email (read-only)</label>
-            <div className="rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-slate-400">
-              {editingExecOriginal?.email || 'N/A'}
-            </div>
-          </div>
-
-          <FormField
-            label="Sales Exec Name"
-            value={editFormData.full_name}
-            onChange={(value) => setEditFormData({ ...editFormData, full_name: value })}
-            placeholder="Enter sales exec name"
-            required
-          />
-
-          <FormField
-            label="Phone Number"
-            value={editFormData.phone_number}
-            onChange={(value) => setEditFormData({ ...editFormData, phone_number: value })}
-            placeholder="+1234567890"
-          />
-
-          <FormField
-            label="Notes"
-            type="textarea"
-            value={editFormData.notes}
-            onChange={(value) => setEditFormData({ ...editFormData, notes: value })}
-            placeholder="Internal notes"
-          />
-
-          <div className="mt-6 flex gap-3">
-            <button
-              type="button"
-              onClick={handleDeleteExec}
-              className="rounded-lg bg-rose-600 px-4 py-2 font-medium text-white transition-colors hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={savingEdit || deletingExec}
-            >
-              {deletingExec ? 'Deleting...' : 'Delete Exec'}
-            </button>
-            <button
-              type="button"
-              onClick={handleCloseEditModal}
-              className="flex-1 rounded-lg bg-slate-800 px-4 py-2 text-white transition-colors hover:bg-slate-700"
-              disabled={savingEdit || deletingExec}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="flex-1 rounded-lg bg-indigo-600 px-4 py-2 font-medium text-white transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={savingEdit || deletingExec}
-            >
-              {savingEdit ? 'Saving...' : 'Save Changes'}
             </button>
           </div>
         </form>

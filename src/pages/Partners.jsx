@@ -6,6 +6,17 @@ import Modal from '../components/Modal'
 import FormField from '../components/FormField'
 import { logAuditEvent } from '../lib/audit'
 import { formatDateDDMMYY } from '../lib/date'
+import { createUser, deactivateUser, deleteUser, reactivateUser } from '../lib/adminApi'
+import { displayLogin, isValidPhone, normalizePhone } from '../lib/phone'
+
+// A partner's "display phone" is either the dedicated `phone` column or the
+// digits embedded in the synthetic `<digits>@cadieux.partner` auth email.
+// Fall back to the legacy free-form `phone_number` field so older partners
+// still render.
+function partnerPhone(p) {
+  if (!p) return ''
+  return p.phone || p.phone_number || displayLogin(p.email) || ''
+}
 
 export default function Partners() {
   const [partners, setPartners] = useState([])
@@ -14,22 +25,11 @@ export default function Partners() {
   const [isAddPartnerModalOpen, setIsAddPartnerModalOpen] = useState(false)
   const [creatingPartner, setCreatingPartner] = useState(false)
   const [banner, setBanner] = useState(null)
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
-  const [editingPartnerId, setEditingPartnerId] = useState(null)
-  const [editingPartnerOriginal, setEditingPartnerOriginal] = useState(null)
-  const [savingEdit, setSavingEdit] = useState(false)
-  const [deletingPartner, setDeletingPartner] = useState(false)
+  const [busyId, setBusyId] = useState(null)
   const [addFormData, setAddFormData] = useState({
-    email: '',
+    phone: '',
     password: '',
     full_name: '',
-    date_of_birth: '',
-    phone_number: '',
-    notes: '',
-  })
-  const [editFormData, setEditFormData] = useState({
-    full_name: '',
-    phone_number: '',
     notes: '',
   })
 
@@ -41,7 +41,7 @@ export default function Partners() {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, email, full_name, phone_number, notes, created_at, role')
+        .select('id, email, full_name, phone, phone_number, notes, status, created_at, role')
         .eq('role', 'partner')
         .order('created_at', { ascending: false })
 
@@ -64,249 +64,37 @@ export default function Partners() {
     const query = searchQuery.toLowerCase()
     return partners.filter((partner) => {
       const matchesName = partner.full_name?.toLowerCase().includes(query)
-      const matchesEmail = partner.email?.toLowerCase().includes(query)
-      const matchesPhone = partner.phone_number?.toLowerCase().includes(query)
-      return matchesName || matchesEmail || matchesPhone
+      const matchesPhone = partnerPhone(partner).toLowerCase().includes(query)
+      const matchesNotes = partner.notes?.toLowerCase().includes(query)
+      return matchesName || matchesPhone || matchesNotes
     })
   }, [partners, searchQuery])
 
-  const partnersWithPhone = partners.filter(p => p.phone_number).length
-  const partnersCreatedLast30Days = partners.filter((partner) => {
-    if (!partner.created_at) return false
-    const createdDate = new Date(partner.created_at)
-    const thirtyDaysAgo = new Date()
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
-    return createdDate >= thirtyDaysAgo
-  }).length
-
-  const renderPartnerCard = (partner) => (
-    <div key={partner.id} className="rounded-xl border border-slate-800 bg-slate-900 p-4">
-      <div className="mb-3">
-        <p className="font-semibold text-white">{partner.full_name || 'N/A'}</p>
-        <p className="text-xs text-slate-500">{partner.email || 'N/A'}</p>
-      </div>
-      <div className="mb-3 grid grid-cols-2 gap-3">
-        <div>
-          <p className="text-xs text-slate-500">Phone</p>
-          <p className="text-sm text-slate-300">{partner.phone_number || 'N/A'}</p>
-        </div>
-        <div>
-          <p className="text-xs text-slate-500">Created</p>
-          <p className="text-sm text-slate-300">
-            {partner.created_at ? formatDateDDMMYY(partner.created_at) : 'N/A'}
-          </p>
-        </div>
-        <div className="col-span-2">
-          <p className="text-xs text-slate-500">Credentials</p>
-          <div className="mt-1 inline-flex rounded-full border border-slate-700 bg-slate-800 px-2.5 py-1 text-xs text-slate-300">
-            Password hidden
-          </div>
-        </div>
-      </div>
-      <div className="flex items-center gap-2">
-        <button
-          onClick={() => handleOpenEditModal(partner)}
-          className="flex-1 rounded px-3 py-2 text-xs text-indigo-400 transition-colors bg-indigo-500/20 hover:bg-indigo-500/30"
-        >
-          Edit
-        </button>
-      </div>
-    </div>
-  )
+  const activePartners = partners.filter((p) => (p.status || 'active') === 'active').length
+  const inactivePartners = partners.filter((p) => p.status === 'inactive').length
 
   const handleCloseAddPartnerModal = () => {
     setIsAddPartnerModalOpen(false)
     setAddFormData({
-      email: '',
+      phone: '',
       password: '',
       full_name: '',
-      date_of_birth: '',
-      phone_number: '',
       notes: '',
     })
-  }
-
-  const createPartnerUserViaBackend = async (data) => {
-    const { data: currentSession } = await supabase.auth.getSession()
-    const originalAccessToken = currentSession?.session?.access_token
-    const originalRefreshToken = currentSession?.session?.refresh_token
-    const originalUserId = currentSession?.session?.user?.id
-
-    try {
-      const normalizedEmail = data.email.trim().toLowerCase()
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: normalizedEmail,
-        password: data.password,
-        options: {
-          emailRedirectTo: undefined,
-          data: {
-            full_name: data.full_name || '',
-            role: 'partner',
-          },
-        },
-      })
-
-      if (authError) {
-        const errorMsg = authError.message.toLowerCase()
-        if (errorMsg.includes('already registered') ||
-          errorMsg.includes('already exists') ||
-          (errorMsg.includes('invalid') && errorMsg.includes('email'))) {
-          const { data: existingUser } = await supabase
-            .from('profiles')
-            .select('id, email, role')
-            .eq('email', normalizedEmail)
-            .single()
-
-          if (existingUser) {
-            throw new Error(`A user with email "${data.email}" already exists (Role: ${existingUser.role}). Please use a different email.`)
-          } else {
-            throw new Error(`Email "${data.email}" is already registered in the system. Please use a different email address.`)
-          }
-        }
-        throw authError
-      }
-
-      if (!authData.user) {
-        throw new Error('Failed to create user')
-      }
-
-      await new Promise(resolve => setTimeout(resolve, 1000))
-
-      const { data: existingProfile, error: existingProfileError } = await supabase
-        .from('profiles')
-        .select('id, role')
-        .eq('id', authData.user.id)
-        .maybeSingle()
-
-      if (existingProfileError) {
-        throw new Error(`Failed to check profile: ${existingProfileError.message}`)
-      }
-
-      if (existingProfile) {
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .update({
-            full_name: data.full_name || null,
-            date_of_birth: data.date_of_birth || null,
-            phone_number: data.phone_number || null,
-            notes: data.notes || null,
-          })
-          .eq('id', authData.user.id)
-
-        if (profileError) {
-          throw new Error(`Failed to update profile: ${profileError.message}`)
-        }
-      } else {
-        const { error: insertError } = await supabase
-          .from('profiles')
-          .insert({
-            id: authData.user.id,
-            email: normalizedEmail,
-            role: 'partner',
-            full_name: data.full_name || null,
-            date_of_birth: data.date_of_birth || null,
-            phone_number: data.phone_number || null,
-            notes: data.notes || null,
-          })
-          .select()
-          .single()
-
-        if (insertError) {
-          throw new Error(`Failed to create profile: ${insertError.message}`)
-        }
-      }
-
-      const { data: newSession } = await supabase.auth.getSession()
-      const newUserId = newSession?.session?.user?.id
-
-      if (originalAccessToken && originalRefreshToken && originalUserId && newUserId !== originalUserId) {
-        try {
-          window.__isRestoringSession = true
-
-          const { error: sessionError } = await supabase.auth.setSession({
-            access_token: originalAccessToken,
-            refresh_token: originalRefreshToken,
-          })
-
-          if (sessionError) {
-            window.__isRestoringSession = false
-            throw sessionError
-          }
-
-          let restored = false
-          for (let i = 0; i < 15; i++) {
-            await new Promise(resolve => setTimeout(resolve, 100))
-            const { data: checkSession } = await supabase.auth.getSession()
-            if (checkSession?.session?.user?.id === originalUserId) {
-              restored = true
-              await new Promise(resolve => setTimeout(resolve, 300))
-              break
-            }
-          }
-
-          if (!restored) {
-            window.__isRestoringSession = false
-          } else {
-            await new Promise(resolve => setTimeout(resolve, 200))
-            try {
-              await supabase
-                .from('profiles')
-                .select('*')
-                .eq('id', originalUserId)
-                .single()
-              await new Promise(resolve => setTimeout(resolve, 100))
-            } catch (_e) {
-              // ignore, session restoration is best-effort
-            }
-            window.__isRestoringSession = false
-          }
-        } catch (_sessionError) {
-          window.__isRestoringSession = false
-        }
-      }
-
-      return {
-        success: true,
-        userId: authData.user.id,
-        email: normalizedEmail,
-        role: 'partner',
-      }
-    } catch (error) {
-      if (typeof window !== 'undefined') {
-        window.__isRestoringSession = false
-      }
-      if (originalAccessToken && originalRefreshToken && originalUserId) {
-        const { data: currentSessionAfterError } = await supabase.auth.getSession()
-        const currentUserIdAfterError = currentSessionAfterError?.session?.user?.id
-
-        if (currentUserIdAfterError !== originalUserId) {
-          try {
-            await supabase.auth.setSession({
-              access_token: originalAccessToken,
-              refresh_token: originalRefreshToken,
-            })
-          } catch (_restoreError) {
-            // ignore session restore failure in error path
-          }
-        }
-      }
-      throw error
-    }
   }
 
   const handleCreatePartner = async (e) => {
     e.preventDefault()
     setBanner(null)
 
-    if (!addFormData.email.trim()) {
+    if (!isValidPhone(addFormData.phone)) {
       setBanner({
         type: 'warning',
-        title: 'Email required',
-        message: 'Please enter a partner email.',
+        title: 'Valid phone required',
+        message: 'Enter a valid 10-digit mobile number (starting 6-9).',
       })
       return
     }
-
     if (!addFormData.password || addFormData.password.length < 6) {
       setBanner({
         type: 'warning',
@@ -315,29 +103,41 @@ export default function Partners() {
       })
       return
     }
+    if (!addFormData.full_name.trim()) {
+      setBanner({
+        type: 'warning',
+        title: 'Name required',
+        message: 'Please enter the partner\u2019s full name.',
+      })
+      return
+    }
 
     setCreatingPartner(true)
     try {
-      const result = await createPartnerUserViaBackend(addFormData)
+      const result = await createUser({
+        phone: addFormData.phone,
+        password: addFormData.password,
+        full_name: addFormData.full_name,
+        role: 'partner',
+        notes: addFormData.notes,
+      })
 
       await logAuditEvent({
         actionType: 'CREATE',
         entityType: 'user',
         entityId: result.userId,
-        description: `Onboarded new Partner: ${addFormData.full_name || result.email}`,
+        description: `Onboarded new Partner: ${addFormData.full_name.trim()} (${result.phone})`,
         newValues: {
-          email: result.email,
+          phone: result.phone,
           role: 'partner',
-          full_name: addFormData.full_name || null,
-          phone_number: addFormData.phone_number || null,
+          full_name: addFormData.full_name.trim(),
         },
       })
 
-      const partnerLabel = addFormData.full_name?.trim() || result.email
       setBanner({
         type: 'success',
         title: 'Partner created successfully',
-        message: `Created "${partnerLabel}" with credential email ${result.email}. The partner can sign in using the password you set, and you can use "Send Reset Link" anytime.`,
+        message: `Created "${addFormData.full_name.trim()}" with login ${result.phone}.`,
       })
 
       handleCloseAddPartnerModal()
@@ -354,137 +154,161 @@ export default function Partners() {
     }
   }
 
-  const handleOpenEditModal = (partner) => {
-    setEditingPartnerId(partner.id)
-    setEditingPartnerOriginal(partner)
-    setEditFormData({
-      full_name: partner.full_name || '',
-      phone_number: partner.phone_number || '',
-      notes: partner.notes || '',
-    })
-    setIsEditModalOpen(true)
-  }
-
-  const handleCloseEditModal = () => {
-    setIsEditModalOpen(false)
-    setEditingPartnerId(null)
-    setEditingPartnerOriginal(null)
-    setEditFormData({
-      full_name: '',
-      phone_number: '',
-      notes: '',
-    })
-  }
-
-  const handleSavePartner = async () => {
-    if (!editingPartnerId) return
-    if (!editFormData.full_name.trim()) {
-      setBanner({
-        type: 'warning',
-        title: 'Name required',
-        message: 'Partner name cannot be empty.',
-      })
+  const handleDeactivate = async (partner) => {
+    const phone = partner.phone || partner.phone_number || normalizePhone(displayLogin(partner.email))
+    if (!isValidPhone(phone)) {
+      setBanner({ type: 'error', title: 'Cannot deactivate', message: 'No valid phone on file for this partner.' })
       return
     }
+    if (!confirm(`Deactivate "${partner.full_name || phone}"?\n\nThey lose dashboard access but all their data is kept.`)) return
 
-    setSavingEdit(true)
+    setBusyId(partner.id)
+    setBanner(null)
     try {
-      const updatePayload = {
-        full_name: editFormData.full_name.trim(),
-        phone_number: editFormData.phone_number.trim() || null,
-        notes: editFormData.notes.trim() || null,
-      }
-
-      const { error } = await supabase
-        .from('profiles')
-        .update(updatePayload)
-        .eq('id', editingPartnerId)
-        .eq('role', 'partner')
-
-      if (error) throw error
-
+      await deactivateUser(phone)
       await logAuditEvent({
         actionType: 'UPDATE',
         entityType: 'user',
-        entityId: editingPartnerId,
-        description: `Updated partner profile: ${updatePayload.full_name}`,
-        oldValues: {
-          full_name: editingPartnerOriginal?.full_name || null,
-          phone_number: editingPartnerOriginal?.phone_number || null,
-          notes: editingPartnerOriginal?.notes || null,
-        },
-        newValues: updatePayload,
+        entityId: partner.id,
+        description: `Deactivated partner: ${partner.full_name || phone} (${phone})`,
       })
-
-      setBanner({
-        type: 'success',
-        title: 'Partner updated',
-        message: `${updatePayload.full_name} details were updated successfully.`,
-      })
-      handleCloseEditModal()
+      setBanner({ type: 'success', title: 'Partner deactivated', message: `${partner.full_name || phone} can no longer log in. Data kept.` })
       await fetchPartners()
     } catch (error) {
-      console.error('Error updating partner:', error)
-      setBanner({
-        type: 'error',
-        title: 'Failed to update partner',
-        message: error.message,
-      })
+      console.error('Error deactivating partner:', error)
+      setBanner({ type: 'error', title: 'Failed to deactivate', message: error.message })
     } finally {
-      setSavingEdit(false)
+      setBusyId(null)
     }
   }
 
-  const handleDeletePartner = async () => {
-    if (!editingPartnerId || !editingPartnerOriginal) return
-
-    const confirmed = confirm(
-      `Delete partner "${editingPartnerOriginal.full_name || editingPartnerOriginal.email}"?\n\nThis removes their profile from the app and they will lose dashboard access.`
-    )
-    if (!confirmed) return
-
-    setDeletingPartner(true)
+  const handleReactivate = async (partner) => {
+    const phone = partner.phone || partner.phone_number || normalizePhone(displayLogin(partner.email))
+    if (!isValidPhone(phone)) {
+      setBanner({ type: 'error', title: 'Cannot reactivate', message: 'No valid phone on file for this partner.' })
+      return
+    }
+    setBusyId(partner.id)
+    setBanner(null)
     try {
-      const { error: profileDeleteError } = await supabase
-        .from('profiles')
-        .delete()
-        .eq('id', editingPartnerId)
-        .eq('role', 'partner')
+      await reactivateUser(phone)
+      await logAuditEvent({
+        actionType: 'UPDATE',
+        entityType: 'user',
+        entityId: partner.id,
+        description: `Reactivated partner: ${partner.full_name || phone} (${phone})`,
+      })
+      setBanner({ type: 'success', title: 'Partner reactivated', message: `${partner.full_name || phone} can log in again.` })
+      await fetchPartners()
+    } catch (error) {
+      console.error('Error reactivating partner:', error)
+      setBanner({ type: 'error', title: 'Failed to reactivate', message: error.message })
+    } finally {
+      setBusyId(null)
+    }
+  }
 
-      if (profileDeleteError) throw profileDeleteError
+  const handleDelete = async (partner) => {
+    const phone = partner.phone || partner.phone_number || normalizePhone(displayLogin(partner.email))
+    if (!isValidPhone(phone)) {
+      setBanner({ type: 'error', title: 'Cannot delete', message: 'No valid phone on file for this partner.' })
+      return
+    }
+    if (!confirm(`Delete login for "${partner.full_name || phone}"?\n\nThis removes their login but KEEPS all their data and history.`)) return
 
+    setBusyId(partner.id)
+    setBanner(null)
+    try {
+      await deleteUser(phone)
       await logAuditEvent({
         actionType: 'DELETE',
         entityType: 'user',
-        entityId: editingPartnerId,
-        description: `Deleted partner profile: ${editingPartnerOriginal.full_name || editingPartnerOriginal.email}`,
+        entityId: partner.id,
+        description: `Deleted login for partner: ${partner.full_name || phone} (${phone})`,
         oldValues: {
-          email: editingPartnerOriginal.email || null,
-          full_name: editingPartnerOriginal.full_name || null,
-          phone_number: editingPartnerOriginal.phone_number || null,
-          notes: editingPartnerOriginal.notes || null,
+          phone,
+          full_name: partner.full_name || null,
           role: 'partner',
         },
       })
-
-      setBanner({
-        type: 'success',
-        title: 'Partner deleted',
-        message: `${editingPartnerOriginal.full_name || editingPartnerOriginal.email} was removed from the app and can no longer access the dashboard.`,
-      })
-      handleCloseEditModal()
+      setBanner({ type: 'success', title: 'Login deleted', message: `${partner.full_name || phone}'s login was removed. Data kept.` })
       await fetchPartners()
     } catch (error) {
       console.error('Error deleting partner:', error)
-      setBanner({
-        type: 'error',
-        title: 'Failed to delete partner',
-        message: error.message || 'An unexpected error occurred while deleting the partner.',
-      })
+      setBanner({ type: 'error', title: 'Failed to delete', message: error.message })
     } finally {
-      setDeletingPartner(false)
+      setBusyId(null)
     }
   }
+
+  const statusBadge = (status) => {
+    const s = status || 'active'
+    if (s === 'active') {
+      return <span className="inline-flex rounded-full border border-emerald-700 bg-emerald-500/10 px-2.5 py-1 text-xs text-emerald-400">Active</span>
+    }
+    if (s === 'inactive') {
+      return <span className="inline-flex rounded-full border border-amber-700 bg-amber-500/10 px-2.5 py-1 text-xs text-amber-400">Deactivated</span>
+    }
+    return <span className="inline-flex rounded-full border border-slate-700 bg-slate-800 px-2.5 py-1 text-xs text-slate-400">Deleted</span>
+  }
+
+  const rowActions = (partner) => {
+    const status = partner.status || 'active'
+    const busy = busyId === partner.id
+    return (
+      <div className="flex items-center justify-end gap-2">
+        {status === 'inactive' ? (
+          <button
+            onClick={() => handleReactivate(partner)}
+            disabled={busy}
+            className="rounded bg-emerald-500/20 px-3 py-1 text-xs text-emerald-400 transition-colors hover:bg-emerald-500/30 disabled:opacity-50"
+          >
+            {busy ? '...' : 'Reactivate'}
+          </button>
+        ) : status === 'active' ? (
+          <button
+            onClick={() => handleDeactivate(partner)}
+            disabled={busy}
+            className="rounded bg-amber-500/20 px-3 py-1 text-xs text-amber-400 transition-colors hover:bg-amber-500/30 disabled:opacity-50"
+          >
+            {busy ? '...' : 'Deactivate'}
+          </button>
+        ) : null}
+        <button
+          onClick={() => handleDelete(partner)}
+          disabled={busy}
+          className="rounded bg-rose-500/20 px-3 py-1 text-xs text-rose-400 transition-colors hover:bg-rose-500/30 disabled:opacity-50"
+        >
+          {busy ? '...' : 'Delete'}
+        </button>
+      </div>
+    )
+  }
+
+  const renderPartnerCard = (partner) => (
+    <div key={partner.id} className="rounded-xl border border-slate-800 bg-slate-900 p-4">
+      <div className="mb-3 flex items-start justify-between gap-2">
+        <div>
+          <p className="font-semibold text-white">{partner.full_name || 'N/A'}</p>
+          <p className="text-xs text-slate-500">{partnerPhone(partner) || 'N/A'}</p>
+        </div>
+        {statusBadge(partner.status)}
+      </div>
+      <div className="mb-3 grid grid-cols-2 gap-3">
+        <div>
+          <p className="text-xs text-slate-500">Created</p>
+          <p className="text-sm text-slate-300">
+            {partner.created_at ? formatDateDDMMYY(partner.created_at) : 'N/A'}
+          </p>
+        </div>
+        <div className="col-span-2">
+          <p className="text-xs text-slate-500">Notes</p>
+          <p className="text-sm text-slate-300">{partner.notes || '—'}</p>
+        </div>
+      </div>
+      {rowActions(partner)}
+    </div>
+  )
 
   if (loading) {
     return (
@@ -528,15 +352,15 @@ export default function Partners() {
       <div className="mb-6">
         <AlertBanner
           type="info"
-          title="Credential security"
-          message="Passwords are never visible in the admin UI. Partner credentials are managed securely and are not displayed in plaintext."
+          title="Phone login"
+          message="Partners log in with their phone number and password. Deleting a login keeps all their data."
         />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
         <KPICard title="Total Partners" value={partners.length} color="indigo" />
-        <KPICard title="With Phone Number" value={partnersWithPhone} color="emerald" />
-        <KPICard title="Added (Last 30 Days)" value={partnersCreatedLast30Days} color="amber" />
+        <KPICard title="Active" value={activePartners} color="emerald" />
+        <KPICard title="Deactivated" value={inactivePartners} color="amber" />
       </div>
 
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 mb-6">
@@ -553,7 +377,7 @@ export default function Partners() {
               </svg>
               <input
                 type="text"
-                placeholder="Search by partner name, email, or phone..."
+                placeholder="Search by partner name, phone, or notes..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -591,11 +415,11 @@ export default function Partners() {
           <table className="w-full">
             <thead className="bg-slate-800/50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Partner</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Credential Email</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Name</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Phone</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Notes</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Created</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Credentials</th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
@@ -609,31 +433,18 @@ export default function Partners() {
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    <p className="text-slate-300">{partner.email || 'N/A'}</p>
+                    <p className="text-slate-300">{partnerPhone(partner) || 'N/A'}</p>
                   </td>
+                  <td className="px-6 py-4">{statusBadge(partner.status)}</td>
                   <td className="px-6 py-4">
-                    <p className="text-slate-300">{partner.phone_number || 'N/A'}</p>
+                    <p className="max-w-xs truncate text-slate-300">{partner.notes || '—'}</p>
                   </td>
                   <td className="px-6 py-4">
                     <p className="text-slate-300">
                       {partner.created_at ? formatDateDDMMYY(partner.created_at) : 'N/A'}
                     </p>
                   </td>
-                  <td className="px-6 py-4">
-                    <div className="inline-flex px-2.5 py-1 rounded-full bg-slate-800 border border-slate-700 text-xs text-slate-300">
-                      Password hidden
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <button
-                        onClick={() => handleOpenEditModal(partner)}
-                        className="px-3 py-1 text-xs bg-indigo-500/20 text-indigo-400 hover:bg-indigo-500/30 rounded transition-colors"
-                      >
-                        Edit
-                      </button>
-                    </div>
-                  </td>
+                  <td className="px-6 py-4 text-right">{rowActions(partner)}</td>
                 </tr>
               ))}
               {filteredPartners.length === 0 && (
@@ -655,11 +466,11 @@ export default function Partners() {
       >
         <form onSubmit={handleCreatePartner}>
           <FormField
-            label="Email"
-            type="email"
-            value={addFormData.email}
-            onChange={(value) => setAddFormData({ ...addFormData, email: value })}
-            placeholder="partner@example.com"
+            label="Phone Number"
+            type="tel"
+            value={addFormData.phone}
+            onChange={(value) => setAddFormData({ ...addFormData, phone: value })}
+            placeholder="9876543210"
             required
           />
 
@@ -678,21 +489,7 @@ export default function Partners() {
             value={addFormData.full_name}
             onChange={(value) => setAddFormData({ ...addFormData, full_name: value })}
             placeholder="Partner full name"
-          />
-
-          <FormField
-            label="Date of Birth"
-            type="date"
-            value={addFormData.date_of_birth}
-            onChange={(value) => setAddFormData({ ...addFormData, date_of_birth: value })}
-          />
-
-          <FormField
-            label="Phone Number"
-            type="tel"
-            value={addFormData.phone_number}
-            onChange={(value) => setAddFormData({ ...addFormData, phone_number: value })}
-            placeholder="+1234567890"
+            required
           />
 
           <FormField
@@ -718,75 +515,6 @@ export default function Partners() {
               disabled={creatingPartner}
             >
               {creatingPartner ? 'Creating...' : 'Create Partner'}
-            </button>
-          </div>
-        </form>
-      </Modal>
-
-      <Modal
-        isOpen={isEditModalOpen}
-        onClose={handleCloseEditModal}
-        title="Edit Partner"
-      >
-        <form
-          onSubmit={(e) => {
-            e.preventDefault()
-            handleSavePartner()
-          }}
-        >
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-slate-300 mb-2">Credential Email (read-only)</label>
-            <div className="px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-400">
-              {editingPartnerOriginal?.email || 'N/A'}
-            </div>
-          </div>
-
-          <FormField
-            label="Partner Name"
-            value={editFormData.full_name}
-            onChange={(value) => setEditFormData({ ...editFormData, full_name: value })}
-            placeholder="Enter partner name"
-            required
-          />
-
-          <FormField
-            label="Phone Number"
-            value={editFormData.phone_number}
-            onChange={(value) => setEditFormData({ ...editFormData, phone_number: value })}
-            placeholder="+1234567890"
-          />
-
-          <FormField
-            label="Notes"
-            type="textarea"
-            value={editFormData.notes}
-            onChange={(value) => setEditFormData({ ...editFormData, notes: value })}
-            placeholder="Internal notes"
-          />
-
-          <div className="flex gap-3 mt-6">
-            <button
-              type="button"
-              onClick={handleDeletePartner}
-              className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={savingEdit || deletingPartner}
-            >
-              {deletingPartner ? 'Deleting...' : 'Delete Partner'}
-            </button>
-            <button
-              type="button"
-              onClick={handleCloseEditModal}
-              className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg transition-colors"
-              disabled={savingEdit || deletingPartner}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={savingEdit || deletingPartner}
-            >
-              {savingEdit ? 'Saving...' : 'Save Changes'}
             </button>
           </div>
         </form>

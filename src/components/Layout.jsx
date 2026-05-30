@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import SessionTimeout from './SessionTimeout'
+import { displayLogin } from '../lib/phone'
 
 const adminNavigation = [
   {
@@ -260,7 +261,7 @@ export default function Layout() {
           >
             <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500/80 to-emerald-500/70">
               <span className="text-white text-sm font-semibold">
-                {profile?.full_name?.charAt(0) || profile?.email?.charAt(0) || 'A'}
+                {profile?.full_name?.charAt(0) || displayLogin(profile?.email)?.charAt(0) || 'A'}
               </span>
             </div>
             {isSidebarOpen && (
@@ -268,7 +269,7 @@ export default function Layout() {
                 <p className="truncate text-sm font-semibold text-white">
                   {profile?.full_name || 'Admin'}
                 </p>
-                <p className="truncate text-xs text-slate-500">{profile?.email}</p>
+                <p className="truncate text-xs text-slate-500">{profile?.phone || displayLogin(profile?.email)}</p>
               </div>
             )}
           </div>

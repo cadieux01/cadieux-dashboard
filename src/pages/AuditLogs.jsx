@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { formatDateDDMMYY } from '../lib/date'
 import { categoryForEntity } from '../lib/audit'
+import { displayLogin } from '../lib/phone'
 
 // Read-only audit trail. Audit logs are IMMUTABLE: this page can only
 // read and export them — never edit or delete. Mutations to the
@@ -196,7 +197,9 @@ export default function AuditLogs() {
         const prof = profilesById[row.user_id]
         const haystack = [
           row.user_name,
-          prof?.email,
+          // Show phone number for synthetic <phone>@cadieux.<role>
+          // logins; fall back to raw email for real admin accounts.
+          displayLogin(prof?.email),
           prof?.full_name,
           row.description,
           row.entity_type,
@@ -219,7 +222,7 @@ export default function AuditLogs() {
     const headers = [
       'timestamp',
       'user_name',
-      'email',
+      'login',
       'action_type',
       'category',
       'entity_type',
@@ -235,7 +238,7 @@ export default function AuditLogs() {
         [
           row.created_at,
           row.user_name,
-          prof?.email || '',
+          displayLogin(prof?.email) || '',
           row.action_type,
           rowCategory(row),
           row.entity_type,
@@ -518,7 +521,7 @@ function RowGroup({ row, prof, idx, hasDiff, isOpen, onToggle }) {
             {row.user_name || 'Unknown'}
           </div>
           {prof?.email && (
-            <div className="text-xs text-slate-500">{prof.email}</div>
+            <div className="text-xs text-slate-500">{displayLogin(prof.email)}</div>
           )}
         </td>
         <td className="px-4 py-3 align-top">

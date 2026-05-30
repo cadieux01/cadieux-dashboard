@@ -2,9 +2,14 @@ import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import Modal from '../components/Modal'
 import FormField from '../components/FormField'
-import { supabase } from '../lib/supabase'
 import { logAuditEvent } from '../lib/audit'
+import { createUser } from '../lib/adminApi'
+import { isValidPhone, normalizePhone } from '../lib/phone'
 
+// Onboarding flow: admins can create both partners and sales execs;
+// sales can create partners only. Both roles log in with a phone +
+// password (the Edge Function builds a synthetic `<phone>@cadieux.<role>`
+// auth email server-side — see ../lib/adminApi.js).
 export default function Onboarding() {
   const { role } = useAuth()
   const [loading, setLoading] = useState(false)
@@ -15,16 +20,14 @@ export default function Onboarding() {
   const [isErrorModalOpen, setIsErrorModalOpen] = useState(false)
   const [successData, setSuccessData] = useState(null)
   const [formData, setFormData] = useState({
-    email: '',
+    phone: '',
     password: '',
     full_name: '',
-    date_of_birth: '',
-    phone_number: '',
     notes: '',
-    role: 'partner', // Default to partner
+    role: 'partner',
   })
 
-  // Check access
+  // Access check
   if (role !== 'admin' && role !== 'sales') {
     return (
       <div className="p-8 flex items-center justify-center min-h-screen">
@@ -36,265 +39,81 @@ export default function Onboarding() {
     )
   }
 
+  const resetForm = () => {
+    setFormData({
+      phone: '',
+      password: '',
+      full_name: '',
+      notes: '',
+      role: 'partner',
+    })
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
     setSuccess('')
+
+    // Sales execs can only create partners.
+    const targetRole = role === 'admin' ? formData.role : 'partner'
+    const roleLabel = targetRole === 'sales' ? 'Sales Executive' : 'Partner'
+
+    if (!isValidPhone(formData.phone)) {
+      setError('Enter a valid 10-digit Indian mobile (starting with 6-9).')
+      setIsErrorModalOpen(true)
+      return
+    }
+    if (!formData.password || formData.password.length < 6) {
+      setError('Password must be at least 6 characters.')
+      setIsErrorModalOpen(true)
+      return
+    }
+    if (!formData.full_name.trim()) {
+      setError('Full name is required.')
+      setIsErrorModalOpen(true)
+      return
+    }
+
     setLoading(true)
-
     try {
-      // Validate required fields
-      if (!formData.email.trim()) {
-        throw new Error('Email is required')
-      }
-      if (!formData.password || formData.password.length < 6) {
-        throw new Error('Password must be at least 6 characters')
-      }
+      const phone = normalizePhone(formData.phone)
+      const result = await createUser({
+        phone,
+        password: formData.password,
+        full_name: formData.full_name,
+        role: targetRole,
+        notes: formData.notes,
+      })
 
-      // Create partner user
-      // NOTE: In production, this should call a backend API endpoint
-      // For now, we'll use a workaround with Supabase Admin API
-      const result = await createPartnerUserViaBackend(formData)
-
-      // Audit log: user onboarded
-      const roleLabel = result.role === 'sales' ? 'Sales Executive' : 'Partner'
+      // Local audit row (server-side audit already written by the Edge
+      // Function; this one keeps the dashboard's own activity feed
+      // populated).
       await logAuditEvent({
         actionType: 'CREATE',
         entityType: 'user',
         entityId: result.userId,
-        description: `Onboarded new ${roleLabel}: ${formData.full_name || formData.email}`,
+        description: `Onboarded new ${roleLabel}: ${formData.full_name.trim()} (${result.phone})`,
         newValues: {
-          email: result.email,
-          role: result.role,
-          full_name: formData.full_name || null,
-          phone_number: formData.phone_number || null,
+          phone: result.phone,
+          role: targetRole,
+          full_name: formData.full_name.trim(),
         },
       })
 
-      // Show success popup
       setSuccessData({
-        email: result.email,
+        phone: result.phone,
         userId: result.userId,
-        role: result.role,
+        role: targetRole,
       })
-      setSuccess(`${roleLabel} user created successfully! Email: ${result.email}`)
-      setFormData({
-        email: '',
-        password: '',
-        full_name: '',
-        date_of_birth: '',
-        phone_number: '',
-        notes: '',
-        role: 'partner',
-      })
+      setSuccess(`${roleLabel} user created successfully! Phone: ${result.phone}`)
+      resetForm()
       setIsModalOpen(false)
       setIsSuccessModalOpen(true)
     } catch (err) {
-      // Show error popup
-      setError(err.message || 'Failed to create partner user')
+      setError(err.message || `Failed to create ${roleLabel.toLowerCase()}`)
       setIsErrorModalOpen(true)
     } finally {
       setLoading(false)
-    }
-  }
-
-  const createPartnerUserViaBackend = async (data) => {
-    // Store current session to restore it after signUp
-    const { data: currentSession } = await supabase.auth.getSession()
-    const originalAccessToken = currentSession?.session?.access_token
-    const originalRefreshToken = currentSession?.session?.refresh_token
-    const originalUserId = currentSession?.session?.user?.id
-
-    try {
-      // First, create auth user (this will auto-confirm if email confirmation is disabled)
-      // NOTE: Email confirmation must be disabled in Supabase Auth settings for this to work
-      // Pass role in metadata so handle_new_user trigger can use it
-      const userRole = data.role || 'partner'
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: data.email.trim().toLowerCase(), // Normalize email
-        password: data.password,
-        options: {
-          emailRedirectTo: undefined, // Don't redirect after signup
-          data: {
-            full_name: data.full_name || '',
-            role: userRole, // Pass role to trigger
-          },
-        },
-      })
-
-      if (authError) {
-        // Check if user already exists (Supabase may return "invalid" for existing emails)
-        const errorMsg = authError.message.toLowerCase()
-        if (errorMsg.includes('already registered') ||
-          errorMsg.includes('already exists') ||
-          (errorMsg.includes('invalid') && errorMsg.includes('email'))) {
-          // Check if user actually exists
-          const { data: existingUser } = await supabase
-            .from('profiles')
-            .select('id, email, role')
-            .eq('email', data.email.trim().toLowerCase())
-            .single()
-
-          if (existingUser) {
-            throw new Error(`A user with email "${data.email}" already exists (Role: ${existingUser.role}). Please use a different email.`)
-          } else {
-            throw new Error(`Email "${data.email}" is already registered in the system. Please use a different email address.`)
-          }
-        }
-        throw authError
-      }
-
-      if (!authData.user) {
-        throw new Error('Failed to create user')
-      }
-
-      // Wait a moment for the trigger to create profile
-      await new Promise(resolve => setTimeout(resolve, 1000))
-
-      // Check if profile was auto-created by the trigger
-      const { data: existingProfile, error: existingProfileError } = await supabase
-        .from('profiles')
-        .select('id, role')
-        .eq('id', authData.user.id)
-        .maybeSingle()
-
-      if (existingProfileError) {
-        throw new Error(`Failed to check profile: ${existingProfileError.message}`)
-      }
-
-      if (existingProfile) {
-        // Update only non-role fields to avoid trigger blocking role changes
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .update({
-            full_name: data.full_name || null,
-            date_of_birth: data.date_of_birth || null,
-            phone_number: data.phone_number || null,
-            notes: data.notes || null,
-          })
-          .eq('id', authData.user.id)
-
-        if (profileError) {
-          throw new Error(`Failed to update profile: ${profileError.message}`)
-        }
-      } else {
-        // Profile not created by trigger, insert it with role
-        const { error: insertError } = await supabase
-          .from('profiles')
-          .insert({
-            id: authData.user.id,
-            email: data.email,
-            role: userRole,
-            full_name: data.full_name || null,
-            date_of_birth: data.date_of_birth || null,
-            phone_number: data.phone_number || null,
-            notes: data.notes || null,
-          })
-          .select()
-          .single()
-
-        if (insertError) {
-          throw new Error(`Failed to create profile: ${insertError.message}`)
-        }
-      }
-
-      // Restore original session to prevent logging out the current admin/sales user
-      // Check if session changed after signUp
-      const { data: newSession } = await supabase.auth.getSession()
-      const newUserId = newSession?.session?.user?.id
-
-      // If session changed (new user was signed in), restore original session
-      if (originalAccessToken && originalRefreshToken && originalUserId && newUserId !== originalUserId) {
-        try {
-          // Set flag to prevent auth state change handler from fetching profile during restoration
-          // We'll access the ref through a global flag stored in window temporarily
-          window.__isRestoringSession = true
-
-          // Restore original session directly (don't sign out first - it causes race conditions)
-          const { error: sessionError } = await supabase.auth.setSession({
-            access_token: originalAccessToken,
-            refresh_token: originalRefreshToken,
-          })
-
-          if (sessionError) {
-            window.__isRestoringSession = false
-            throw sessionError
-          }
-
-          // Wait for auth state to fully update and verify restoration
-          let restored = false
-          for (let i = 0; i < 15; i++) {
-            await new Promise(resolve => setTimeout(resolve, 100))
-            const { data: checkSession } = await supabase.auth.getSession()
-            if (checkSession?.session?.user?.id === originalUserId) {
-              restored = true
-              // Wait a bit more to ensure all auth state changes have propagated
-              await new Promise(resolve => setTimeout(resolve, 300))
-              break
-            }
-          }
-
-          if (!restored) {
-            console.warn('Session restoration may not have completed properly')
-            window.__isRestoringSession = false
-          } else {
-            // Wait a bit more for auth state to fully propagate, then manually trigger profile fetch
-            await new Promise(resolve => setTimeout(resolve, 200))
-
-            // Manually fetch profile for restored user to ensure it's loaded before clearing flag
-            try {
-              const { data: profileData, error: profileError } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('id', originalUserId)
-                .single()
-
-              // Wait a bit more to ensure profile state updates in AuthContext
-              await new Promise(resolve => setTimeout(resolve, 100))
-            } catch (err) {
-              console.warn('Error manually fetching profile after restoration:', err)
-            }
-
-            // Now clear the flag - profile should be loaded
-            window.__isRestoringSession = false
-          }
-        } catch (sessionError) {
-          window.__isRestoringSession = false
-          console.warn('Could not restore session, user may need to refresh:', sessionError)
-          // Don't throw - allow the partner creation to succeed even if session restore fails
-        }
-      }
-
-      return {
-        success: true,
-        userId: authData.user.id,
-        email: data.email,
-        role: userRole,
-      }
-    } catch (error) {
-      // Clear restoration flag on error
-      if (typeof window !== 'undefined') {
-        window.__isRestoringSession = false
-      }
-      // Restore original session even on error
-      if (originalAccessToken && originalRefreshToken && originalUserId) {
-        const { data: currentSessionAfterError } = await supabase.auth.getSession()
-        const currentUserIdAfterError = currentSessionAfterError?.session?.user?.id
-
-        // Only restore if session changed
-        if (currentUserIdAfterError !== originalUserId) {
-          try {
-            await supabase.auth.setSession({
-              access_token: originalAccessToken,
-              refresh_token: originalRefreshToken,
-            })
-          } catch (sessionError) {
-            console.error('Error restoring session after error:', sessionError)
-          }
-        }
-      }
-      console.error('Error creating partner user:', error)
-      throw error
     }
   }
 
@@ -308,8 +127,8 @@ export default function Onboarding() {
             </h1>
             <p className="text-slate-400">
               {role === 'admin'
-                ? 'Create new partner or sales executive accounts'
-                : 'Create new partner accounts'}
+                ? 'Create new partner or sales executive accounts (phone + password login)'
+                : 'Create new partner accounts (phone + password login)'}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -326,7 +145,6 @@ export default function Onboarding() {
         </div>
       </div>
 
-
       {/* Onboarding Modal */}
       <Modal
         isOpen={isModalOpen}
@@ -334,20 +152,12 @@ export default function Onboarding() {
           setIsModalOpen(false)
           setError('')
           setSuccess('')
-          setFormData({
-            email: '',
-            password: '',
-            full_name: '',
-            date_of_birth: '',
-            phone_number: '',
-            notes: '',
-            role: 'partner',
-          })
+          resetForm()
         }}
         title={role === 'admin' ? 'Onboard New User' : 'Onboard New Partner'}
       >
         <form onSubmit={handleSubmit}>
-          {/* Role Selector - Only visible for admin */}
+          {/* Role selector (admin only) */}
           {role === 'admin' && (
             <div className="mb-4">
               <label className="block text-sm font-medium text-slate-300 mb-2">
@@ -371,11 +181,11 @@ export default function Onboarding() {
           )}
 
           <FormField
-            label="Email"
-            type="email"
-            value={formData.email}
-            onChange={(value) => setFormData({ ...formData, email: value })}
-            placeholder={formData.role === 'sales' ? 'sales@example.com' : 'partner@example.com'}
+            label="Phone Number"
+            type="tel"
+            value={formData.phone}
+            onChange={(value) => setFormData({ ...formData, phone: value })}
+            placeholder="9876543210"
             required
           />
 
@@ -386,7 +196,6 @@ export default function Onboarding() {
             onChange={(value) => setFormData({ ...formData, password: value })}
             placeholder="Minimum 6 characters"
             required
-            minLength={6}
           />
 
           <FormField
@@ -394,21 +203,7 @@ export default function Onboarding() {
             value={formData.full_name}
             onChange={(value) => setFormData({ ...formData, full_name: value })}
             placeholder={formData.role === 'sales' ? "Sales executive's full name" : "Partner's full name"}
-          />
-
-          <FormField
-            label="Date of Birth"
-            type="date"
-            value={formData.date_of_birth}
-            onChange={(value) => setFormData({ ...formData, date_of_birth: value })}
-          />
-
-          <FormField
-            label="Phone Number"
-            type="tel"
-            value={formData.phone_number}
-            onChange={(value) => setFormData({ ...formData, phone_number: value })}
-            placeholder="+1234567890"
+            required
           />
 
           <FormField
@@ -426,15 +221,7 @@ export default function Onboarding() {
                 setIsModalOpen(false)
                 setError('')
                 setSuccess('')
-                setFormData({
-                  email: '',
-                  password: '',
-                  full_name: '',
-                  date_of_birth: '',
-                  phone_number: '',
-                  notes: '',
-                  role: 'partner',
-                })
+                resetForm()
               }}
               className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg transition-colors"
               disabled={loading}
@@ -478,12 +265,12 @@ export default function Onboarding() {
               : 'Partner Onboarded Successfully'}
           </h3>
           <p className="text-slate-400 mb-4">
-            The partner account has been created and is ready to use.
+            The account has been created and is ready to use.
           </p>
           {successData && (
             <div className="bg-slate-800/50 rounded-lg p-4 mb-4 text-left">
               <p className="text-sm text-slate-300">
-                <span className="font-medium">Email:</span> {successData.email}
+                <span className="font-medium">Login phone:</span> {successData.phone}
               </p>
               {successData.userId && (
                 <p className="text-sm text-slate-300 mt-1">
@@ -512,7 +299,7 @@ export default function Onboarding() {
           setIsErrorModalOpen(false)
           setError('')
         }}
-        title="Error Creating Partner"
+        title="Error Creating User"
       >
         <div className="text-center">
           <div className="w-16 h-16 bg-rose-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -520,7 +307,7 @@ export default function Onboarding() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </div>
-          <h3 className="text-lg font-semibold text-white mb-2">Failed to Create Partner</h3>
+          <h3 className="text-lg font-semibold text-white mb-2">Failed to Create User</h3>
           <p className="text-slate-400 mb-4">
             {error}
           </p>

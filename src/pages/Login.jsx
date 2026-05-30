@@ -2,9 +2,10 @@ import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
+import { isValidPhone, normalizePhone, buildLoginEmail } from '../lib/phone'
 
 export default function Login() {
-  const [email, setEmail] = useState('')
+  const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -20,49 +21,82 @@ export default function Login() {
     setLoading(true)
 
     try {
-      const { data, error } = await signIn(email, password)
-      if (error) {
-        setError(error.message)
+      // Sales execs and partners log in with a phone number; admin (and any
+      // legacy email account) log in with an email. If the input contains an
+      // "@" we treat it as an email. Otherwise, if it's a valid 10-digit
+      // mobile, we synthesise the `<phone>@cadieux.<role>` email the Edge
+      // Function uses at create time — trying sales first, then partner.
+      const trimmed = identifier.trim()
+      let candidateEmails = []
+
+      if (trimmed.includes('@')) {
+        candidateEmails = [trimmed.toLowerCase()]
+      } else if (isValidPhone(trimmed)) {
+        const phone = normalizePhone(trimmed)
+        candidateEmails = [buildLoginEmail(phone, 'sales'), buildLoginEmail(phone, 'partner')]
       } else {
-        // After successful login, check if profile exists
-        const userId = data?.user?.id
-        
-        if (userId) {
-          // Give it a moment for the auth state to update, then redirect based on role
-          setTimeout(async () => {
-            // Fetch profile to determine role
-            const { data: profileData, error: profileError } = await supabase
-              .from('profiles')
-              .select('role')
-              .eq('id', userId)
-              .single()
-            
-            if (profileError) {
-              console.error('Profile fetch error:', profileError)
-              // If profile doesn't exist or RLS blocks access, show error
-              if (profileError.code === 'PGRST116') {
-                setError('Profile not found. Please contact administrator to create your profile.')
-              } else if (profileError.message.includes('permission') || profileError.message.includes('policy')) {
-                setError('Access denied. RLS policies may be blocking profile access.')
-              } else {
-                setError(`Failed to load profile: ${profileError.message}`)
-              }
-              setLoading(false)
-              return
-            }
-            
-            if (profileData?.role === 'admin') {
-              navigate('/admin/overview', { replace: true })
-            } else if (profileData?.role === 'sales') {
-              navigate('/admin/sales', { replace: true })
-            } else if (profileData?.role === 'partner') {
-              navigate('/partner/dashboard', { replace: true })
-            } else {
-              setError('Invalid user role. Please contact administrator.')
-              setLoading(false)
-            }
-          }, 500)
+        setError('Enter a valid 10-digit phone number or an email address.')
+        setLoading(false)
+        return
+      }
+
+      // Try each candidate email until one authenticates.
+      let data = null
+      let error = null
+      for (const email of candidateEmails) {
+        const res = await signIn(email, password)
+        if (!res.error && res.data?.user) {
+          data = res.data
+          error = null
+          break
         }
+        error = res.error
+      }
+
+      if (error || !data) {
+        setError(error?.message || 'Invalid credentials')
+        setLoading(false)
+        return
+      }
+
+      // After successful login, check if profile exists
+      const userId = data?.user?.id
+
+      if (userId) {
+        // Give it a moment for the auth state to update, then redirect based on role
+        setTimeout(async () => {
+          // Fetch profile to determine role
+          const { data: profileData, error: profileError } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', userId)
+            .single()
+
+          if (profileError) {
+            console.error('Profile fetch error:', profileError)
+            // If profile doesn't exist or RLS blocks access, show error
+            if (profileError.code === 'PGRST116') {
+              setError('Profile not found. Please contact administrator to create your profile.')
+            } else if (profileError.message.includes('permission') || profileError.message.includes('policy')) {
+              setError('Access denied. RLS policies may be blocking profile access.')
+            } else {
+              setError(`Failed to load profile: ${profileError.message}`)
+            }
+            setLoading(false)
+            return
+          }
+
+          if (profileData?.role === 'admin') {
+            navigate('/admin/overview', { replace: true })
+          } else if (profileData?.role === 'sales') {
+            navigate('/admin/sales', { replace: true })
+          } else if (profileData?.role === 'partner') {
+            navigate('/partner/dashboard', { replace: true })
+          } else {
+            setError('Invalid user role. Please contact administrator.')
+            setLoading(false)
+          }
+        }, 500)
       }
     } catch (err) {
       setError('An unexpected error occurred')
@@ -72,7 +106,7 @@ export default function Login() {
   }
 
   // Check if Supabase is configured
-  const supabaseConfigured = import.meta.env.VITE_SUPABASE_URL && 
+  const supabaseConfigured = import.meta.env.VITE_SUPABASE_URL &&
     !import.meta.env.VITE_SUPABASE_URL.includes('placeholder')
 
   return (
@@ -128,17 +162,18 @@ export default function Login() {
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-2">
-                Email
+              <label htmlFor="identifier" className="block text-sm font-medium text-slate-300 mb-2">
+                Phone Number or Email
               </label>
               <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                id="identifier"
+                type="text"
+                autoComplete="username"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
                 required
                 className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                placeholder="admin@example.com"
+                placeholder="9876543210 or admin@email.com"
               />
             </div>
 

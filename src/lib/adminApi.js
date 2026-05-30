@@ -1,28 +1,27 @@
 /**
- * Admin API utilities for creating / deleting partner users.
+ * Admin API utilities for managing dashboard login accounts (sales + partners).
  *
- * SECURITY MODEL — January 2026 rewrite
+ * LOGIN MODEL — phone + password for both roles.
+ *   Users are created with a 10-digit phone; the auth row gets a synthetic
+ *   email `<phone>@cadieux.<role>` (role ∈ {sales, partner}). All mutate ops
+ *   below address users by phone. Real-email accounts (sunny@gmail.com) are
+ *   managed outside this module.
  *
- * The previous version of this file called `supabase.auth.admin.createUser`
- * and `supabase.auth.admin.deleteUser` directly from the browser. Those
- * methods require the Supabase **service-role** key, which MUST NOT ship
- * in any client bundle — anyone with the key can take over every account
- * in the project.
+ * SECURITY MODEL
+ *   User management needs the Supabase **service-role** key, which MUST NOT
+ *   ship in any client bundle. So this module POSTs to a Supabase Edge
+ *   Function (`manage-partner`) instead of calling `supabase.auth.admin.*`
+ *   from the browser. The function:
+ *     1. Verifies the caller's JWT (we forward `session.access_token`).
+ *     2. Checks `logistics.profiles` for `admin` or `sales` role.
+ *     3. Performs the op with the service-role key on the server and writes
+ *        an entry to `logistics.audit_logs`.
  *
- * This module now POSTs to a Supabase **Edge Function** (`manage-partner`)
- * hosted on the Cadieux-Website project. The Edge Function:
- *   1. Verifies the caller's JWT (we forward `session.access_token` as
- *      `Authorization: Bearer …`).
- *   2. Looks up the caller's role in `logistics.profiles` and rejects
- *      anyone who isn't `admin` or `sales`.
- *   3. Performs the admin operation with the service-role key on the
- *      server, and writes an entry to `logistics.audit_logs`.
- *
- * See `sunny-to-cadieux-migration/edge-functions/manage-partner/index.ts`
- * for the function source and `…/DEPLOY.md` for deploy instructions.
+ * See: /Users/sunnyraj/Cadieux/supabase/functions/manage-partner/index.ts
  */
 
 import { supabase } from './supabase'
+import { isValidPhone, normalizePhone } from './phone'
 
 // Cadieux-Website Supabase project (where the logistics schema lives).
 // Override via Vite env (`VITE_MANAGE_PARTNER_URL`) for staging / preview.
@@ -48,7 +47,7 @@ async function callManagePartner(payload) {
       body: JSON.stringify(payload),
     })
   } catch (networkErr) {
-    throw new Error(`Network error contacting partner service: ${networkErr.message}`)
+    throw new Error(`Network error contacting user service: ${networkErr.message}`)
   }
 
   // The Edge Function always returns JSON, but be defensive in case a
@@ -63,63 +62,68 @@ async function callManagePartner(payload) {
   if (!res.ok) {
     const msg =
       (body && (body.error || body.message)) ||
-      `Partner service returned HTTP ${res.status}`
+      `User service returned HTTP ${res.status}`
     throw new Error(msg)
   }
   return body
 }
 
 /**
- * Create a partner user.
+ * Create a sales exec or partner login.
  *
- * Required: email, password (>= 8 chars).
- * Optional: full_name, date_of_birth (ISO date), phone_number, notes.
- *
- * Returns: { success: true, userId, email }
+ * @param {Object} params
+ * @param {string} params.phone      10-digit mobile (leading 6-9)
+ * @param {string} params.password   >= 6 chars
+ * @param {string} params.full_name
+ * @param {'sales'|'partner'} params.role
+ * @param {string} [params.notes]
+ * Returns: { success, userId, email, phone, role }
  */
-export async function createPartnerUser({
-  email,
-  password,
-  full_name,
-  date_of_birth,
-  phone_number,
-  notes,
-}) {
-  try {
-    const body = await callManagePartner({
-      action: 'create',
-      email,
-      password,
-      full_name: full_name || '',
-      date_of_birth: date_of_birth || null,
-      phone: phone_number || null,
-      notes: notes || null,
-    })
-    return {
-      success: true,
-      userId: body.user_id,
-      email: body.email,
-    }
-  } catch (error) {
-    console.error('Error creating partner user:', error)
-    throw error
+export async function createUser({ phone, password, full_name, role, notes }) {
+  if (!isValidPhone(phone)) {
+    throw new Error('Please enter a valid 10-digit Indian mobile number')
+  }
+  if (!password || password.length < 6) {
+    throw new Error('Password must be at least 6 characters')
+  }
+  if (!full_name || !full_name.trim()) {
+    throw new Error('Full name is required')
+  }
+  if (role !== 'sales' && role !== 'partner') {
+    throw new Error('role must be "sales" or "partner"')
+  }
+
+  const body = await callManagePartner({
+    action: 'create',
+    phone: normalizePhone(phone),
+    password,
+    full_name: full_name.trim(),
+    role,
+    notes: notes || null,
+  })
+  return {
+    success: true,
+    userId: body.user_id,
+    email: body.email,
+    phone: body.phone,
+    role: body.role,
   }
 }
 
-/**
- * Delete a partner user (auth + profile + audit log) in one server-side
- * transaction. The Edge Function refuses to delete non-partner accounts
- * and refuses to let the caller delete themselves.
- */
-export async function deletePartnerUser(userId) {
-  if (!userId) {
-    throw new Error('userId is required')
-  }
-  try {
-    await callManagePartner({ action: 'delete', user_id: userId })
-    return { success: true }
-  } catch (error) {
-    console.error('Error deleting partner user:', error)
-    throw error
-  }
+/** Soft delete: ban the login but keep all data. Profile status -> inactive. */
+export async function deactivateUser(phone) {
+  if (!isValidPhone(phone)) throw new Error('Valid phone is required')
+  return await callManagePartner({ action: 'deactivate', phone: normalizePhone(phone) })
+}
+
+/** Hard delete the login (removes auth user) but KEEP the profile + all data. */
+export async function deleteUser(phone) {
+  if (!isValidPhone(phone)) throw new Error('Valid phone is required')
+  return await callManagePartner({ action: 'delete', phone: normalizePhone(phone) })
+}
+
+/** Un-ban a previously deactivated login. Profile status -> active. */
+export async function reactivateUser(phone) {
+  if (!isValidPhone(phone)) throw new Error('Valid phone is required')
+  return await callManagePartner({ action: 'reactivate', phone: normalizePhone(phone) })
 }
