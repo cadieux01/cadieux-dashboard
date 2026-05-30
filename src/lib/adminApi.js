@@ -1,21 +1,81 @@
 /**
- * Admin API utilities for creating partner users
- * 
- * NOTE: In production, these operations should be performed via a backend API
- * that uses the Supabase service role key. For now, this uses the admin API
- * which requires proper setup.
- * 
- * To use this in production:
- * 1. Create a Supabase Edge Function or backend API endpoint
- * 2. Use service role key on the backend
- * 3. Call that endpoint from the frontend
+ * Admin API utilities for creating / deleting partner users.
+ *
+ * SECURITY MODEL — January 2026 rewrite
+ *
+ * The previous version of this file called `supabase.auth.admin.createUser`
+ * and `supabase.auth.admin.deleteUser` directly from the browser. Those
+ * methods require the Supabase **service-role** key, which MUST NOT ship
+ * in any client bundle — anyone with the key can take over every account
+ * in the project.
+ *
+ * This module now POSTs to a Supabase **Edge Function** (`manage-partner`)
+ * hosted on the Cadieux-Website project. The Edge Function:
+ *   1. Verifies the caller's JWT (we forward `session.access_token` as
+ *      `Authorization: Bearer …`).
+ *   2. Looks up the caller's role in `logistics.profiles` and rejects
+ *      anyone who isn't `admin` or `sales`.
+ *   3. Performs the admin operation with the service-role key on the
+ *      server, and writes an entry to `logistics.audit_logs`.
+ *
+ * See `sunny-to-cadieux-migration/edge-functions/manage-partner/index.ts`
+ * for the function source and `…/DEPLOY.md` for deploy instructions.
  */
 
 import { supabase } from './supabase'
 
+// Cadieux-Website Supabase project (where the logistics schema lives).
+// Override via Vite env (`VITE_MANAGE_PARTNER_URL`) for staging / preview.
+const MANAGE_PARTNER_URL =
+  import.meta.env?.VITE_MANAGE_PARTNER_URL ||
+  'https://uejagupcwevadfhfuadv.supabase.co/functions/v1/manage-partner'
+
+async function callManagePartner(payload) {
+  const { data: sessionWrap } = await supabase.auth.getSession()
+  const token = sessionWrap?.session?.access_token
+  if (!token) {
+    throw new Error('Not authenticated')
+  }
+
+  let res
+  try {
+    res = await fetch(MANAGE_PARTNER_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    })
+  } catch (networkErr) {
+    throw new Error(`Network error contacting partner service: ${networkErr.message}`)
+  }
+
+  // The Edge Function always returns JSON, but be defensive in case a
+  // gateway error slips through as HTML.
+  let body = null
+  try {
+    body = await res.json()
+  } catch {
+    body = null
+  }
+
+  if (!res.ok) {
+    const msg =
+      (body && (body.error || body.message)) ||
+      `Partner service returned HTTP ${res.status}`
+    throw new Error(msg)
+  }
+  return body
+}
+
 /**
- * Create a partner user via Supabase Admin API
- * This requires service role key - should be done via backend in production
+ * Create a partner user.
+ *
+ * Required: email, password (>= 8 chars).
+ * Optional: full_name, date_of_birth (ISO date), phone_number, notes.
+ *
+ * Returns: { success: true, userId, email }
  */
 export async function createPartnerUser({
   email,
@@ -26,64 +86,19 @@ export async function createPartnerUser({
   notes,
 }) {
   try {
-    // Check if user has admin or sales role
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      throw new Error('Not authenticated')
-    }
-
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-
-    if (!profile || !['admin', 'sales'].includes(profile.role)) {
-      throw new Error('Only admin or sales can create partner users')
-    }
-
-    // Create auth user using Supabase Admin API
-    // NOTE: This requires service role key. In production, call a backend endpoint instead.
-    // For now, we'll use the regular signUp and then update the profile
-    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+    const body = await callManagePartner({
+      action: 'create',
       email,
       password,
-      email_confirm: true, // Auto-confirm email
-      user_metadata: {
-        full_name: full_name || '',
-        role: 'partner',
-      },
+      full_name: full_name || '',
+      date_of_birth: date_of_birth || null,
+      phone: phone_number || null,
+      notes: notes || null,
     })
-
-    if (authError) {
-      // If admin API not available, try alternative approach
-      // This is a fallback - in production use backend endpoint
-      throw new Error(`Failed to create user: ${authError.message}`)
-    }
-
-    // Create profile with partner metadata
-    const { error: profileError } = await supabase
-      .from('profiles')
-      .insert({
-        id: authData.user.id,
-        email: authData.user.email,
-        full_name: full_name || '',
-        role: 'partner',
-        date_of_birth: date_of_birth || null,
-        phone_number: phone_number || null,
-        notes: notes || null,
-      })
-
-    if (profileError) {
-      // If profile creation fails, try to delete the auth user
-      await supabase.auth.admin.deleteUser(authData.user.id)
-      throw new Error(`Failed to create profile: ${profileError.message}`)
-    }
-
     return {
       success: true,
-      userId: authData.user.id,
-      email: authData.user.email,
+      userId: body.user_id,
+      email: body.email,
     }
   } catch (error) {
     console.error('Error creating partner user:', error)
@@ -91,3 +106,20 @@ export async function createPartnerUser({
   }
 }
 
+/**
+ * Delete a partner user (auth + profile + audit log) in one server-side
+ * transaction. The Edge Function refuses to delete non-partner accounts
+ * and refuses to let the caller delete themselves.
+ */
+export async function deletePartnerUser(userId) {
+  if (!userId) {
+    throw new Error('userId is required')
+  }
+  try {
+    await callManagePartner({ action: 'delete', user_id: userId })
+    return { success: true }
+  } catch (error) {
+    console.error('Error deleting partner user:', error)
+    throw error
+  }
+}
