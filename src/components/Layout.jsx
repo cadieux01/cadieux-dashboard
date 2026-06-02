@@ -1,8 +1,21 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import SessionTimeout from './SessionTimeout'
 import { displayLogin } from '../lib/phone'
+import { fetchPendingCount } from '../lib/changeRequests'
+
+// Shared icons used by more than one role's nav.
+const profileIcon = (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+  </svg>
+)
+const changeRequestsIcon = (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7l2 2 4-4" />
+  </svg>
+)
 
 const adminNavigation = [
   {
@@ -51,6 +64,12 @@ const adminNavigation = [
     ),
   },
   {
+    name: 'Change Requests',
+    href: '/admin/change-requests',
+    badge: 'pendingRequests',
+    icon: changeRequestsIcon,
+  },
+  {
     name: 'Audit',
     href: '/admin/audit-logs',
     icon: (
@@ -58,6 +77,11 @@ const adminNavigation = [
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
       </svg>
     ),
+  },
+  {
+    name: 'Profile',
+    href: '/admin/profile',
+    icon: profileIcon,
   },
 ]
 
@@ -98,6 +122,17 @@ const salesNavigation = [
       </svg>
     ),
   },
+  {
+    name: 'Partner Requests',
+    href: '/admin/change-requests',
+    badge: 'pendingRequests',
+    icon: changeRequestsIcon,
+  },
+  {
+    name: 'Profile',
+    href: '/admin/profile',
+    icon: profileIcon,
+  },
 ]
 
 const partnerNavigation = [
@@ -125,6 +160,20 @@ export default function Layout() {
   const { profile, role, signOut } = useAuth()
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [pendingRequests, setPendingRequests] = useState(0)
+
+  // Pending change-request count for the sidebar badge. RLS scopes it:
+  // admin gets the global count; sales gets only pending partner requests.
+  useEffect(() => {
+    if (role !== 'admin' && role !== 'sales') return
+    let active = true
+    fetchPendingCount()
+      .then((n) => { if (active) setPendingRequests(n) })
+      .catch(() => {})
+    return () => { active = false }
+  }, [role])
+
+  const badgeCounts = { pendingRequests }
 
   const handleSignOut = async () => {
     await signOut()
@@ -240,12 +289,22 @@ export default function Layout() {
               }
               title={!isSidebarOpen ? item.name : undefined}
             >
-              <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-white/[0.05] text-slate-300 transition-colors group-hover:text-white">
+              <span className="relative flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-white/[0.05] text-slate-300 transition-colors group-hover:text-white">
                 {item.icon}
+                {item.badge && badgeCounts[item.badge] > 0 && !isSidebarOpen && (
+                  <span className="absolute -right-1 -top-1 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white">
+                    {badgeCounts[item.badge]}
+                  </span>
+                )}
               </span>
               {isSidebarOpen && (
-                <div className="min-w-0 flex-1">
+                <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
                   <span className="block truncate">{item.name}</span>
+                  {item.badge && badgeCounts[item.badge] > 0 && (
+                    <span className="flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-rose-500 px-1.5 text-[10px] font-bold text-white">
+                      {badgeCounts[item.badge]}
+                    </span>
+                  )}
                 </div>
               )}
             </NavLink>

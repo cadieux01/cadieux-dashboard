@@ -9,9 +9,10 @@ const Leads = lazy(() => import('./pages/Leads'))
 const CTA = lazy(() => import('./pages/CTA'))
 const AuditLogs = lazy(() => import('./pages/AuditLogs'))
 const PartnerDashboard = lazy(() => import('./pages/PartnerDashboard'))
-const PartnerProfile = lazy(() => import('./pages/PartnerProfile'))
 const Partners = lazy(() => import('./pages/Partners'))
 const SalesExec = lazy(() => import('./pages/SalesExec'))
+const Profile = lazy(() => import('./pages/Profile'))
+const ChangeRequests = lazy(() => import('./pages/ChangeRequests'))
 
 const PageLoader = () => (
   <div className="dashboard-page flex min-h-[50vh] w-full items-center justify-center">
@@ -63,6 +64,16 @@ export const router = createBrowserRouter([
         element: <ProtectedRoute requiredRole="admin">{withSuspense(SalesExec)}</ProtectedRoute>,
       },
       {
+        // Admin manages ALL requests; sales sees only partner requests
+        // (RLS scopes the rows). One component, role-aware labelling.
+        path: 'change-requests',
+        element: <ProtectedRoute allowedRoles={['admin', 'sales']}>{withSuspense(ChangeRequests)}</ProtectedRoute>,
+      },
+      {
+        path: 'profile',
+        element: <ProtectedRoute allowedRoles={['admin', 'sales']}>{withSuspense(Profile)}</ProtectedRoute>,
+      },
+      {
         path: 'audit-logs',
         element: <ProtectedRoute requiredRole="admin">{withSuspense(AuditLogs)}</ProtectedRoute>,
       },
@@ -86,7 +97,7 @@ export const router = createBrowserRouter([
       },
       {
         path: 'profile',
-        element: withSuspense(PartnerProfile),
+        element: withSuspense(Profile),
       },
     ],
   },

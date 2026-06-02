@@ -127,3 +127,46 @@ export async function reactivateUser(phone) {
   if (!isValidPhone(phone)) throw new Error('Valid phone is required')
   return await callManagePartner({ action: 'reactivate', phone: normalizePhone(phone) })
 }
+
+/**
+ * Reset a user's password (approving a 'password' change request).
+ * The new password is supplied by the approver — it is never stored in
+ * the request row. Service-role op, so it goes through the Edge Function.
+ *
+ * @param {string} userId        target profiles.id / auth user id
+ * @param {string} newPassword   >= 6 chars
+ */
+export async function changePassword(userId, newPassword) {
+  if (!userId) throw new Error('User id is required')
+  if (!newPassword || newPassword.length < 6) {
+    throw new Error('Password must be at least 6 characters')
+  }
+  return await callManagePartner({
+    action: 'change-password',
+    user_id: userId,
+    new_password: newPassword,
+  })
+}
+
+/**
+ * Change a user's phone (approving a 'phone' change request). Rewrites the
+ * synthetic auth email `<phone>@cadieux.<role>` and the profile phone, so
+ * it must run server-side with the service-role key.
+ *
+ * @param {Object} params
+ * @param {string} params.userId    target profiles.id / auth user id
+ * @param {string} params.oldPhone  current 10-digit phone
+ * @param {string} params.newPhone  new 10-digit phone
+ */
+export async function changePhone({ userId, oldPhone, newPhone }) {
+  if (!userId) throw new Error('User id is required')
+  if (!isValidPhone(newPhone)) {
+    throw new Error('Please enter a valid 10-digit Indian mobile number')
+  }
+  return await callManagePartner({
+    action: 'change-phone',
+    user_id: userId,
+    old_phone: normalizePhone(oldPhone),
+    new_phone: normalizePhone(newPhone),
+  })
+}
