@@ -51,12 +51,13 @@ export default function Profile() {
   const [error, setError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
 
-  // Which inline editor is open: 'name' | 'phone' | 'password' | null.
+  // Which inline editor is open: 'name' | 'phone' | 'password' | 'email' | null.
   const [editing, setEditing] = useState(null)
   const [nameValue, setNameValue] = useState('')
   const [phoneValue, setPhoneValue] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [emailValue, setEmailValue] = useState('')
 
   const loadRequests = async () => {
     if (!profile?.id) return
@@ -95,6 +96,7 @@ export default function Profile() {
     setPhoneValue('')
     setNewPassword('')
     setConfirmPassword('')
+    setEmailValue('')
     setError(null)
   }
 
@@ -138,6 +140,16 @@ export default function Profile() {
       return
     }
     submit('phone', profilePhone(profile), next)
+  }
+
+  const handleEmailSubmit = (e) => {
+    e.preventDefault()
+    const next = emailValue.trim().toLowerCase()
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(next)) {
+      setError('Please enter a valid email address.')
+      return
+    }
+    submit('email', profile?.email || null, next)
   }
 
   const handlePasswordSubmit = (e) => {
@@ -277,6 +289,55 @@ export default function Profile() {
               </div>
             )}
           </div>
+
+          {/* Login Email — admin only (sales/partner log in by phone) */}
+          {profile.role === 'admin' && (
+            <div className="sm:col-span-2">
+              <label className="text-xs sm:text-sm font-medium text-slate-400">Login Email</label>
+              {editing === 'email' ? (
+                <form onSubmit={handleEmailSubmit} className="mt-2 flex flex-col gap-2 sm:flex-row">
+                  <input
+                    type="email"
+                    value={emailValue}
+                    onChange={(e) => setEmailValue(e.target.value)}
+                    placeholder="new-email@example.com"
+                    className="dashboard-input flex-1"
+                    autoFocus
+                    autoComplete="email"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      type="submit"
+                      disabled={submitting}
+                      className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
+                    >
+                      {submitting ? '...' : 'Submit Request'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={closeEditor}
+                      className="rounded-lg bg-slate-800 px-3 py-2 text-sm text-slate-300 hover:bg-slate-700"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <div className="mt-1 flex items-center justify-between gap-3">
+                  <p className="break-all text-base text-white">{profile.email || '—'}</p>
+                  <button
+                    onClick={() => { closeEditor(); setEditing('email'); setEmailValue(profile.email || '') }}
+                    className="flex-shrink-0 rounded-lg bg-indigo-500/20 px-3 py-1.5 text-xs text-indigo-300 hover:bg-indigo-500/30"
+                  >
+                    Change Email
+                  </button>
+                </div>
+              )}
+              <p className="mt-1 text-xs text-slate-500">
+                The new email applies once an approver confirms the request.
+              </p>
+            </div>
+          )}
 
           {/* Role (read-only) */}
           <div>

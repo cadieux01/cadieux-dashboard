@@ -15,6 +15,12 @@ const SalesExec = lazy(() => import('./pages/SalesExec'))
 const Profile = lazy(() => import('./pages/Profile'))
 const ChangeRequests = lazy(() => import('./pages/ChangeRequests'))
 const Onboarding = lazy(() => import('./pages/Onboarding'))
+const OverviewPartners   = lazy(() => import('./pages/admin/OverviewPartners'))
+const OverviewAssigned   = lazy(() => import('./pages/admin/OverviewAssigned'))
+const OverviewSold       = lazy(() => import('./pages/admin/OverviewSold'))
+const OverviewAttributed = lazy(() => import('./pages/admin/OverviewAttributed'))
+const PartnerProfile     = lazy(() => import('./pages/admin/PartnerProfile'))
+const VariantDetail      = lazy(() => import('./pages/admin/VariantDetail'))
 
 const PageLoader = () => (
   <div className="dashboard-page flex min-h-[50vh] w-full items-center justify-center">
@@ -50,6 +56,30 @@ export const router = createBrowserRouter([
       {
         path: 'overview',
         element: <ProtectedRoute allowedRoles={['admin', 'sales']}>{withSuspense(Sales)}</ProtectedRoute>,
+      },
+      {
+        path: 'overview/partners',
+        element: <ProtectedRoute allowedRoles={['admin', 'sales']}>{withSuspense(OverviewPartners)}</ProtectedRoute>,
+      },
+      {
+        path: 'overview/assigned',
+        element: <ProtectedRoute allowedRoles={['admin', 'sales']}>{withSuspense(OverviewAssigned)}</ProtectedRoute>,
+      },
+      {
+        path: 'overview/sold',
+        element: <ProtectedRoute allowedRoles={['admin', 'sales']}>{withSuspense(OverviewSold)}</ProtectedRoute>,
+      },
+      {
+        path: 'overview/attributed',
+        element: <ProtectedRoute allowedRoles={['admin', 'sales']}>{withSuspense(OverviewAttributed)}</ProtectedRoute>,
+      },
+      {
+        path: 'overview/variant/:variantName',
+        element: <ProtectedRoute allowedRoles={['admin', 'sales']}>{withSuspense(VariantDetail)}</ProtectedRoute>,
+      },
+      {
+        path: 'partner/:id',
+        element: <ProtectedRoute allowedRoles={['admin', 'sales']}>{withSuspense(PartnerProfile)}</ProtectedRoute>,
       },
       {
         path: 'sales',

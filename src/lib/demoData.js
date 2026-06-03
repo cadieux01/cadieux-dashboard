@@ -664,4 +664,229 @@ export function demoDrilldownPartnerOptions() {
   return DRILLDOWN_PARTNERS.map((p) => ({ value: p.id, label: p.name }))
 }
 
+// =========================================================================
+// Partner profile / variant detail extras
+// =========================================================================
+
+// Full partner profile data for `/admin/partner/:id`. Aggregates
+// assignments + sales + attributions and computes per-variant rollups.
+export function demoPartnerProfile(partnerId, { range = 'all' } = {}) {
+  const partner = DRILLDOWN_PARTNERS.find((p) => p.id === partnerId)
+  if (!partner) return null
+
+  const sales = SALES_RECORDS.filter((s) => s.partner_id === partnerId && withinRange(s.date, range))
+  const assigns = ASSIGNMENTS.filter((a) => a.partner_id === partnerId && withinRange(a.date, range))
+  const attrs   = ATTRIBUTIONS.filter((r) => r.partner_id === partnerId && withinRange(r.date, range))
+
+  const variantRow = (key) => {
+    const variantKey = key === 'multigrain' ? 'multigrain' : 'plain'
+    const variantPrice = VARIANTS[variantKey].price
+    const assigned = assigns.reduce((s, a) => s + (variantKey === 'multigrain' ? a.mg : a.plain), 0)
+    const sold      = sales.filter((s) => s.variant === variantKey).reduce((s, r) => s + r.units, 0)
+    const retracted = attrs.filter((r) => r.variant === variantKey).reduce((s, r) => s + r.units, 0)
+    const left      = Math.max(0, assigned - sold - retracted)
+    return {
+      key: variantKey,
+      label: VARIANTS[variantKey].short,
+      price: variantPrice,
+      assigned,
+      sold,
+      retracted,
+      left,
+      revenue: sold * variantPrice,
+      sellThrough: assigned > 0 ? (sold / assigned) * 100 : 0,
+    }
+  }
+
+  const mg    = variantRow('multigrain')
+  const plain = variantRow('plain')
+
+  const salesHistory = sales
+    .map((s) => {
+      const v = VARIANTS[s.variant] || VARIANTS.multigrain
+      const days = Math.max(0, Math.round((new Date(s.date) - new Date(s.assigned_date)) / 86400000))
+      return {
+        id: s.id,
+        date: s.date,
+        variant: s.variant,
+        variant_label: v.short,
+        units: s.units,
+        revenue: s.units * v.price,
+        customer: s.customer,
+        days_to_sell: days,
+      }
+    })
+    .sort((a, b) => new Date(b.date) - new Date(a.date))
+
+  const attributionHistory = attrs
+    .map((r) => {
+      const v = VARIANTS[r.variant] || VARIANTS.multigrain
+      return {
+        id: r.id,
+        date: r.date,
+        variant: r.variant,
+        variant_label: v.short,
+        units: r.units,
+        reason: r.reason,
+        reason_label: REASON_LABELS[r.reason] || r.reason,
+        notes: r.notes,
+        attributed_by: r.attributed_by,
+      }
+    })
+    .sort((a, b) => new Date(b.date) - new Date(a.date))
+
+  // Monthly performance buckets: last 12 months of activity.
+  const monthly = buildMonthlySeries(sales)
+
+  // Join date — earliest assignment we have on file for this partner.
+  const allAssigns = ASSIGNMENTS.filter((a) => a.partner_id === partnerId)
+  const joined = allAssigns.length
+    ? allAssigns.map((a) => a.date).sort()[0]
+    : null
+
+  return {
+    id: partner.id,
+    name: partner.name,
+    phone: partner.phone,
+    status: partner.status,
+    joined_at: joined,
+    variants: { multigrain: mg, plain: plain },
+    totals: {
+      assigned: mg.assigned + plain.assigned,
+      sold: mg.sold + plain.sold,
+      retracted: mg.retracted + plain.retracted,
+      revenue: mg.revenue + plain.revenue,
+    },
+    salesHistory,
+    attributionHistory,
+    monthly,
+  }
+}
+
+// Build a 12-month {date, multigrain, plain} series ending at DEMO_TODAY.
+function buildMonthlySeries(salesRows) {
+  const months = []
+  const ref = new Date(DEMO_TODAY)
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(ref.getFullYear(), ref.getMonth() - i, 1)
+    months.push({
+      key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
+      label: d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
+      multigrain: 0,
+      plain: 0,
+    })
+  }
+  const byKey = Object.fromEntries(months.map((m) => [m.key, m]))
+  for (const s of salesRows) {
+    const d = new Date(s.date)
+    const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+    if (byKey[k]) byKey[k][s.variant] += s.units
+  }
+  return months
+}
+
+// Variant detail aggregate for `/admin/overview/variant/:variantName`.
+// Joins partners, sales, attributions for the given variant, scoped to
+// the selected range. Used by VariantDetail.jsx.
+export function demoVariantDetail(variantKey, { range = 'all' } = {}) {
+  const variant = VARIANTS[variantKey]
+  if (!variant) return null
+
+  const sales = SALES_RECORDS.filter((s) => s.variant === variantKey && withinRange(s.date, range))
+  const attrs = ATTRIBUTIONS.filter((r) => r.variant === variantKey && withinRange(r.date, range))
+  const assigns = ASSIGNMENTS.filter((a) => withinRange(a.date, range))
+
+  const assigned = assigns.reduce(
+    (s, a) => s + (variantKey === 'multigrain' ? a.mg : a.plain),
+    0,
+  )
+  const sold = sales.reduce((s, r) => s + r.units, 0)
+  const retracted = attrs.reduce((s, r) => s + r.units, 0)
+  const revenue = sold * variant.price
+  const sellThrough = assigned > 0 ? (sold / assigned) * 100 : 0
+
+  // First-assignment date for "days in market".
+  const firstDate = ASSIGNMENTS
+    .filter((a) => (variantKey === 'multigrain' ? a.mg : a.plain) > 0)
+    .map((a) => a.date)
+    .sort()[0]
+  const daysInMarket = firstDate
+    ? Math.max(0, Math.round((DEMO_TODAY - new Date(firstDate)) / 86400000))
+    : 0
+
+  // Per-partner rollup.
+  const nameById = Object.fromEntries(DRILLDOWN_PARTNERS.map((p) => [p.id, p.name]))
+  const partnerMap = {}
+  for (const a of assigns) {
+    if (!partnerMap[a.partner_id]) {
+      partnerMap[a.partner_id] = {
+        partner_id: a.partner_id,
+        partner_name: nameById[a.partner_id] || 'Unknown',
+        assigned: 0, sold: 0, retracted: 0,
+      }
+    }
+    partnerMap[a.partner_id].assigned += (variantKey === 'multigrain' ? a.mg : a.plain)
+  }
+  for (const s of sales) {
+    if (!partnerMap[s.partner_id]) {
+      partnerMap[s.partner_id] = {
+        partner_id: s.partner_id,
+        partner_name: nameById[s.partner_id] || 'Unknown',
+        assigned: 0, sold: 0, retracted: 0,
+      }
+    }
+    partnerMap[s.partner_id].sold += s.units
+  }
+  for (const r of attrs) {
+    if (!partnerMap[r.partner_id]) {
+      partnerMap[r.partner_id] = {
+        partner_id: r.partner_id,
+        partner_name: nameById[r.partner_id] || 'Unknown',
+        assigned: 0, sold: 0, retracted: 0,
+      }
+    }
+    partnerMap[r.partner_id].retracted += r.units
+  }
+  const topPartners = Object.values(partnerMap)
+    .map((p) => ({
+      ...p,
+      revenue: p.sold * variant.price,
+      sellThrough: p.assigned > 0 ? (p.sold / p.assigned) * 100 : 0,
+    }))
+    .sort((a, b) => b.sold - a.sold)
+
+  // Reason breakdown for this variant.
+  const reasonCounts = {}
+  for (const r of attrs) reasonCounts[r.reason] = (reasonCounts[r.reason] || 0) + r.units
+
+  // Monthly sales series.
+  const monthly = buildMonthlySeries(sales)
+
+  // Recent 20 sales for this variant.
+  const recentSales = sales
+    .map((s) => ({
+      id: s.id,
+      date: s.date,
+      partner_id: s.partner_id,
+      partner_name: nameById[s.partner_id] || 'Unknown',
+      customer: s.customer,
+      units: s.units,
+      revenue: s.units * variant.price,
+    }))
+    .sort((a, b) => new Date(b.date) - new Date(a.date))
+    .slice(0, 20)
+
+  return {
+    key: variantKey,
+    name: variant.name,
+    short: variant.short,
+    price: variant.price,
+    totals: { assigned, sold, retracted, revenue, sellThrough, daysInMarket },
+    topPartners,
+    reasonCounts,
+    monthly,
+    recentSales,
+  }
+}
+
 export default DEMO_DATA

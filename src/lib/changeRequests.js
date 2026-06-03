@@ -21,6 +21,7 @@ export const REQUEST_TYPE_LABELS = {
   name: 'Name',
   phone: 'Phone Number',
   password: 'Password',
+  email: 'Login Email',
 }
 
 /**
