@@ -36,10 +36,20 @@ async function callManagePartner(payload) {
     throw new Error('Not authenticated')
   }
 
+  // Surface exactly where we're calling and with what so a failed request
+  // can be diagnosed from the browser console (URL, action, token presence).
+  console.log('[manage-partner] POST', MANAGE_PARTNER_URL, {
+    action: payload?.action,
+    hasToken: !!token,
+    tokenPreview: token ? `${token.slice(0, 8)}…` : null,
+    origin: window.location.origin,
+  })
+
   let res
   try {
     res = await fetch(MANAGE_PARTNER_URL, {
       method: 'POST',
+      mode: 'cors',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
@@ -47,23 +57,37 @@ async function callManagePartner(payload) {
       body: JSON.stringify(payload),
     })
   } catch (networkErr) {
-    throw new Error(`Network error contacting user service: ${networkErr.message}`)
+    // A thrown fetch (TypeError "Load failed" / "Failed to fetch") almost
+    // always means the request never got a response: CORS rejection, a
+    // blocked preflight, or the function being offline. Surface the URL and
+    // the most likely cause so it isn't a dead-end "Network error".
+    console.error('[manage-partner] fetch threw:', networkErr)
+    throw new Error(
+      `Could not reach the user service at ${MANAGE_PARTNER_URL} ` +
+        `(${networkErr?.message || 'fetch failed'}). This is usually a CORS block — ` +
+        `the Edge Function's ALLOWED_ORIGIN must include "${window.location.origin}" — ` +
+        `or the manage-partner function is not deployed.`,
+    )
   }
 
   // The Edge Function always returns JSON, but be defensive in case a
-  // gateway error slips through as HTML.
+  // gateway error slips through as HTML. Keep the raw text so we can show
+  // the EXACT response body when it isn't valid JSON.
   let body = null
+  let rawText = null
   try {
-    body = await res.json()
+    rawText = await res.text()
+    body = rawText ? JSON.parse(rawText) : null
   } catch {
     body = null
   }
 
   if (!res.ok) {
-    // Prefer the function's own error text. Fall back to status-specific
-    // hints so a misconfigured deployment produces an actionable message
-    // instead of a silent failure.
-    let msg = body && (body.error || body.message)
+    console.error('[manage-partner] HTTP', res.status, rawText)
+    // Prefer the function's own error text. Fall back to the raw response
+    // body, then status-specific hints, so a misconfigured deployment
+    // produces an actionable message instead of a silent failure.
+    let msg = (body && (body.error || body.message)) || (rawText && rawText.trim())
     if (!msg) {
       if (res.status === 404) {
         msg =

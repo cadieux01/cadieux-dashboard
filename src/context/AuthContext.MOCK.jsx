@@ -16,7 +16,7 @@ export function AuthProvider({ children }) {
   const mockProfile = {
     id: 'mock-sales-user-id',
     email: 'sales@gmail.com',
-    full_name: 'Sales Executive',
+    full_name: 'Sales Agent',
     role: 'sales',
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),

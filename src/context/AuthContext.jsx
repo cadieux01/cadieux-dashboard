@@ -23,7 +23,7 @@ export function AuthProvider({ children }) {
         profile: { 
           id: `mock-${mockRole}-id`, 
           email: MOCK_USER_EMAIL, 
-          full_name: mockRole === 'sales' ? 'Sales Executive' : 'Admin User', 
+          full_name: mockRole === 'sales' ? 'Sales Agent' : 'Admin User',
           role: mockRole 
         },
         role: mockRole,

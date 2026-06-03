@@ -12,7 +12,7 @@
 // the short key (demo-admin) or the full email at the login screen.
 export const DEMO_ACCOUNTS = {
   'demo-admin': { role: 'admin', name: 'Demo Admin', password: 'demo123' },
-  'demo-sales': { role: 'sales', name: 'Demo Sales Exec', password: 'demo123' },
+  'demo-sales': { role: 'sales', name: 'Demo Sales Agent', password: 'demo123' },
   'demo-partner': { role: 'partner', name: 'Demo Partner', password: 'demo123' },
 }
 

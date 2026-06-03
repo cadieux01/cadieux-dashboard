@@ -24,6 +24,7 @@ export default function SalesExec() {
   const [busyId, setBusyId] = useState(null)
   const [shareData, setShareData] = useState(null)
   const [formErrors, setFormErrors] = useState({})
+  const [createError, setCreateError] = useState(null)
   const [highlightId, setHighlightId] = useState(null)
   const rowRefs = useRef({})
   const [addFormData, setAddFormData] = useState({
@@ -56,7 +57,7 @@ export default function SalesExec() {
       console.error('Error fetching sales execs:', error)
       setBanner({
         type: 'error',
-        title: 'Failed to load sales execs',
+        title: 'Failed to load Sales Agents',
         message: error.message,
       })
     } finally {
@@ -85,6 +86,7 @@ export default function SalesExec() {
   const handleCloseAddExecModal = () => {
     setIsAddExecModalOpen(false)
     setFormErrors({})
+    setCreateError(null)
     setAddFormData({
       phone: '',
       password: '',
@@ -109,7 +111,7 @@ export default function SalesExec() {
       errors.password = 'Password must be at least 6 characters.'
     }
     if (addFormData.full_name.trim().length < 2) {
-      errors.full_name = 'Please enter the sales exec full name.'
+      errors.full_name = 'Please enter the Sales Agent full name.'
     }
     return errors
   }
@@ -118,6 +120,7 @@ export default function SalesExec() {
     e.preventDefault()
     if (isDemo) return demoBlock()
     setBanner(null)
+    setCreateError(null)
 
     const errors = validateForm()
     if (Object.keys(errors).length > 0) {
@@ -125,6 +128,8 @@ export default function SalesExec() {
       return
     }
     setFormErrors({})
+
+    const fullName = addFormData.full_name.trim()
 
     setCreatingExec(true)
     try {
@@ -140,33 +145,37 @@ export default function SalesExec() {
         actionType: 'CREATE',
         entityType: 'user',
         entityId: result.userId,
-        description: `Onboarded new Sales Executive: ${addFormData.full_name.trim()} (${result.phone})`,
+        description: `Onboarded new Sales Agent: ${fullName} (${result.phone})`,
         newValues: {
           phone: result.phone,
           role: 'sales',
-          full_name: addFormData.full_name.trim(),
+          full_name: fullName,
         },
       })
 
+      const newPassword = addFormData.password
+
+      // Close the modal immediately, show the full-width green success
+      // banner at the top, then surface the credential-share card while the
+      // plaintext password is still in memory.
+      handleCloseAddExecModal()
+
       setBanner({
         type: 'success',
-        title: 'Sales exec created',
-        message: `Created "${addFormData.full_name.trim()}" with login ${result.phone}.`,
+        title: `✓ Sales Agent ${fullName} created successfully`,
+        message: `Login: ${result.phone}. Share the credentials below.`,
       })
 
-      // Surface the credential-share card while the plaintext password is
-      // still in memory — it cannot be retrieved after this point.
       setShareData({
-        name: addFormData.full_name.trim(),
+        name: fullName,
         phone: result.phone,
-        password: addFormData.password,
+        password: newPassword,
         role: 'sales',
       })
 
-      handleCloseAddExecModal()
       await fetchExecs()
 
-      // Scroll the freshly-created exec into view and briefly highlight it.
+      // Scroll the freshly-created agent into view and briefly highlight it.
       setHighlightId(result.userId)
       setTimeout(() => {
         rowRefs.current[result.userId]?.scrollIntoView({
@@ -176,12 +185,9 @@ export default function SalesExec() {
       }, 100)
       setTimeout(() => setHighlightId(null), 2500)
     } catch (error) {
-      console.error('Error creating sales exec:', error)
-      setBanner({
-        type: 'error',
-        title: 'Failed to create sales exec',
-        message: error.message || 'An unexpected error occurred while creating the sales exec.',
-      })
+      console.error('Error creating sales agent:', error)
+      // Keep the modal open and show the EXACT error inside it.
+      setCreateError(error.message || 'An unexpected error occurred while creating the Sales Agent.')
     } finally {
       setCreatingExec(false)
     }
@@ -204,9 +210,9 @@ export default function SalesExec() {
         actionType: 'UPDATE',
         entityType: 'user',
         entityId: exec.id,
-        description: `Deactivated sales executive: ${exec.full_name || phone} (${phone})`,
+        description: `Deactivated Sales Agent: ${exec.full_name || phone} (${phone})`,
       })
-      setBanner({ type: 'success', title: 'Sales exec deactivated', message: `${exec.full_name || phone} can no longer log in. Data kept.` })
+      setBanner({ type: 'success', title: 'Sales Agent deactivated', message: `${exec.full_name || phone} can no longer log in. Data kept.` })
       await fetchExecs()
     } catch (error) {
       console.error('Error deactivating sales exec:', error)
@@ -231,9 +237,9 @@ export default function SalesExec() {
         actionType: 'UPDATE',
         entityType: 'user',
         entityId: exec.id,
-        description: `Reactivated sales executive: ${exec.full_name || phone} (${phone})`,
+        description: `Reactivated Sales Agent: ${exec.full_name || phone} (${phone})`,
       })
-      setBanner({ type: 'success', title: 'Sales exec reactivated', message: `${exec.full_name || phone} can log in again.` })
+      setBanner({ type: 'success', title: 'Sales Agent reactivated', message: `${exec.full_name || phone} can log in again.` })
       await fetchExecs()
     } catch (error) {
       console.error('Error reactivating sales exec:', error)
@@ -260,7 +266,7 @@ export default function SalesExec() {
         actionType: 'DELETE',
         entityType: 'user',
         entityId: exec.id,
-        description: `Deleted login for sales executive: ${exec.full_name || phone} (${phone})`,
+        description: `Deleted login for Sales Agent: ${exec.full_name || phone} (${phone})`,
         oldValues: {
           phone,
           full_name: exec.full_name || null,
@@ -384,8 +390,8 @@ export default function SalesExec() {
       <div className="mb-8">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="mb-2 text-4xl font-bold text-white">Sales Exec</h1>
-            <p className="text-slate-400">Manage sales exec accounts.</p>
+            <h1 className="mb-2 text-4xl font-bold text-white">Sales Agents</h1>
+            <p className="text-slate-400">Manage sales agent accounts.</p>
           </div>
           <button
             onClick={() => setIsAddExecModalOpen(true)}
@@ -394,7 +400,7 @@ export default function SalesExec() {
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
-            Add Exec
+            Add Sales Agent
           </button>
         </div>
       </div>
@@ -414,12 +420,12 @@ export default function SalesExec() {
         <AlertBanner
           type="info"
           title="Phone login"
-          message="Sales execs log in with their phone number and password. Deleting a login keeps all their data."
+          message="Sales agents log in with their phone number and password. Deleting a login keeps all their data."
         />
       </div>
 
       <div className="mb-6 grid grid-cols-1 gap-3 md:grid-cols-3">
-        <KPICard title="Total Execs" value={execs.length} color="indigo" />
+        <KPICard title="Total Agents" value={execs.length} color="indigo" />
         <KPICard title="Active" value={activeExecs} color="emerald" />
         <KPICard title="Deactivated" value={inactiveExecs} color="amber" />
       </div>
@@ -458,15 +464,15 @@ export default function SalesExec() {
 
       <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
         <div className="flex items-center justify-between border-b border-slate-800 px-6 py-4">
-          <h3 className="text-lg font-semibold text-white">Sales Exec Accounts</h3>
+          <h3 className="text-lg font-semibold text-white">Sales Agent Accounts</h3>
           <span className="text-sm text-slate-500">
-            {filteredExecs.length} exec{filteredExecs.length !== 1 ? 's' : ''}
+            {filteredExecs.length} agent{filteredExecs.length !== 1 ? 's' : ''}
           </span>
         </div>
 
         <div className="space-y-3 p-4 sm:hidden">
           {filteredExecs.length === 0 ? (
-            <p className="text-sm text-slate-400">No sales execs found.</p>
+            <p className="text-sm text-slate-400">No sales agents found.</p>
           ) : (
             filteredExecs.map(renderExecCard)
           )}
@@ -517,7 +523,7 @@ export default function SalesExec() {
               {filteredExecs.length === 0 && (
                 <tr>
                   <td colSpan="6" className="px-6 py-8 text-center text-slate-500">
-                    No sales exec accounts found.
+                    No sales agent accounts found.
                   </td>
                 </tr>
               )}
@@ -529,9 +535,20 @@ export default function SalesExec() {
       <Modal
         isOpen={isAddExecModalOpen}
         onClose={handleCloseAddExecModal}
-        title="Add Sales Exec"
+        title="Add Sales Agent"
       >
         <form onSubmit={handleCreateExec}>
+          {createError && (
+            <div className="mb-4">
+              <AlertBanner
+                type="error"
+                title="Failed to create Sales Agent"
+                message={createError}
+                onDismiss={() => setCreateError(null)}
+              />
+            </div>
+          )}
+
           <FormField
             label="Phone Number"
             type="tel"
@@ -557,7 +574,7 @@ export default function SalesExec() {
             label="Full Name"
             value={addFormData.full_name}
             onChange={(value) => updateField('full_name', value)}
-            placeholder="Sales exec name"
+            placeholder="Sales agent name"
             error={formErrors.full_name}
             required
           />
@@ -584,7 +601,7 @@ export default function SalesExec() {
               className="flex-1 rounded-lg bg-emerald-600 px-4 py-2 font-medium text-white transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={creatingExec}
             >
-              {creatingExec ? 'Creating...' : 'Create Exec'}
+              {creatingExec ? 'Creating...' : 'Create Agent'}
             </button>
           </div>
         </form>

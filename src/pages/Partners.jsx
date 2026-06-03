@@ -33,6 +33,7 @@ export default function Partners() {
   const [busyId, setBusyId] = useState(null)
   const [shareData, setShareData] = useState(null)
   const [formErrors, setFormErrors] = useState({})
+  const [createError, setCreateError] = useState(null)
   const [highlightId, setHighlightId] = useState(null)
   const rowRefs = useRef({})
   const [addFormData, setAddFormData] = useState({
@@ -90,6 +91,7 @@ export default function Partners() {
   const handleCloseAddPartnerModal = () => {
     setIsAddPartnerModalOpen(false)
     setFormErrors({})
+    setCreateError(null)
     setAddFormData({
       phone: '',
       password: '',
@@ -123,6 +125,7 @@ export default function Partners() {
     e.preventDefault()
     if (isDemo) return demoBlock()
     setBanner(null)
+    setCreateError(null)
 
     const errors = validateForm()
     if (Object.keys(errors).length > 0) {
@@ -130,6 +133,8 @@ export default function Partners() {
       return
     }
     setFormErrors({})
+
+    const fullName = addFormData.full_name.trim()
 
     setCreatingPartner(true)
     try {
@@ -145,30 +150,34 @@ export default function Partners() {
         actionType: 'CREATE',
         entityType: 'user',
         entityId: result.userId,
-        description: `Onboarded new Partner: ${addFormData.full_name.trim()} (${result.phone})`,
+        description: `Onboarded new Partner: ${fullName} (${result.phone})`,
         newValues: {
           phone: result.phone,
           role: 'partner',
-          full_name: addFormData.full_name.trim(),
+          full_name: fullName,
         },
       })
 
+      const newPassword = addFormData.password
+
+      // Close the modal immediately, show the full-width green success
+      // banner at the top, then surface the credential-share card while the
+      // plaintext password is still in memory.
+      handleCloseAddPartnerModal()
+
       setBanner({
         type: 'success',
-        title: 'Partner created successfully',
-        message: `Created "${addFormData.full_name.trim()}" with login ${result.phone}.`,
+        title: `✓ Partner ${fullName} created successfully`,
+        message: `Login: ${result.phone}. Share the credentials below.`,
       })
 
-      // Surface the credential-share card while the plaintext password is
-      // still in memory — it cannot be retrieved after this point.
       setShareData({
-        name: addFormData.full_name.trim(),
+        name: fullName,
         phone: result.phone,
-        password: addFormData.password,
+        password: newPassword,
         role: 'partner',
       })
 
-      handleCloseAddPartnerModal()
       await fetchPartners()
 
       // Scroll the freshly-created partner into view and briefly highlight it.
@@ -182,11 +191,8 @@ export default function Partners() {
       setTimeout(() => setHighlightId(null), 2500)
     } catch (error) {
       console.error('Error creating partner:', error)
-      setBanner({
-        type: 'error',
-        title: 'Failed to create partner',
-        message: error.message || 'An unexpected error occurred while creating the partner.',
-      })
+      // Keep the modal open and show the EXACT error inside it.
+      setCreateError(error.message || 'An unexpected error occurred while creating the partner.')
     } finally {
       setCreatingPartner(false)
     }
@@ -537,6 +543,17 @@ export default function Partners() {
         title="Add Partner"
       >
         <form onSubmit={handleCreatePartner}>
+          {createError && (
+            <div className="mb-4">
+              <AlertBanner
+                type="error"
+                title="Failed to create partner"
+                message={createError}
+                onDismiss={() => setCreateError(null)}
+              />
+            </div>
+          )}
+
           <FormField
             label="Phone Number"
             type="tel"
