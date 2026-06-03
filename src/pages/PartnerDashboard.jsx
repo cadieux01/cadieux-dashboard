@@ -612,7 +612,7 @@ export default function PartnerDashboard() {
             setIsDateEditable(false)
             setIsCustomerModalOpen(true)
           }}
-        className="dashboard-fab fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full text-white transition-all hover:-translate-y-1 sm:bottom-8 sm:right-8 sm:h-16 sm:w-16"
+        className="dashboard-fab fixed bottom-20 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full text-white transition-all hover:-translate-y-1 sm:h-16 sm:w-16 lg:bottom-8 lg:right-8"
         aria-label="Add Customer"
       >
         <svg className="w-6 h-6 sm:w-8 sm:h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">

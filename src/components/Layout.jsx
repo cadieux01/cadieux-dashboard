@@ -271,12 +271,12 @@ export default function Layout() {
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 overflow-auto lg:ml-0">
+      <main className="flex-1 overflow-auto pb-20 lg:ml-0 lg:pb-0">
         <Outlet />
       </main>
 
       {/* Mobile bottom tab bar (< lg) */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 flex items-stretch border-t border-[#1e2d3d] bg-[#0a0f14]/95 backdrop-blur-md lg:hidden">
+      <nav className="fixed bottom-0 left-0 right-0 z-50 flex items-stretch border-t border-[#1e2d3d] bg-[#0a0f14] lg:hidden">
         {bottomTabs.map((item) => {
           const Icon = item.Icon
           return (

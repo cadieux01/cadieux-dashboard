@@ -2,6 +2,7 @@ import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { lazy, Suspense } from 'react'
 import Layout from './components/Layout'
 import ProtectedRoute from './components/ProtectedRoute'
+import RouteErrorBoundary from './components/RouteErrorBoundary'
 
 const Login = lazy(() => import('./pages/Login'))
 const Sales = lazy(() => import('./pages/Sales'))
@@ -22,9 +23,11 @@ const PageLoader = () => (
 )
 
 const withSuspense = (Component) => (
-  <Suspense fallback={<PageLoader />}>
-    <Component />
-  </Suspense>
+  <RouteErrorBoundary>
+    <Suspense fallback={<PageLoader />}>
+      <Component />
+    </Suspense>
+  </RouteErrorBoundary>
 )
 
 export const router = createBrowserRouter([

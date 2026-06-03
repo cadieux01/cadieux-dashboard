@@ -2,7 +2,7 @@ export default function Modal({ isOpen, onClose, title, children }) {
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto p-4 sm:p-6">
+    <div className="fixed inset-0 z-[60] overflow-y-auto p-4 sm:p-6">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-slate-950/68 backdrop-blur-md"
