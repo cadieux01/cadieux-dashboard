@@ -213,7 +213,7 @@ export default function Login() {
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label htmlFor="identifier" className="block text-sm font-medium text-slate-300 mb-2">
-                Name, Phone Number, or Email
+                Name or Phone Number
               </label>
               <input
                 id="identifier"
@@ -223,7 +223,7 @@ export default function Login() {
                 onChange={(e) => setIdentifier(e.target.value)}
                 required
                 className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                placeholder="Rahul Kumar, 9876543210, or admin@email.com"
+                placeholder="Enter name or number"
               />
             </div>
 
