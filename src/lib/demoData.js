@@ -7,6 +7,14 @@
 // authenticate against Supabase — see matchDemoAccount() / AuthContext.
 // ============================================================================
 
+// --- Product variants -------------------------------------------------------
+// The two bread variants Cadieux sells. Used across the sales/assignment flow
+// for per-variant tracking and analytics.
+export const VARIANTS = {
+  multigrain: { key: 'multigrain', name: 'Multi-Grain High Protein Bread', short: 'Multi-Grain', price: 149 },
+  plain: { key: 'plain', name: 'Plain High Protein Bread', short: 'Plain', price: 109 },
+}
+
 // --- Demo accounts ----------------------------------------------------------
 // Detected by the email pattern demo-<role>@cadieux.demo. Users can type either
 // the short key (demo-admin) or the full email at the login screen.
@@ -89,6 +97,15 @@ const DEMO_DATA = {
       { name: 'Anita Das', assigned: 120, sold: 45, revenue: 6300 },
       { name: 'Suresh Patel', assigned: 100, sold: 38, revenue: 5320 },
     ],
+    // Per-partner variant breakdown (drives the variant bar chart + table).
+    // Column sums: MG assigned 200, MG sold 156, Plain assigned 150, Plain sold 98.
+    partnerVariants: [
+      { name: 'Rahul Kumar', mg_assigned: 50, mg_sold: 42, plain_assigned: 35, plain_sold: 24 },
+      { name: 'Priya Sharma', mg_assigned: 45, mg_sold: 36, plain_assigned: 35, plain_sold: 22 },
+      { name: 'Vikram Reddy', mg_assigned: 40, mg_sold: 32, plain_assigned: 30, plain_sold: 20 },
+      { name: 'Anita Das', mg_assigned: 35, mg_sold: 26, plain_assigned: 28, plain_sold: 18 },
+      { name: 'Suresh Patel', mg_assigned: 30, mg_sold: 20, plain_assigned: 22, plain_sold: 14 },
+    ],
     recentSales: [
       { customer: 'Mohan Rao', contact: '9876543210', units: 3, revenue: 420, date: '2026-06-01', partner: 'Rahul Kumar' },
       { customer: 'Lakshmi Devi', contact: '9876543211', units: 5, revenue: 700, date: '2026-06-01', partner: 'Priya Sharma' },
@@ -111,18 +128,20 @@ const DEMO_DATA = {
     ],
   },
 
-  // Partner view
+  // Partner view — per-variant assigned/sold so KPI breakdowns work.
+  // MG assigned 30 / sold 18, Plain assigned 20 / sold 10.
+  // Revenue = 18×149 + 10×109 = ₹3,772. Total sold = 28.
   partner: {
     name: 'Demo Partner',
     phone: '9876543230',
     totalSales: 28,
-    totalRevenue: 3920,
+    totalRevenue: 3772,
     assigned: 50,
     done: 18,
     mySales: [
-      { customer: 'Anil Kumar', contact: '9876543240', units: 3, revenue: 420, date: '2026-06-02' },
-      { customer: 'Bharti Devi', contact: '9876543241', units: 2, revenue: 280, date: '2026-06-01' },
-      { customer: 'Chandan Rao', contact: '9876543242', units: 5, revenue: 700, date: '2026-05-31' },
+      { customer: 'Anil Kumar', contact: '9876543240', variant: 'multigrain', units: 8, mg_assigned: 15, plain_assigned: 0, date: '2026-06-02' },
+      { customer: 'Bharti Devi', contact: '9876543241', variant: 'multigrain', units: 10, mg_assigned: 15, plain_assigned: 0, date: '2026-06-01' },
+      { customer: 'Chandan Rao', contact: '9876543242', variant: 'plain', units: 10, mg_assigned: 0, plain_assigned: 20, date: '2026-05-31' },
     ],
   },
 
@@ -186,17 +205,84 @@ export function demoRankings() {
 }
 
 export function demoPartnerSales() {
-  return DEMO_DATA.partner.mySales.map((s, i) => ({
-    id: `demo-sale-${i}`,
-    buyer_name: s.customer,
-    buyer_contact: s.contact,
-    units_sold: s.units,
-    units_assigned: s.units,
-    picture_url: 'demo://picture',
-    purchase_date: s.date,
-    created_at: `${s.date}T10:00:00Z`,
-    qr_code_url: null,
+  return DEMO_DATA.partner.mySales.map((s, i) => {
+    const variant = VARIANTS[s.variant] || VARIANTS.multigrain
+    return {
+      id: `demo-sale-${i}`,
+      buyer_name: s.customer,
+      buyer_contact: s.contact,
+      units_sold: s.units,
+      units_assigned: s.units,
+      multigrain_assigned: s.mg_assigned || 0,
+      plain_assigned: s.plain_assigned || 0,
+      product_variant: variant.name,
+      unit_price: variant.price,
+      picture_url: 'demo://picture',
+      purchase_date: s.date,
+      created_at: `${s.date}T10:00:00Z`,
+      qr_code_url: null,
+    }
+  })
+}
+
+// --- Variant analytics (admin) ----------------------------------------------
+// Totals per variant: { multigrain: {assigned, sold, revenue}, plain: {...} }.
+export function demoVariantTotals() {
+  const rows = DEMO_DATA.overview.partnerVariants
+  const sum = (k) => rows.reduce((acc, r) => acc + (r[k] || 0), 0)
+  const mgSold = sum('mg_sold')
+  const plainSold = sum('plain_sold')
+  return {
+    multigrain: {
+      assigned: sum('mg_assigned'),
+      sold: mgSold,
+      revenue: mgSold * VARIANTS.multigrain.price,
+    },
+    plain: {
+      assigned: sum('plain_assigned'),
+      sold: plainSold,
+      revenue: plainSold * VARIANTS.plain.price,
+    },
+  }
+}
+
+// Per-partner variant breakdown for the bar chart + detailed table.
+export function demoVariantByPartner() {
+  return DEMO_DATA.overview.partnerVariants.map((r) => ({
+    partner: r.name,
+    mg_assigned: r.mg_assigned,
+    mg_sold: r.mg_sold,
+    plain_assigned: r.plain_assigned,
+    plain_sold: r.plain_sold,
+    revenue: r.mg_sold * VARIANTS.multigrain.price + r.plain_sold * VARIANTS.plain.price,
   }))
+}
+
+// Variant sales over time. Returns evenly-spaced points across the range with
+// a gently upward multi-grain trend and a flatter plain trend.
+export function demoVariantTrend(range = '30d') {
+  const config = {
+    '7d': { points: 7, step: 1 },
+    '30d': { points: 10, step: 3 },
+    month: { points: 10, step: 3 },
+    '3m': { points: 12, step: 7 },
+    '6m': { points: 12, step: 15 },
+    year: { points: 12, step: 30 },
+  }[range] || { points: 10, step: 3 }
+
+  const today = new Date('2026-06-03')
+  const out = []
+  for (let i = config.points - 1; i >= 0; i--) {
+    const d = new Date(today)
+    d.setDate(today.getDate() - i * config.step)
+    const seed = config.points - i
+    out.push({
+      date: `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`,
+      multigrain: Math.round(9 + seed * 1.7 + (i % 3) * 1.5),
+      plain: Math.round(6 + seed * 0.8 + ((i + 1) % 2) * 1.2),
+    })
+  }
+  return out
 }
 
 export function demoLeads() {

@@ -403,14 +403,37 @@ export default function PartnerDashboard() {
   }
 
   const summary = useMemo(() => {
-    const totalUnits = sales.reduce((sum, sale) => sum + (sale.units_sold || 0), 0)
-    const totalRevenue = sales.reduce((sum, sale) => sum + saleRevenue(sale), 0)
+    const variants = {
+      multigrain: { assigned: 0, sold: 0, revenue: 0 },
+      plain: { assigned: 0, sold: 0, revenue: 0 },
+    }
+    let totalUnits = 0
+    let totalRevenue = 0
+
+    for (const sale of sales) {
+      const units = sale.units_sold || 0
+      totalUnits += units
+      totalRevenue += saleRevenue(sale)
+
+      variants.multigrain.assigned += sale.multigrain_assigned || 0
+      variants.plain.assigned += sale.plain_assigned || 0
+
+      const v = variantFromSale(sale)
+      const bucket = v?.name === VARIANTS.plain.name ? variants.plain : variants.multigrain
+      bucket.sold += units
+      bucket.revenue += saleRevenue(sale)
+    }
+
+    variants.multigrain.left = Math.max(0, variants.multigrain.assigned - variants.multigrain.sold)
+    variants.plain.left = Math.max(0, variants.plain.assigned - variants.plain.sold)
+
     const completedSales = sales.filter((sale) => isSaleComplete(sale)).length
 
     return {
       totalUnits,
       totalRevenue,
       completedSales,
+      variants,
     }
   }, [sales])
 
@@ -444,19 +467,51 @@ export default function PartnerDashboard() {
         </div>
 
         <div className="mb-4 grid grid-cols-2 gap-2 md:grid-cols-2 xl:grid-cols-4">
+          {/* Per-variant stock cards */}
+          <div className="dashboard-panel rounded-xl p-3">
+            <div className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: '#024628' }} />
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-300">Multi-Grain</p>
+            </div>
+            <div className="mt-2 space-y-1 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Assigned</span>
+                <span className="font-semibold text-white">{summary.variants.multigrain.assigned.toLocaleString()}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Sold</span>
+                <span className="font-semibold text-emerald-300">{summary.variants.multigrain.sold.toLocaleString()}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Left</span>
+                <span className="font-semibold text-white">{summary.variants.multigrain.left.toLocaleString()}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="dashboard-panel rounded-xl p-3">
+            <div className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: '#FBF3D4' }} />
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-200">Plain</p>
+            </div>
+            <div className="mt-2 space-y-1 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Assigned</span>
+                <span className="font-semibold text-white">{summary.variants.plain.assigned.toLocaleString()}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Sold</span>
+                <span className="font-semibold text-emerald-300">{summary.variants.plain.sold.toLocaleString()}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Left</span>
+                <span className="font-semibold text-white">{summary.variants.plain.left.toLocaleString()}</span>
+              </div>
+            </div>
+          </div>
+
           <KPICard
-            title="Customers"
-            value={sales.length.toLocaleString()}
-            subtitle="Entries"
-            color="indigo"
-            icon={
-              <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-            }
-          />
-          <KPICard
-            title="Sold"
+            title="Total Sold"
             value={summary.totalUnits.toLocaleString()}
             subtitle="Units"
             color="emerald"
@@ -474,17 +529,6 @@ export default function PartnerDashboard() {
             icon={
               <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-10V6m0 12v-2m7-4a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            }
-          />
-          <KPICard
-            title="Done"
-            value={summary.completedSales.toLocaleString()}
-            subtitle="With proof"
-            color="amber"
-            icon={
-              <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             }
           />

@@ -11,7 +11,7 @@ import useRefreshable from '../lib/useRefreshable'
 import { logAuditEvent, createAuditDescription } from '../lib/audit'
 import { formatDateDDMMYY } from '../lib/date'
 import { useAuth } from '../context/AuthContext'
-import { demoBlock, demoLeads, demoLeadSales, demoLeadTrainers } from '../lib/demoData'
+import { demoBlock, demoLeads, demoLeadSales, demoLeadTrainers, VARIANTS } from '../lib/demoData'
 
 const STATUS_OPTIONS = [
   { value: 'all', label: 'All Status' },
@@ -68,7 +68,8 @@ export default function Leads() {
   })
   const [saleFormData, setSaleFormData] = useState({
     trainer_id: '',
-    units_assigned: '',
+    multigrain_assigned: '',
+    plain_assigned: '',
     units_sold: '',
     date_of_assignment: new Date().toISOString().split('T')[0],
     retracted_units: '',
@@ -539,27 +540,44 @@ export default function Leads() {
       return
     }
 
-    if (!saleFormData.units_assigned || parseInt(saleFormData.units_assigned) <= 0) {
-      alert('Please enter units assigned')
+    const multigrainAssigned = parseInt(saleFormData.multigrain_assigned) || 0
+    const plainAssigned = parseInt(saleFormData.plain_assigned) || 0
+    const totalAssigned = multigrainAssigned + plainAssigned
+
+    if (totalAssigned <= 0) {
+      alert('Please enter at least one variant quantity')
       return
     }
 
+    // When only a single variant is assigned, tag the row with that variant so
+    // downstream views can attribute it cleanly; mixed assignments stay null.
+    const singleVariant =
+      multigrainAssigned > 0 && plainAssigned === 0
+        ? VARIANTS.multigrain
+        : plainAssigned > 0 && multigrainAssigned === 0
+          ? VARIANTS.plain
+          : null
+
     try {
-      
+
       // Ensure date is in YYYY-MM-DD format for Supabase DATE column
       const assignmentDate = saleFormData.date_of_assignment || new Date().toISOString().split('T')[0]
-      
+
       const insertPayload = {
         trainer_id: saleFormData.trainer_id,
-        units_assigned: parseInt(saleFormData.units_assigned) || 0,
+        units_assigned: totalAssigned,
+        multigrain_assigned: multigrainAssigned,
+        plain_assigned: plainAssigned,
         units_sold: 0,
         date_of_assignment: assignmentDate,
+        product_variant: singleVariant?.name || null,
+        unit_price: singleVariant?.price || null,
       };
-      
-      
+
+
       if (editingSaleId) {
         const retractedUnits = parseInt(saleFormData.retracted_units) || 0
-        const unitsAssigned = parseInt(saleFormData.units_assigned) || 0
+        const unitsAssigned = totalAssigned
         
         // Validate that retracted units don't exceed assigned units
         if (retractedUnits > unitsAssigned) {
@@ -591,9 +609,13 @@ export default function Leads() {
           .update({
             trainer_id: saleFormData.trainer_id,
             units_assigned: unitsAssigned,
+            multigrain_assigned: multigrainAssigned,
+            plain_assigned: plainAssigned,
             units_sold: unitsSold,
             date_of_assignment: assignmentDate,
             retracted_units: retractedUnits,
+            product_variant: singleVariant?.name || null,
+            unit_price: singleVariant?.price || null,
           })
           .eq('id', editingSaleId)
 
@@ -661,7 +683,8 @@ export default function Leads() {
 
       setSaleFormData({
         trainer_id: '',
-        units_assigned: '',
+        multigrain_assigned: '',
+        plain_assigned: '',
         units_sold: '',
         date_of_assignment: new Date().toISOString().split('T')[0],
         retracted_units: '',
@@ -678,9 +701,21 @@ export default function Leads() {
   }
 
   const handleEditSale = (sale) => {
+    // Derive each variant's assigned count from the stored columns; legacy rows
+    // (single units_assigned, no breakdown) fall back to attributing the total
+    // to the row's tagged variant, defaulting to multi-grain.
+    const mg = sale.multigrain_assigned != null ? sale.multigrain_assigned : null
+    const pl = sale.plain_assigned != null ? sale.plain_assigned : null
+    let multigrain = mg ?? 0
+    let plain = pl ?? 0
+    if (mg == null && pl == null) {
+      if (sale.product_variant === VARIANTS.plain.name) plain = sale.units_assigned || 0
+      else multigrain = sale.units_assigned || 0
+    }
     setSaleFormData({
       trainer_id: sale.trainer_id,
-      units_assigned: sale.units_assigned,
+      multigrain_assigned: multigrain,
+      plain_assigned: plain,
       units_sold: sale.units_sold || 0,
       date_of_assignment: sale.date_of_assignment || sale.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
       retracted_units: sale.retracted_units || 0,
@@ -740,7 +775,8 @@ export default function Leads() {
     setIsDateEditable(false)
     setSaleFormData({
       trainer_id: '',
-      units_assigned: '',
+      multigrain_assigned: '',
+      plain_assigned: '',
       units_sold: '',
       date_of_assignment: new Date().toISOString().split('T')[0],
       retracted_units: '',
@@ -1698,14 +1734,47 @@ export default function Leads() {
             required
           />
           
-          <FormField
-            label="Units Assigned"
-            type="number"
-            value={saleFormData.units_assigned}
-            onChange={(value) => setSaleFormData({ ...saleFormData, units_assigned: value })}
-            placeholder="0"
-            required
-          />
+          {/* Per-variant assignment — either can be 0, at least one must be > 0 */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <FormField
+              label={`Multi-Grain (₹${VARIANTS.multigrain.price})`}
+              type="number"
+              value={saleFormData.multigrain_assigned}
+              onChange={(value) => setSaleFormData({ ...saleFormData, multigrain_assigned: value })}
+              placeholder="0"
+              min="0"
+            />
+            <FormField
+              label={`Plain (₹${VARIANTS.plain.price})`}
+              type="number"
+              value={saleFormData.plain_assigned}
+              onChange={(value) => setSaleFormData({ ...saleFormData, plain_assigned: value })}
+              placeholder="0"
+              min="0"
+            />
+          </div>
+
+          {/* Live total preview */}
+          {(() => {
+            const mg = parseInt(saleFormData.multigrain_assigned) || 0
+            const pl = parseInt(saleFormData.plain_assigned) || 0
+            const totalUnits = mg + pl
+            const totalValue = mg * VARIANTS.multigrain.price + pl * VARIANTS.plain.price
+            return (
+              <div className="mb-4 rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2.5">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-slate-300">Total Units</span>
+                  <span className="font-semibold text-white">
+                    {totalUnits} <span className="text-xs font-normal text-slate-400">({mg} Multi-Grain + {pl} Plain)</span>
+                  </span>
+                </div>
+                <div className="mt-1 flex items-center justify-between text-sm">
+                  <span className="text-slate-300">Total Value</span>
+                  <span className="font-mono font-semibold text-emerald-300">₹{totalValue.toLocaleString()}</span>
+                </div>
+              </div>
+            )
+          })()}
 
           {/* Units Sold (only show when editing) */}
           {editingSaleId && (
@@ -1717,7 +1786,9 @@ export default function Leads() {
               placeholder="0"
               min="0"
               max={(() => {
-                const unitsAssigned = parseInt(saleFormData.units_assigned) || 0
+                const unitsAssigned =
+                  (parseInt(saleFormData.multigrain_assigned) || 0) +
+                  (parseInt(saleFormData.plain_assigned) || 0)
                 const retractedUnits = parseInt(saleFormData.retracted_units) || 0
                 return Math.max(0, unitsAssigned - retractedUnits)
               })()}
@@ -1770,7 +1841,11 @@ export default function Leads() {
           </div>
 
           {/* Retracted Units (only show when editing) */}
-          {editingSaleId && (
+          {editingSaleId && (() => {
+            const totalAssigned =
+              (parseInt(saleFormData.multigrain_assigned) || 0) +
+              (parseInt(saleFormData.plain_assigned) || 0)
+            return (
             <div className="mb-4">
               <label className="block text-sm font-medium text-slate-300 mb-2">
                 Retracted Units
@@ -1785,23 +1860,24 @@ export default function Leads() {
                     setSaleFormData({ ...saleFormData, retracted_units: value })
                   }}
                   min="0"
-                  max={parseInt(saleFormData.units_assigned) || 0}
+                  max={totalAssigned}
                   className="flex-1 px-4 py-2 bg-slate-800 border border-purple-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
                   placeholder="0"
                 />
                 <div className="w-full sm:w-auto px-3 py-2 bg-purple-900/30 border border-purple-700 rounded-lg text-purple-300 text-sm">
-                  Max: {parseInt(saleFormData.units_assigned) || 0}
+                  Max: {totalAssigned}
                 </div>
               </div>
               {saleFormData.retracted_units > 0 && (
                 <div className="mt-2 p-2 bg-purple-500/10 border border-purple-500/30 rounded-lg">
                   <p className="text-xs text-purple-400">
-                    Retracted: {saleFormData.retracted_units} units ({saleFormData.units_assigned > 0 ? ((saleFormData.retracted_units / saleFormData.units_assigned) * 100).toFixed(0) : 0}% of assigned)
+                    Retracted: {saleFormData.retracted_units} units ({totalAssigned > 0 ? ((saleFormData.retracted_units / totalAssigned) * 100).toFixed(0) : 0}% of assigned)
                   </p>
                 </div>
               )}
             </div>
-          )}
+            )
+          })()}
 
           <div className="flex flex-col sm:flex-row gap-3 mt-6">
             {editingSaleId && (
