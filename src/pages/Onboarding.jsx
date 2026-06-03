@@ -76,12 +76,12 @@ export default function Onboarding() {
         <div className="mb-3">
           <h1 className="dashboard-title">User Onboarding</h1>
           <p className="dashboard-subtitle">
-            Create new partner or sales agent accounts (phone + password login)
+            Create new partner or agent accounts (phone + password login)
           </p>
         </div>
 
         <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-200">
-          🎬 Onboarding Preview — This is how new partners and sales agents are onboarded
+          🎬 Onboarding Preview — This is how new partners and agents are onboarded
         </div>
 
         <div className="grid gap-6 lg:grid-cols-2">
@@ -188,7 +188,7 @@ export default function Onboarding() {
 
     // Sales execs can only create partners.
     const targetRole = role === 'admin' ? formData.role : 'partner'
-    const roleLabel = targetRole === 'sales' ? 'Sales Agent' : 'Partner'
+    const roleLabel = targetRole === 'sales' ? 'Agent' : 'Partner'
 
     const errors = {}
     if (!isValidPhone(formData.phone)) {
@@ -261,7 +261,7 @@ export default function Onboarding() {
             </h1>
             <p className="dashboard-subtitle">
               {role === 'admin'
-                ? 'Create new partner or sales agent accounts (phone + password login)'
+                ? 'Create new partner or agent accounts (phone + password login)'
                 : 'Create new partner accounts (phone + password login)'}
             </p>
           </div>
@@ -304,11 +304,11 @@ export default function Onboarding() {
                 required
               >
                 <option value="partner">Partner</option>
-                <option value="sales">Sales Agent</option>
+                <option value="sales">Agent</option>
               </select>
               <p className="mt-1 text-xs text-slate-400">
                 {formData.role === 'sales'
-                  ? 'Sales agents can onboard partners and manage sales'
+                  ? 'Agents can onboard partners and manage sales'
                   : 'Partners can manage their assigned units and customers'}
               </p>
             </div>
@@ -339,7 +339,7 @@ export default function Onboarding() {
             label="Full Name"
             value={formData.full_name}
             onChange={(value) => updateField('full_name', value)}
-            placeholder={formData.role === 'sales' ? "Sales agent's full name" : "Partner's full name"}
+            placeholder={formData.role === 'sales' ? "Agent's full name" : "Partner's full name"}
             error={formErrors.full_name}
             required
           />
@@ -371,7 +371,7 @@ export default function Onboarding() {
               className="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={loading}
             >
-              {loading ? 'Creating...' : (formData.role === 'sales' ? 'Create Sales Agent' : 'Create Partner')}
+              {loading ? 'Creating...' : (formData.role === 'sales' ? 'Create Agent' : 'Create Partner')}
             </button>
           </div>
         </form>

@@ -30,6 +30,7 @@ function partnerPhone(p) {
 export default function Partners() {
   const { isDemo } = useAuth()
   const [partners, setPartners] = useState([])
+  const [stats, setStats] = useState({})
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [isAddPartnerModalOpen, setIsAddPartnerModalOpen] = useState(false)
@@ -42,7 +43,10 @@ export default function Partners() {
   const [highlightId, setHighlightId] = useState(null)
   const [detailUser, setDetailUser] = useState(null)
   const [detailMode, setDetailMode] = useState('view')
+  const [statsForId, setStatsForId] = useState(null)
   const rowRefs = useRef({})
+
+  const partnerStat = (p) => stats[p.id] || { assigned: 0, sold: 0, retracted: 0 }
   const [addFormData, setAddFormData] = useState({
     phone: '',
     password: '',
@@ -59,6 +63,16 @@ export default function Partners() {
   const fetchPartners = async () => {
     if (isDemo) {
       setPartners(DEMO_DATA.partnersList)
+      // Per-partner stats are baked into the demo rows.
+      const s = {}
+      for (const p of DEMO_DATA.partnersList) {
+        s[p.id] = {
+          assigned: p.assigned || 0,
+          sold: p.sold || 0,
+          retracted: p.retracted || 0,
+        }
+      }
+      setStats(s)
       setLoading(false)
       return
     }
@@ -71,6 +85,29 @@ export default function Partners() {
 
       if (error) throw error
       setPartners(data || [])
+
+      // Best-effort stats pull: aggregate sales by trainer_id. Failure is
+      // non-fatal — the columns may not exist yet on older deployments.
+      const ids = (data || []).map((p) => p.id)
+      if (ids.length > 0) {
+        try {
+          const { data: salesRows } = await supabase
+            .from('sales')
+            .select('trainer_id, units_assigned, units_sold, retracted_units')
+            .in('trainer_id', ids)
+          const s = {}
+          for (const r of salesRows || []) {
+            const k = r.trainer_id
+            if (!s[k]) s[k] = { assigned: 0, sold: 0, retracted: 0 }
+            s[k].assigned += r.units_assigned || 0
+            s[k].sold += r.units_sold || 0
+            s[k].retracted += r.retracted_units || 0
+          }
+          setStats(s)
+        } catch {
+          setStats({})
+        }
+      }
     } catch (error) {
       console.error('Error fetching partners:', error)
       setBanner({
@@ -379,36 +416,37 @@ export default function Partners() {
     )
   }
 
-  const renderPartnerCard = (partner) => (
-    <div
-      key={partner.id}
-      ref={(el) => { rowRefs.current[partner.id] = el }}
-      className={`rounded-xl border bg-slate-900 p-4 transition-colors duration-500 ${
-        highlightId === partner.id ? 'border-emerald-500 bg-emerald-500/5' : 'border-slate-800'
-      }`}
-    >
-      <div className="mb-3 flex items-start justify-between gap-2">
-        <div>
-          <p className="font-semibold text-white">{partner.full_name || 'N/A'}</p>
-          <p className="text-xs text-slate-500">{partnerPhone(partner) || 'N/A'}</p>
+  const renderPartnerCard = (partner) => {
+    const s = partnerStat(partner)
+    return (
+      <div
+        key={partner.id}
+        ref={(el) => { rowRefs.current[partner.id] = el }}
+        onClick={() => setStatsForId(partner.id)}
+        className={`cursor-pointer rounded-xl border bg-slate-900 p-4 transition-colors duration-500 ${
+          highlightId === partner.id ? 'border-emerald-500 bg-emerald-500/5' : 'border-slate-800'
+        }`}
+      >
+        <div className="mb-2 flex items-start justify-between gap-2">
+          <div>
+            <p className="font-semibold text-white">{partner.full_name || 'N/A'}</p>
+            <p className="text-xs text-slate-500">📞 {partnerPhone(partner) || 'N/A'}</p>
+          </div>
+          {statusBadge(partner.status)}
         </div>
-        {statusBadge(partner.status)}
+        <div className="mb-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-300">
+          <span><span className="text-slate-500">Assigned:</span> <span className="font-semibold text-white">{s.assigned}</span></span>
+          <span><span className="text-slate-500">Sold:</span> <span className="font-semibold text-emerald-300">{s.sold}</span></span>
+          <span><span className="text-slate-500">Ret:</span> <span className="font-semibold text-amber-300">{s.retracted}</span></span>
+        </div>
+        <div className="mb-2 text-xs text-slate-500">
+          {partner.created_at ? formatDateDDMMYY(partner.created_at) : ''}
+          {partner.notes ? ` · ${partner.notes}` : ''}
+        </div>
+        <div onClick={(e) => e.stopPropagation()}>{rowActions(partner)}</div>
       </div>
-      <div className="mb-3 grid grid-cols-2 gap-3">
-        <div>
-          <p className="text-xs text-slate-500">Created</p>
-          <p className="text-sm text-slate-300">
-            {partner.created_at ? formatDateDDMMYY(partner.created_at) : 'N/A'}
-          </p>
-        </div>
-        <div className="col-span-2">
-          <p className="text-xs text-slate-500">Notes</p>
-          <p className="text-sm text-slate-300">{partner.notes || '—'}</p>
-        </div>
-      </div>
-      {rowActions(partner)}
-    </div>
-  )
+    )
+  }
 
   if (loading) {
     return (
@@ -517,47 +555,53 @@ export default function Partners() {
           <table className="w-full">
             <thead className="bg-slate-800/50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Name</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Phone</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Notes</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Created</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wider">Actions</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Name</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Phone</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Status</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wider">Assigned</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wider">Sold</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wider">Retracted</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Notes</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800">
-              {filteredPartners.map((partner) => (
-                <tr
-                  key={partner.id}
-                  ref={(el) => { rowRefs.current[partner.id] = el }}
-                  className={`transition-colors duration-500 ${
-                    highlightId === partner.id ? 'bg-emerald-500/10' : 'hover:bg-slate-800/30'
-                  }`}
-                >
-                  <td className="px-6 py-4">
-                    <div>
-                      <p className="font-medium text-white">{partner.full_name || 'N/A'}</p>
-                      <p className="text-xs text-slate-500">{partner.id}</p>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <p className="text-slate-300">{partnerPhone(partner) || 'N/A'}</p>
-                  </td>
-                  <td className="px-6 py-4">{statusBadge(partner.status)}</td>
-                  <td className="px-6 py-4">
-                    <p className="max-w-xs truncate text-slate-300">{partner.notes || '—'}</p>
-                  </td>
-                  <td className="px-6 py-4">
-                    <p className="text-slate-300">
-                      {partner.created_at ? formatDateDDMMYY(partner.created_at) : 'N/A'}
-                    </p>
-                  </td>
-                  <td className="px-6 py-4 text-right">{rowActions(partner)}</td>
-                </tr>
-              ))}
+              {filteredPartners.map((partner) => {
+                const s = partnerStat(partner)
+                return (
+                  <tr
+                    key={partner.id}
+                    ref={(el) => { rowRefs.current[partner.id] = el }}
+                    onClick={() => setStatsForId(partner.id)}
+                    className={`cursor-pointer transition-colors duration-500 ${
+                      highlightId === partner.id ? 'bg-emerald-500/10' : 'hover:bg-slate-800/30'
+                    }`}
+                  >
+                    <td className="px-4 py-3">
+                      <div>
+                        <p className="font-medium text-white">{partner.full_name || 'N/A'}</p>
+                        <p className="text-xs text-slate-500">
+                          {partner.created_at ? formatDateDDMMYY(partner.created_at) : ''}
+                        </p>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <p className="text-slate-300">{partnerPhone(partner) || 'N/A'}</p>
+                    </td>
+                    <td className="px-4 py-3">{statusBadge(partner.status)}</td>
+                    <td className="px-4 py-3 text-right font-mono text-white">{s.assigned}</td>
+                    <td className="px-4 py-3 text-right font-mono text-emerald-300">{s.sold}</td>
+                    <td className="px-4 py-3 text-right font-mono text-amber-300">{s.retracted}</td>
+                    <td className="px-4 py-3">
+                      <p className="max-w-xs truncate text-slate-300">{partner.notes || '—'}</p>
+                    </td>
+                    <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>{rowActions(partner)}</td>
+                  </tr>
+                )
+              })}
               {filteredPartners.length === 0 && (
                 <tr>
-                  <td colSpan="6" className="px-6 py-8 text-center text-slate-500">
+                  <td colSpan="8" className="px-6 py-8 text-center text-slate-500">
                     No partner accounts found.
                   </td>
                 </tr>
@@ -641,6 +685,97 @@ export default function Partners() {
           </div>
         </form>
       </Modal>
+
+      {statsForId && (() => {
+        const partner = partners.find((p) => p.id === statsForId)
+        if (!partner) return null
+        const s = partnerStat(partner)
+        // Variant breakdown for demo mode comes from overview.partnerVariants
+        // matched by name. Live mode falls back to "—".
+        const variantRow = isDemo
+          ? DEMO_DATA.overview.partnerVariants.find((v) => v.name === partner.full_name)
+          : null
+        return (
+          <Modal isOpen={true} onClose={() => setStatsForId(null)} title={partner.full_name || 'Partner'}>
+            <div className="space-y-3 text-sm">
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="rounded-lg border border-slate-800 bg-slate-900 p-2.5">
+                  <p className="text-slate-500">Phone</p>
+                  <p className="text-slate-200">{partnerPhone(partner) || 'N/A'}</p>
+                </div>
+                <div className="rounded-lg border border-slate-800 bg-slate-900 p-2.5">
+                  <p className="text-slate-500">Status</p>
+                  <div className="mt-1">{statusBadge(partner.status)}</div>
+                </div>
+                <div className="rounded-lg border border-slate-800 bg-slate-900 p-2.5">
+                  <p className="text-slate-500">Joined</p>
+                  <p className="text-slate-200">{partner.created_at ? formatDateDDMMYY(partner.created_at) : 'N/A'}</p>
+                </div>
+                <div className="rounded-lg border border-slate-800 bg-slate-900 p-2.5">
+                  <p className="text-slate-500">Assigned · Sold · Ret.</p>
+                  <p className="font-mono text-slate-200">
+                    <span className="text-white">{s.assigned}</span>
+                    {' · '}
+                    <span className="text-emerald-300">{s.sold}</span>
+                    {' · '}
+                    <span className="text-amber-300">{s.retracted}</span>
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">Variant breakdown</p>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="rounded-lg border border-slate-800 bg-slate-900 p-2.5">
+                    <p className="font-semibold text-emerald-300">Multi-Grain</p>
+                    {variantRow ? (
+                      <>
+                        <p className="mt-1 text-slate-300">Assigned: <span className="font-semibold text-white">{variantRow.mg_assigned}</span></p>
+                        <p className="text-slate-300">Sold: <span className="font-semibold text-emerald-300">{variantRow.mg_sold}</span></p>
+                        <p className="text-slate-300">Left: <span className="font-semibold text-white">{Math.max(0, variantRow.mg_assigned - variantRow.mg_sold)}</span></p>
+                      </>
+                    ) : (
+                      <p className="mt-1 text-slate-500">—</p>
+                    )}
+                  </div>
+                  <div className="rounded-lg border border-slate-800 bg-slate-900 p-2.5">
+                    <p className="font-semibold text-amber-200">Plain</p>
+                    {variantRow ? (
+                      <>
+                        <p className="mt-1 text-slate-300">Assigned: <span className="font-semibold text-white">{variantRow.plain_assigned}</span></p>
+                        <p className="text-slate-300">Sold: <span className="font-semibold text-emerald-300">{variantRow.plain_sold}</span></p>
+                        <p className="text-slate-300">Left: <span className="font-semibold text-white">{Math.max(0, variantRow.plain_assigned - variantRow.plain_sold)}</span></p>
+                      </>
+                    ) : (
+                      <p className="mt-1 text-slate-500">—</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {isDemo && (
+                <div>
+                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">Recent sales</p>
+                  <div className="space-y-1 text-xs">
+                    {DEMO_DATA.overview.recentSales
+                      .filter((r) => r.partner === partner.full_name)
+                      .slice(0, 10)
+                      .map((r, i) => (
+                        <div key={i} className="flex justify-between rounded border border-slate-800 bg-slate-900 px-2.5 py-1.5">
+                          <span className="text-slate-200">{r.customer}</span>
+                          <span className="text-slate-400">{r.units}u · {formatDateDDMMYY(r.date)}</span>
+                        </div>
+                      ))}
+                    {DEMO_DATA.overview.recentSales.filter((r) => r.partner === partner.full_name).length === 0 && (
+                      <p className="text-slate-500">No recent sales.</p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </Modal>
+        )
+      })()}
 
       {detailUser && (
         <UserDetailModal

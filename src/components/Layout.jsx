@@ -59,7 +59,7 @@ const adminNavigation = [
   { name: 'Sales', href: '/admin/sales', Icon: TrendingUp },
   { name: 'CTA', href: '/admin/cta', Icon: Megaphone },
   { name: 'Partners', href: '/admin/partners', Icon: Users },
-  { name: 'Sales Agents', href: '/admin/sales-exec', Icon: UserCog },
+  { name: 'Agents', href: '/admin/sales-exec', Icon: UserCog },
   { name: 'Change Requests', href: '/admin/change-requests', badge: 'pendingRequests', Icon: ClipboardCheck },
   { name: 'Audit', href: '/admin/audit-logs', Icon: FileText },
   { name: 'Profile', href: '/admin/profile', Icon: User },

@@ -21,6 +21,7 @@ import { Eye, Pencil, Send } from 'lucide-react'
 export default function SalesExec() {
   const { isDemo } = useAuth()
   const [execs, setExecs] = useState([])
+  const [stats, setStats] = useState({})
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [isAddExecModalOpen, setIsAddExecModalOpen] = useState(false)
@@ -33,7 +34,10 @@ export default function SalesExec() {
   const [highlightId, setHighlightId] = useState(null)
   const [detailUser, setDetailUser] = useState(null)
   const [detailMode, setDetailMode] = useState('view')
+  const [statsForId, setStatsForId] = useState(null)
   const rowRefs = useRef({})
+
+  const execStat = (e) => stats[e.id] || { partners: 0, assigned: 0, closed: 0 }
   const [addFormData, setAddFormData] = useState({
     phone: '',
     password: '',
@@ -50,6 +54,15 @@ export default function SalesExec() {
   const fetchExecs = async () => {
     if (isDemo) {
       setExecs(DEMO_DATA.salesExecList)
+      const s = {}
+      for (const e of DEMO_DATA.salesExecList) {
+        s[e.id] = {
+          partners: e.partners || 0,
+          assigned: e.assigned || 0,
+          closed: e.closed || 0,
+        }
+      }
+      setStats(s)
       setLoading(false)
       return
     }
@@ -62,11 +75,49 @@ export default function SalesExec() {
 
       if (error) throw error
       setExecs(data || [])
+
+      // Best-effort: count partners onboarded by each agent (if the column
+      // exists) and roll up partner sales totals. Both lookups are safe to
+      // fail — the new stat columns simply render as 0.
+      const ids = (data || []).map((e) => e.id)
+      if (ids.length > 0) {
+        const s = {}
+        for (const id of ids) s[id] = { partners: 0, assigned: 0, closed: 0 }
+        try {
+          const { data: partnerRows } = await supabase
+            .from('profiles')
+            .select('id, onboarded_by')
+            .eq('role', 'partner')
+            .in('onboarded_by', ids)
+          const partnerToAgent = {}
+          for (const p of partnerRows || []) {
+            if (s[p.onboarded_by]) s[p.onboarded_by].partners += 1
+            partnerToAgent[p.id] = p.onboarded_by
+          }
+          const partnerIds = Object.keys(partnerToAgent)
+          if (partnerIds.length > 0) {
+            const { data: salesRows } = await supabase
+              .from('sales')
+              .select('trainer_id, units_assigned, units_sold')
+              .in('trainer_id', partnerIds)
+            for (const r of salesRows || []) {
+              const agentId = partnerToAgent[r.trainer_id]
+              if (s[agentId]) {
+                s[agentId].assigned += r.units_assigned || 0
+                s[agentId].closed += r.units_sold || 0
+              }
+            }
+          }
+        } catch {
+          // leave stats as zeros
+        }
+        setStats(s)
+      }
     } catch (error) {
       console.error('Error fetching sales execs:', error)
       setBanner({
         type: 'error',
-        title: 'Failed to load Sales Agents',
+        title: 'Failed to load Agents',
         message: error.message,
       })
     } finally {
@@ -120,7 +171,7 @@ export default function SalesExec() {
       errors.password = 'Password must be at least 6 characters.'
     }
     if (addFormData.full_name.trim().length < 2) {
-      errors.full_name = 'Please enter the Sales Agent full name.'
+      errors.full_name = 'Please enter the Agent full name.'
     }
     return errors
   }
@@ -154,7 +205,7 @@ export default function SalesExec() {
         actionType: 'CREATE',
         entityType: 'user',
         entityId: result.userId,
-        description: `Onboarded new Sales Agent: ${fullName} (${result.phone})`,
+        description: `Onboarded new Agent: ${fullName} (${result.phone})`,
         newValues: {
           phone: result.phone,
           role: 'sales',
@@ -171,7 +222,7 @@ export default function SalesExec() {
 
       setBanner({
         type: 'success',
-        title: `✓ Sales Agent ${fullName} created successfully`,
+        title: `✓ Agent ${fullName} created successfully`,
         message: `Login: ${result.phone}. Share the credentials below.`,
       })
 
@@ -196,7 +247,7 @@ export default function SalesExec() {
     } catch (error) {
       console.error('Error creating sales agent:', error)
       // Keep the modal open and show the EXACT error inside it.
-      setCreateError(error.message || 'An unexpected error occurred while creating the Sales Agent.')
+      setCreateError(error.message || 'An unexpected error occurred while creating the Agent.')
     } finally {
       setCreatingExec(false)
     }
@@ -219,9 +270,9 @@ export default function SalesExec() {
         actionType: 'UPDATE',
         entityType: 'user',
         entityId: exec.id,
-        description: `Deactivated Sales Agent: ${exec.full_name || phone} (${phone})`,
+        description: `Deactivated Agent: ${exec.full_name || phone} (${phone})`,
       })
-      setBanner({ type: 'success', title: 'Sales Agent deactivated', message: `${exec.full_name || phone} can no longer log in. Data kept.` })
+      setBanner({ type: 'success', title: 'Agent deactivated', message: `${exec.full_name || phone} can no longer log in. Data kept.` })
       await fetchExecs()
     } catch (error) {
       console.error('Error deactivating sales exec:', error)
@@ -246,9 +297,9 @@ export default function SalesExec() {
         actionType: 'UPDATE',
         entityType: 'user',
         entityId: exec.id,
-        description: `Reactivated Sales Agent: ${exec.full_name || phone} (${phone})`,
+        description: `Reactivated Agent: ${exec.full_name || phone} (${phone})`,
       })
-      setBanner({ type: 'success', title: 'Sales Agent reactivated', message: `${exec.full_name || phone} can log in again.` })
+      setBanner({ type: 'success', title: 'Agent reactivated', message: `${exec.full_name || phone} can log in again.` })
       await fetchExecs()
     } catch (error) {
       console.error('Error reactivating sales exec:', error)
@@ -275,7 +326,7 @@ export default function SalesExec() {
         actionType: 'DELETE',
         entityType: 'user',
         entityId: exec.id,
-        description: `Deleted login for Sales Agent: ${exec.full_name || phone} (${phone})`,
+        description: `Deleted login for Agent: ${exec.full_name || phone} (${phone})`,
         oldValues: {
           phone,
           full_name: exec.full_name || null,
@@ -374,36 +425,37 @@ export default function SalesExec() {
     )
   }
 
-  const renderExecCard = (exec) => (
-    <div
-      key={exec.id}
-      ref={(el) => { rowRefs.current[exec.id] = el }}
-      className={`rounded-xl border bg-slate-900 p-4 transition-colors duration-500 ${
-        highlightId === exec.id ? 'border-emerald-500 bg-emerald-500/5' : 'border-slate-800'
-      }`}
-    >
-      <div className="mb-3 flex items-start justify-between gap-2">
-        <div>
-          <p className="font-semibold text-white">{exec.full_name || 'N/A'}</p>
-          <p className="text-xs text-slate-500">{execPhone(exec)}</p>
+  const renderExecCard = (exec) => {
+    const s = execStat(exec)
+    return (
+      <div
+        key={exec.id}
+        ref={(el) => { rowRefs.current[exec.id] = el }}
+        onClick={() => setStatsForId(exec.id)}
+        className={`cursor-pointer rounded-xl border bg-slate-900 p-4 transition-colors duration-500 ${
+          highlightId === exec.id ? 'border-emerald-500 bg-emerald-500/5' : 'border-slate-800'
+        }`}
+      >
+        <div className="mb-2 flex items-start justify-between gap-2">
+          <div>
+            <p className="font-semibold text-white">{exec.full_name || 'N/A'}</p>
+            <p className="text-xs text-slate-500">📞 {execPhone(exec)}</p>
+          </div>
+          {statusBadge(exec.status)}
         </div>
-        {statusBadge(exec.status)}
+        <div className="mb-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-300">
+          <span><span className="text-slate-500">Partners:</span> <span className="font-semibold text-white">{s.partners}</span></span>
+          <span><span className="text-slate-500">Assigned:</span> <span className="font-semibold text-white">{s.assigned}</span></span>
+          <span><span className="text-slate-500">Closed:</span> <span className="font-semibold text-emerald-300">{s.closed}</span></span>
+        </div>
+        <div className="mb-2 text-xs text-slate-500">
+          {exec.created_at ? formatDateDDMMYY(exec.created_at) : ''}
+          {exec.notes ? ` · ${exec.notes}` : ''}
+        </div>
+        <div onClick={(e) => e.stopPropagation()}>{rowActions(exec)}</div>
       </div>
-      <div className="mb-3 grid grid-cols-2 gap-3">
-        <div>
-          <p className="text-xs text-slate-500">Created</p>
-          <p className="text-sm text-slate-300">
-            {exec.created_at ? formatDateDDMMYY(exec.created_at) : 'N/A'}
-          </p>
-        </div>
-        <div className="col-span-2">
-          <p className="text-xs text-slate-500">Notes</p>
-          <p className="text-sm text-slate-300">{exec.notes || '—'}</p>
-        </div>
-      </div>
-      {rowActions(exec)}
-    </div>
-  )
+    )
+  }
 
   if (loading) {
     return (
@@ -417,8 +469,8 @@ export default function SalesExec() {
     <div className="dashboard-page">
       <div className="dashboard-page-header">
         <div className="min-w-0">
-          <h1 className="dashboard-title">Sales Agents</h1>
-          <p className="dashboard-subtitle hidden truncate sm:block">Manage sales agent accounts.</p>
+          <h1 className="dashboard-title">Agents</h1>
+          <p className="dashboard-subtitle hidden truncate sm:block">Manage agent accounts.</p>
         </div>
         <div className="flex items-center gap-2">
           <RefreshButton onRefresh={refresh} loading={refreshing} />
@@ -429,7 +481,7 @@ export default function SalesExec() {
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
-            <span className="hidden sm:inline">Add Sales Agent</span>
+            <span className="hidden sm:inline">Add Agent</span>
           </button>
         </div>
       </div>
@@ -450,7 +502,7 @@ export default function SalesExec() {
           storageKey="salesexec-phone-login"
           type="info"
           title="Phone login"
-          message="Sales agents log in with their phone number and password. Deleting a login keeps all their data."
+          message="Agents log in with their phone number and password. Deleting a login keeps all their data."
         />
       </div>
 
@@ -494,7 +546,7 @@ export default function SalesExec() {
 
       <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
         <div className="flex items-center justify-between border-b border-slate-800 px-6 py-4">
-          <h3 className="text-lg font-semibold text-white">Sales Agent Accounts</h3>
+          <h3 className="text-lg font-semibold text-white">Agent Accounts</h3>
           <span className="text-sm text-slate-500">
             {filteredExecs.length} agent{filteredExecs.length !== 1 ? 's' : ''}
           </span>
@@ -502,7 +554,7 @@ export default function SalesExec() {
 
         <div className="space-y-3 p-4 sm:hidden">
           {filteredExecs.length === 0 ? (
-            <p className="text-sm text-slate-400">No sales agents found.</p>
+            <p className="text-sm text-slate-400">No agents found.</p>
           ) : (
             filteredExecs.map(renderExecCard)
           )}
@@ -512,48 +564,54 @@ export default function SalesExec() {
           <table className="w-full">
             <thead className="bg-slate-800/50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-400">Name</th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-400">Phone</th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-400">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-400">Notes</th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-400">Created</th>
-                <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-400">Actions</th>
+                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-400">Name</th>
+                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-400">Phone</th>
+                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-400">Status</th>
+                <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-400">Partners</th>
+                <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-400">Assigned</th>
+                <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-400">Closed</th>
+                <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-400">Notes</th>
+                <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-400">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800">
-              {filteredExecs.map((exec) => (
-                <tr
-                  key={exec.id}
-                  ref={(el) => { rowRefs.current[exec.id] = el }}
-                  className={`transition-colors duration-500 ${
-                    highlightId === exec.id ? 'bg-emerald-500/10' : 'hover:bg-slate-800/30'
-                  }`}
-                >
-                  <td className="px-6 py-4">
-                    <div>
-                      <p className="font-medium text-white">{exec.full_name || 'N/A'}</p>
-                      <p className="text-xs text-slate-500">{exec.id}</p>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <p className="text-slate-300">{execPhone(exec)}</p>
-                  </td>
-                  <td className="px-6 py-4">{statusBadge(exec.status)}</td>
-                  <td className="px-6 py-4">
-                    <p className="max-w-xs truncate text-slate-300">{exec.notes || '—'}</p>
-                  </td>
-                  <td className="px-6 py-4">
-                    <p className="text-slate-300">
-                      {exec.created_at ? formatDateDDMMYY(exec.created_at) : 'N/A'}
-                    </p>
-                  </td>
-                  <td className="px-6 py-4 text-right">{rowActions(exec)}</td>
-                </tr>
-              ))}
+              {filteredExecs.map((exec) => {
+                const s = execStat(exec)
+                return (
+                  <tr
+                    key={exec.id}
+                    ref={(el) => { rowRefs.current[exec.id] = el }}
+                    onClick={() => setStatsForId(exec.id)}
+                    className={`cursor-pointer transition-colors duration-500 ${
+                      highlightId === exec.id ? 'bg-emerald-500/10' : 'hover:bg-slate-800/30'
+                    }`}
+                  >
+                    <td className="px-4 py-3">
+                      <div>
+                        <p className="font-medium text-white">{exec.full_name || 'N/A'}</p>
+                        <p className="text-xs text-slate-500">
+                          {exec.created_at ? formatDateDDMMYY(exec.created_at) : ''}
+                        </p>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <p className="text-slate-300">{execPhone(exec)}</p>
+                    </td>
+                    <td className="px-4 py-3">{statusBadge(exec.status)}</td>
+                    <td className="px-4 py-3 text-right font-mono text-white">{s.partners}</td>
+                    <td className="px-4 py-3 text-right font-mono text-white">{s.assigned}</td>
+                    <td className="px-4 py-3 text-right font-mono text-emerald-300">{s.closed}</td>
+                    <td className="px-4 py-3">
+                      <p className="max-w-xs truncate text-slate-300">{exec.notes || '—'}</p>
+                    </td>
+                    <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>{rowActions(exec)}</td>
+                  </tr>
+                )
+              })}
               {filteredExecs.length === 0 && (
                 <tr>
-                  <td colSpan="6" className="px-6 py-8 text-center text-slate-500">
-                    No sales agent accounts found.
+                  <td colSpan="8" className="px-6 py-8 text-center text-slate-500">
+                    No agent accounts found.
                   </td>
                 </tr>
               )}
@@ -565,14 +623,14 @@ export default function SalesExec() {
       <Modal
         isOpen={isAddExecModalOpen}
         onClose={handleCloseAddExecModal}
-        title="Add Sales Agent"
+        title="Add Agent"
       >
         <form onSubmit={handleCreateExec}>
           {createError && (
             <div className="mb-4">
               <AlertBanner
                 type="error"
-                title="Failed to create Sales Agent"
+                title="Failed to create Agent"
                 message={createError}
                 onDismiss={() => setCreateError(null)}
               />
@@ -604,7 +662,7 @@ export default function SalesExec() {
             label="Full Name"
             value={addFormData.full_name}
             onChange={(value) => updateField('full_name', value)}
-            placeholder="Sales agent name"
+            placeholder="Agent name"
             error={formErrors.full_name}
             required
           />
@@ -637,11 +695,77 @@ export default function SalesExec() {
         </form>
       </Modal>
 
+      {statsForId && (() => {
+        const exec = execs.find((e) => e.id === statsForId)
+        if (!exec) return null
+        const s = execStat(exec)
+        // For demo mode, distribute partners across agents alphabetically
+        // by joining partnersList in chunks. Live mode: relies on `onboarded_by`
+        // (best-effort) which is fetched into stats above; the per-partner
+        // list isn't queried here to keep the panel lightweight.
+        const demoPartners = isDemo
+          ? DEMO_DATA.partnersList.slice(
+              filteredExecs.findIndex((x) => x.id === exec.id) * 2,
+              filteredExecs.findIndex((x) => x.id === exec.id) * 2 + (exec.partners || 0),
+            )
+          : []
+        return (
+          <Modal isOpen={true} onClose={() => setStatsForId(null)} title={exec.full_name || 'Agent'}>
+            <div className="space-y-3 text-sm">
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="rounded-lg border border-slate-800 bg-slate-900 p-2.5">
+                  <p className="text-slate-500">Phone</p>
+                  <p className="text-slate-200">{execPhone(exec)}</p>
+                </div>
+                <div className="rounded-lg border border-slate-800 bg-slate-900 p-2.5">
+                  <p className="text-slate-500">Status</p>
+                  <div className="mt-1">{statusBadge(exec.status)}</div>
+                </div>
+                <div className="rounded-lg border border-slate-800 bg-slate-900 p-2.5">
+                  <p className="text-slate-500">Joined</p>
+                  <p className="text-slate-200">{exec.created_at ? formatDateDDMMYY(exec.created_at) : 'N/A'}</p>
+                </div>
+                <div className="rounded-lg border border-slate-800 bg-slate-900 p-2.5">
+                  <p className="text-slate-500">Partners · Assigned · Closed</p>
+                  <p className="font-mono text-slate-200">
+                    <span className="text-white">{s.partners}</span>
+                    {' · '}
+                    <span className="text-white">{s.assigned}</span>
+                    {' · '}
+                    <span className="text-emerald-300">{s.closed}</span>
+                  </p>
+                </div>
+              </div>
+
+              {isDemo && demoPartners.length > 0 && (
+                <div>
+                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">Partners under this agent</p>
+                  <div className="space-y-1 text-xs">
+                    {demoPartners.map((p) => (
+                      <div key={p.id} className="flex justify-between rounded border border-slate-800 bg-slate-900 px-2.5 py-1.5">
+                        <span className="text-slate-200">{p.full_name}</span>
+                        <span className="font-mono text-slate-400">
+                          {p.assigned}a · <span className="text-emerald-300">{p.sold}s</span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <p className="text-[11px] text-slate-500">
+                Tip: Full per-partner stats and monthly performance chart open in the Eye/Edit dialog.
+              </p>
+            </div>
+          </Modal>
+        )
+      })()}
+
       {detailUser && (
         <UserDetailModal
           user={detailUser}
           initialMode={detailMode}
-          roleLabel="Sales Agent"
+          roleLabel="Agent"
           role="sales"
           isDemo={isDemo}
           onClose={() => setDetailUser(null)}

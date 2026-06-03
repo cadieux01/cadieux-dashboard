@@ -50,8 +50,44 @@ export default function Login() {
       } else if (isValidPhone(trimmed)) {
         const phone = normalizePhone(trimmed)
         candidateEmails = [buildLoginEmail(phone, 'sales'), buildLoginEmail(phone, 'partner')]
+      } else if (trimmed.length >= 2) {
+        // Name lookup: case-insensitive match against profiles.full_name.
+        // We then derive the synthetic login email from the matched phone +
+        // role. Admin (with a real @gmail.com email) is matched on the email.
+        const { data: matches, error: lookupErr } = await supabase
+          .from('profiles')
+          .select('id, full_name, email, phone, phone_number, role')
+          .ilike('full_name', trimmed)
+        if (lookupErr) {
+          setError('Could not look up that name. Try phone or email instead.')
+          setLoading(false)
+          return
+        }
+        if (!matches || matches.length === 0) {
+          setError('No user found with that name')
+          setLoading(false)
+          return
+        }
+        if (matches.length > 1) {
+          setError('Multiple users with that name. Use phone number instead.')
+          setLoading(false)
+          return
+        }
+        const match = matches[0]
+        if (match.role === 'admin' && match.email) {
+          candidateEmails = [match.email.toLowerCase()]
+        } else {
+          const phone = normalizePhone(match.phone || match.phone_number || '')
+          if (!isValidPhone(phone)) {
+            setError('That user has no phone on file. Use email instead.')
+            setLoading(false)
+            return
+          }
+          const role = match.role === 'sales' ? 'sales' : 'partner'
+          candidateEmails = [buildLoginEmail(phone, role)]
+        }
       } else {
-        setError('Enter a valid 10-digit phone number or an email address.')
+        setError('Enter your name, a 10-digit phone number, or an email.')
         setLoading(false)
         return
       }
@@ -177,7 +213,7 @@ export default function Login() {
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label htmlFor="identifier" className="block text-sm font-medium text-slate-300 mb-2">
-                Phone Number or Email
+                Name, Phone Number, or Email
               </label>
               <input
                 id="identifier"
@@ -187,7 +223,7 @@ export default function Login() {
                 onChange={(e) => setIdentifier(e.target.value)}
                 required
                 className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                placeholder="9876543210 or admin@email.com"
+                placeholder="Rahul Kumar, 9876543210, or admin@email.com"
               />
             </div>
 

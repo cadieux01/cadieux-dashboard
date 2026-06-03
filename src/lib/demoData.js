@@ -20,7 +20,7 @@ export const VARIANTS = {
 // the short key (demo-admin) or the full email at the login screen.
 export const DEMO_ACCOUNTS = {
   'demo-admin': { role: 'admin', name: 'Demo Admin', password: 'demo123' },
-  'demo-sales': { role: 'sales', name: 'Demo Sales Agent', password: 'demo123' },
+  'demo-sales': { role: 'sales', name: 'Demo Agent', password: 'demo123' },
   'demo-partner': { role: 'partner', name: 'Demo Partner', password: 'demo123' },
 }
 
@@ -145,18 +145,21 @@ const DEMO_DATA = {
     ],
   },
 
-  // Partners list (admin)
+  // Partners list (admin). Per-partner totals come from the overview's
+  // partnerVariants rows (assigned = mg+plain assigned, sold = mg+plain sold).
+  // `retracted` is hand-curated for demo.
   partnersList: [
-    { id: '1', full_name: 'Rahul Kumar', phone: '9876543201', phone_number: '9876543201', email: 'demo-rahul@cadieux.demo', role: 'partner', status: 'active', notes: 'Top performer', created_at: '2026-01-15' },
-    { id: '2', full_name: 'Priya Sharma', phone: '9876543202', phone_number: '9876543202', email: 'demo-priya@cadieux.demo', role: 'partner', status: 'active', notes: 'Vizag south', created_at: '2026-02-01' },
-    { id: '3', full_name: 'Vikram Reddy', phone: '9876543203', phone_number: '9876543203', email: 'demo-vikram@cadieux.demo', role: 'partner', status: 'active', notes: 'MVP district', created_at: '2026-03-10' },
-    { id: '4', full_name: 'Anita Das', phone: '9876543204', phone_number: '9876543204', email: 'demo-anita@cadieux.demo', role: 'partner', status: 'inactive', notes: 'On leave', created_at: '2026-04-01' },
+    { id: '1', full_name: 'Rahul Kumar', phone: '9876543201', phone_number: '9876543201', email: 'demo-rahul@cadieux.demo', role: 'partner', status: 'active', notes: 'Top performer', created_at: '2026-01-15', assigned: 85, sold: 66, retracted: 2 },
+    { id: '2', full_name: 'Priya Sharma', phone: '9876543202', phone_number: '9876543202', email: 'demo-priya@cadieux.demo', role: 'partner', status: 'active', notes: 'Vizag south', created_at: '2026-02-01', assigned: 80, sold: 58, retracted: 1 },
+    { id: '3', full_name: 'Vikram Reddy', phone: '9876543203', phone_number: '9876543203', email: 'demo-vikram@cadieux.demo', role: 'partner', status: 'active', notes: 'MVP district', created_at: '2026-03-10', assigned: 70, sold: 52, retracted: 3 },
+    { id: '4', full_name: 'Anita Das', phone: '9876543204', phone_number: '9876543204', email: 'demo-anita@cadieux.demo', role: 'partner', status: 'inactive', notes: 'On leave', created_at: '2026-04-01', assigned: 63, sold: 44, retracted: 4 },
   ],
 
-  // Sales exec list (admin)
+  // Agent list (admin). partners = direct reports; assigned/closed = totals
+  // across all their partners.
   salesExecList: [
-    { id: '1', full_name: 'Kiran Joshi', phone: '9876543210', phone_number: '9876543210', email: 'demo-kiran@cadieux.demo', role: 'sales', status: 'active', notes: 'Senior exec', created_at: '2026-01-01' },
-    { id: '2', full_name: 'Nandini Rao', phone: '9876543211', phone_number: '9876543211', email: 'demo-nandini@cadieux.demo', role: 'sales', status: 'active', notes: 'New hire', created_at: '2026-05-01' },
+    { id: '1', full_name: 'Kiran Joshi', phone: '9876543210', phone_number: '9876543210', email: 'demo-kiran@cadieux.demo', role: 'sales', status: 'active', notes: 'Senior exec', created_at: '2026-01-01', partners: 3, assigned: 235, closed: 176 },
+    { id: '2', full_name: 'Nandini Rao', phone: '9876543211', phone_number: '9876543211', email: 'demo-nandini@cadieux.demo', role: 'sales', status: 'active', notes: 'New hire', created_at: '2026-05-01', partners: 2, assigned: 115, closed: 82 },
   ],
 
   // Audit logs
