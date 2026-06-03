@@ -405,7 +405,7 @@ export default function SalesExec() {
         />
       </div>
 
-      <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="mb-6 grid grid-cols-1 gap-3 md:grid-cols-3">
         <KPICard title="Total Execs" value={execs.length} color="indigo" />
         <KPICard title="Active" value={activeExecs} color="emerald" />
         <KPICard title="Deactivated" value={inactiveExecs} color="amber" />

@@ -390,36 +390,28 @@ export default function Sales() {
 
   return (
     <div className="dashboard-page !pt-2 sm:!pt-3 lg:!pt-4">
-      <div className="relative z-10 mb-8 flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
+      <div className="relative z-10 mb-6 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
         <div>
           <h1 className="dashboard-title">Overview</h1>
         </div>
 
-        <div className="dashboard-panel rounded-[32px] p-5 sm:p-6 xl:max-w-md">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Top</p>
-          <div className="mt-4 flex items-center justify-between gap-4">
-            <div>
-              <p className="text-sm text-slate-400">Top contributor</p>
-              <p className="mt-1 font-display text-2xl font-semibold tracking-[-0.04em] text-white">
-                {summary.topPartner?.trainer_name || 'No activity yet'}
-              </p>
-            </div>
-            <div className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-2 text-right">
-              <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Sell-through</p>
-              <p className="mt-1 text-lg font-semibold text-emerald-100">
-                {summary.sellThrough.toFixed(1)}%
-              </p>
-            </div>
+        <div className="dashboard-panel flex items-center justify-between gap-4 rounded-2xl px-4 py-3 xl:max-w-md">
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Top contributor</p>
+            <p className="mt-0.5 truncate font-display text-lg font-semibold tracking-[-0.03em] text-white">
+              {summary.topPartner?.trainer_name || 'No activity yet'}
+            </p>
           </div>
-          <p className="mt-4 text-sm leading-6 text-slate-400">
-            {summary.topPartner
-              ? `${summary.topPartner.trainer_name} leads.`
-              : 'No sales yet.'}
-          </p>
+          <div className="flex-shrink-0 rounded-full border border-white/10 bg-white/[0.05] px-3 py-1.5 text-right">
+            <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Sell-through</p>
+            <p className="text-base font-semibold text-emerald-100">
+              {summary.sellThrough.toFixed(1)}%
+            </p>
+          </div>
         </div>
       </div>
 
-      <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="mb-6 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
         <KPICard
           title="Partners"
           value={trainers.length.toLocaleString()}
@@ -643,12 +635,12 @@ export default function Sales() {
           <table className="dashboard-table min-w-full">
             <thead>
               <tr>
-                <th className="border-b border-white/8 px-6 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Partner</th>
-                <th className="border-b border-white/8 px-6 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Joined</th>
-                <th className="border-b border-white/8 px-6 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Units</th>
-                <th className="border-b border-white/8 px-6 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Revenue</th>
-                <th className="border-b border-white/8 px-6 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Notes</th>
-                <th className="border-b border-white/8 px-6 py-3 text-right text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Actions</th>
+                <th className="border-b border-white/8 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Partner</th>
+                <th className="border-b border-white/8 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Joined</th>
+                <th className="border-b border-white/8 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Units</th>
+                <th className="border-b border-white/8 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Revenue</th>
+                <th className="border-b border-white/8 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Notes</th>
+                <th className="border-b border-white/8 px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -657,25 +649,25 @@ export default function Sales() {
 
                 return (
                   <tr key={trainer.id}>
-                    <td className="px-6 py-4">
+                    <td className="px-3 py-2">
                       <div>
                         <p className="font-semibold text-white">{trainer.name}</p>
                         <p className="mt-1 text-xs text-slate-500">{trainer.contact || 'No contact added'}</p>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-sm text-slate-400">
+                    <td className="px-3 py-2 text-sm text-slate-400">
                       {trainer.created_at ? formatDateDDMMYY(trainer.created_at) : 'N/A'}
                     </td>
-                    <td className="px-6 py-4 text-sm font-semibold text-emerald-100">
+                    <td className="px-3 py-2 text-sm font-semibold text-emerald-100">
                       {stats.totalUnits.toLocaleString()}
                     </td>
-                    <td className="px-6 py-4 text-sm font-semibold text-indigo-100">
+                    <td className="px-3 py-2 text-sm font-semibold text-indigo-100">
                       ₹{stats.totalRevenue.toLocaleString()}
                     </td>
-                    <td className="max-w-md px-6 py-4 text-sm text-slate-400">
+                    <td className="max-w-md px-3 py-2 text-sm text-slate-400">
                       <span className="block truncate">{trainer.notes || 'No notes added'}</span>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-3 py-2">
                       <div className="flex justify-end gap-2">
                         {trainer.contact && (
                           <button

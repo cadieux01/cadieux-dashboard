@@ -410,7 +410,7 @@ export default function Partners() {
         />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
         <KPICard title="Total Partners" value={partners.length} color="indigo" />
         <KPICard title="Active" value={activePartners} color="emerald" />
         <KPICard title="Deactivated" value={inactivePartners} color="amber" />

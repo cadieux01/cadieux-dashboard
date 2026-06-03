@@ -345,17 +345,17 @@ export default function PartnerDashboard() {
             <span className="dashboard-kicker">Partner</span>
             <h1 className="dashboard-title mt-4">Sales</h1>
           </div>
-          <div className="dashboard-panel rounded-[32px] p-5 sm:p-6 xl:max-w-md">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Done</p>
-            <p className="mt-3 text-sm leading-6 text-slate-400">
+          <div className="dashboard-panel flex items-center justify-between gap-4 rounded-2xl px-4 py-3 xl:max-w-md">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Done</p>
+            <p className="text-sm font-semibold text-slate-300">
               {summary.completedSales > 0
-                ? `${summary.completedSales} done.`
-                : 'None yet.'}
+                ? `${summary.completedSales} done`
+                : 'None yet'}
             </p>
           </div>
         </div>
 
-        <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="mb-6 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
           <KPICard
             title="Customers"
             value={sales.length.toLocaleString()}
@@ -412,22 +412,22 @@ export default function PartnerDashboard() {
             <table className="dashboard-table w-full">
               <thead>
                 <tr className="border-b border-white/8">
-                  <th className="px-3 sm:px-4 md:px-6 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                  <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
                     Customer
                   </th>
-                  <th className="px-3 sm:px-4 md:px-6 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                  <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
                     Contact
                   </th>
-                  <th className="px-3 sm:px-4 md:px-6 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                  <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
                     Units
                   </th>
-                  <th className="px-3 sm:px-4 md:px-6 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                  <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
                     Revenue
                   </th>
-                  <th className="px-3 sm:px-4 md:px-6 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                  <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
                     Date
                   </th>
-                  <th className="px-3 sm:px-4 md:px-6 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                  <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
                     Actions
                   </th>
                 </tr>
@@ -448,27 +448,27 @@ export default function PartnerDashboard() {
                         key={sale.id}
                         className={`${complete ? 'bg-emerald-400/4' : 'bg-rose-400/4'}`}
                       >
-                        <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 whitespace-nowrap">
+                        <td className="px-3 py-2 whitespace-nowrap">
                           <div className="text-sm sm:text-base font-medium text-white">
                             {sale.buyer_name || 'N/A'}
                           </div>
                         </td>
-                        <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 whitespace-nowrap">
+                        <td className="px-3 py-2 whitespace-nowrap">
                           <div className="text-xs sm:text-sm text-slate-300 break-all">
                             {sale.buyer_contact || 'N/A'}
                           </div>
                         </td>
-                        <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 whitespace-nowrap">
+                        <td className="px-3 py-2 whitespace-nowrap">
                           <div className="text-sm sm:text-base text-white font-medium">
                             {sale.units_sold || 0}
                           </div>
                         </td>
-                        <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 whitespace-nowrap">
+                        <td className="px-3 py-2 whitespace-nowrap">
                           <div className="text-sm sm:text-base font-mono text-emerald-400 font-semibold">
                             ₹{revenue.toLocaleString()}
                           </div>
                         </td>
-                        <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 whitespace-nowrap">
+                        <td className="px-3 py-2 whitespace-nowrap">
                           <div className="text-xs sm:text-sm text-slate-300">
                             {sale.purchase_date
                               ? formatDateDDMMYY(sale.purchase_date)
@@ -477,7 +477,7 @@ export default function PartnerDashboard() {
                                 : 'N/A'}
                           </div>
                         </td>
-                        <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 whitespace-nowrap">
+                        <td className="px-3 py-2 whitespace-nowrap">
                           <div className="flex flex-col sm:flex-row gap-2">
                             {sale.qr_code_url && (
                               <button
