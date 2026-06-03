@@ -19,6 +19,7 @@ export default function Onboarding() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isErrorModalOpen, setIsErrorModalOpen] = useState(false)
   const [shareData, setShareData] = useState(null)
+  const [formErrors, setFormErrors] = useState({})
   const [formData, setFormData] = useState({
     phone: '',
     password: '',
@@ -26,6 +27,13 @@ export default function Onboarding() {
     notes: '',
     role: 'partner',
   })
+
+  const updateField = (field, value) => {
+    setFormData((prev) => ({ ...prev, [field]: value }))
+    if (formErrors[field]) {
+      setFormErrors((prev) => ({ ...prev, [field]: undefined }))
+    }
+  }
 
   // Access check
   if (role !== 'admin' && role !== 'sales') {
@@ -40,6 +48,7 @@ export default function Onboarding() {
   }
 
   const resetForm = () => {
+    setFormErrors({})
     setFormData({
       phone: '',
       password: '',
@@ -58,21 +67,21 @@ export default function Onboarding() {
     const targetRole = role === 'admin' ? formData.role : 'partner'
     const roleLabel = targetRole === 'sales' ? 'Sales Executive' : 'Partner'
 
+    const errors = {}
     if (!isValidPhone(formData.phone)) {
-      setError('Enter a valid 10-digit Indian mobile (starting with 6-9).')
-      setIsErrorModalOpen(true)
-      return
+      errors.phone = 'Enter a valid 10-digit Indian mobile (starting with 6-9).'
     }
     if (!formData.password || formData.password.length < 6) {
-      setError('Password must be at least 6 characters.')
-      setIsErrorModalOpen(true)
+      errors.password = 'Password must be at least 6 characters.'
+    }
+    if (formData.full_name.trim().length < 2) {
+      errors.full_name = 'Full name is required.'
+    }
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors)
       return
     }
-    if (!formData.full_name.trim()) {
-      setError('Full name is required.')
-      setIsErrorModalOpen(true)
-      return
-    }
+    setFormErrors({})
 
     setLoading(true)
     try {
@@ -186,8 +195,9 @@ export default function Onboarding() {
             label="Phone Number"
             type="tel"
             value={formData.phone}
-            onChange={(value) => setFormData({ ...formData, phone: value })}
+            onChange={(value) => updateField('phone', value)}
             placeholder="9876543210"
+            error={formErrors.phone}
             required
           />
 
@@ -195,16 +205,19 @@ export default function Onboarding() {
             label="Password"
             type="password"
             value={formData.password}
-            onChange={(value) => setFormData({ ...formData, password: value })}
+            onChange={(value) => updateField('password', value)}
             placeholder="Minimum 6 characters"
+            minLength={6}
+            error={formErrors.password}
             required
           />
 
           <FormField
             label="Full Name"
             value={formData.full_name}
-            onChange={(value) => setFormData({ ...formData, full_name: value })}
+            onChange={(value) => updateField('full_name', value)}
             placeholder={formData.role === 'sales' ? "Sales executive's full name" : "Partner's full name"}
+            error={formErrors.full_name}
             required
           />
 
@@ -212,7 +225,7 @@ export default function Onboarding() {
             label="Notes"
             type="textarea"
             value={formData.notes}
-            onChange={(value) => setFormData({ ...formData, notes: value })}
+            onChange={(value) => updateField('notes', value)}
             placeholder="Internal notes (admin only)"
           />
 

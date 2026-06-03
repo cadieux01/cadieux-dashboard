@@ -60,9 +60,25 @@ async function callManagePartner(payload) {
   }
 
   if (!res.ok) {
-    const msg =
-      (body && (body.error || body.message)) ||
-      `User service returned HTTP ${res.status}`
+    // Prefer the function's own error text. Fall back to status-specific
+    // hints so a misconfigured deployment produces an actionable message
+    // instead of a silent failure.
+    let msg = body && (body.error || body.message)
+    if (!msg) {
+      if (res.status === 404) {
+        msg =
+          'User service not found (HTTP 404). The manage-partner Edge Function may not be deployed.'
+      } else if (res.status === 401 || res.status === 403) {
+        msg =
+          'Not authorised to manage users (HTTP ' +
+          res.status +
+          '). Your session may have expired — sign out and back in.'
+      } else if (res.status >= 500) {
+        msg = `User service error (HTTP ${res.status}). Please try again.`
+      } else {
+        msg = `User service returned HTTP ${res.status}`
+      }
+    }
     throw new Error(msg)
   }
   return body

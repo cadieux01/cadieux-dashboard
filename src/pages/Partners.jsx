@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import KPICard from '../components/KPICard'
 import AlertBanner from '../components/AlertBanner'
@@ -28,6 +28,9 @@ export default function Partners() {
   const [banner, setBanner] = useState(null)
   const [busyId, setBusyId] = useState(null)
   const [shareData, setShareData] = useState(null)
+  const [formErrors, setFormErrors] = useState({})
+  const [highlightId, setHighlightId] = useState(null)
+  const rowRefs = useRef({})
   const [addFormData, setAddFormData] = useState({
     phone: '',
     password: '',
@@ -77,6 +80,7 @@ export default function Partners() {
 
   const handleCloseAddPartnerModal = () => {
     setIsAddPartnerModalOpen(false)
+    setFormErrors({})
     setAddFormData({
       phone: '',
       password: '',
@@ -85,34 +89,37 @@ export default function Partners() {
     })
   }
 
+  const updateField = (field, value) => {
+    setAddFormData((prev) => ({ ...prev, [field]: value }))
+    if (formErrors[field]) {
+      setFormErrors((prev) => ({ ...prev, [field]: undefined }))
+    }
+  }
+
+  const validateForm = () => {
+    const errors = {}
+    if (!isValidPhone(addFormData.phone)) {
+      errors.phone = 'Enter a valid 10-digit mobile number (starting 6-9).'
+    }
+    if (!addFormData.password || addFormData.password.length < 6) {
+      errors.password = 'Password must be at least 6 characters.'
+    }
+    if (addFormData.full_name.trim().length < 2) {
+      errors.full_name = 'Please enter the partner\u2019s full name.'
+    }
+    return errors
+  }
+
   const handleCreatePartner = async (e) => {
     e.preventDefault()
     setBanner(null)
 
-    if (!isValidPhone(addFormData.phone)) {
-      setBanner({
-        type: 'warning',
-        title: 'Valid phone required',
-        message: 'Enter a valid 10-digit mobile number (starting 6-9).',
-      })
+    const errors = validateForm()
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors)
       return
     }
-    if (!addFormData.password || addFormData.password.length < 6) {
-      setBanner({
-        type: 'warning',
-        title: 'Password too short',
-        message: 'Password must be at least 6 characters.',
-      })
-      return
-    }
-    if (!addFormData.full_name.trim()) {
-      setBanner({
-        type: 'warning',
-        title: 'Name required',
-        message: 'Please enter the partner\u2019s full name.',
-      })
-      return
-    }
+    setFormErrors({})
 
     setCreatingPartner(true)
     try {
@@ -153,6 +160,16 @@ export default function Partners() {
 
       handleCloseAddPartnerModal()
       await fetchPartners()
+
+      // Scroll the freshly-created partner into view and briefly highlight it.
+      setHighlightId(result.userId)
+      setTimeout(() => {
+        rowRefs.current[result.userId]?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+        })
+      }, 100)
+      setTimeout(() => setHighlightId(null), 2500)
     } catch (error) {
       console.error('Error creating partner:', error)
       setBanner({
@@ -316,7 +333,13 @@ export default function Partners() {
   }
 
   const renderPartnerCard = (partner) => (
-    <div key={partner.id} className="rounded-xl border border-slate-800 bg-slate-900 p-4">
+    <div
+      key={partner.id}
+      ref={(el) => { rowRefs.current[partner.id] = el }}
+      className={`rounded-xl border bg-slate-900 p-4 transition-colors duration-500 ${
+        highlightId === partner.id ? 'border-emerald-500 bg-emerald-500/5' : 'border-slate-800'
+      }`}
+    >
       <div className="mb-3 flex items-start justify-between gap-2">
         <div>
           <p className="font-semibold text-white">{partner.full_name || 'N/A'}</p>
@@ -455,7 +478,13 @@ export default function Partners() {
             </thead>
             <tbody className="divide-y divide-slate-800">
               {filteredPartners.map((partner) => (
-                <tr key={partner.id} className="hover:bg-slate-800/30 transition-colors">
+                <tr
+                  key={partner.id}
+                  ref={(el) => { rowRefs.current[partner.id] = el }}
+                  className={`transition-colors duration-500 ${
+                    highlightId === partner.id ? 'bg-emerald-500/10' : 'hover:bg-slate-800/30'
+                  }`}
+                >
                   <td className="px-6 py-4">
                     <div>
                       <p className="font-medium text-white">{partner.full_name || 'N/A'}</p>
@@ -499,8 +528,9 @@ export default function Partners() {
             label="Phone Number"
             type="tel"
             value={addFormData.phone}
-            onChange={(value) => setAddFormData({ ...addFormData, phone: value })}
+            onChange={(value) => updateField('phone', value)}
             placeholder="9876543210"
+            error={formErrors.phone}
             required
           />
 
@@ -508,17 +538,19 @@ export default function Partners() {
             label="Password"
             type="password"
             value={addFormData.password}
-            onChange={(value) => setAddFormData({ ...addFormData, password: value })}
+            onChange={(value) => updateField('password', value)}
             placeholder="Minimum 6 characters"
             minLength={6}
+            error={formErrors.password}
             required
           />
 
           <FormField
             label="Full Name"
             value={addFormData.full_name}
-            onChange={(value) => setAddFormData({ ...addFormData, full_name: value })}
+            onChange={(value) => updateField('full_name', value)}
             placeholder="Partner full name"
+            error={formErrors.full_name}
             required
           />
 
@@ -526,7 +558,7 @@ export default function Partners() {
             label="Notes"
             type="textarea"
             value={addFormData.notes}
-            onChange={(value) => setAddFormData({ ...addFormData, notes: value })}
+            onChange={(value) => updateField('notes', value)}
             placeholder="Internal notes"
           />
 
