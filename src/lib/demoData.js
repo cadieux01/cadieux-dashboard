@@ -175,8 +175,8 @@ const DEMO_DATA = {
   // Agent list (admin). partners = direct reports; assigned/closed = totals
   // across all their partners.
   salesExecList: [
-    { id: '1', full_name: 'Kiran Joshi', phone: '9876543210', phone_number: '9876543210', email: 'demo-kiran@cadieux.demo', role: 'sales', status: 'active', notes: 'Senior exec', created_at: '2026-01-01', partners: 3, assigned: 235, closed: 176 },
-    { id: '2', full_name: 'Nandini Rao', phone: '9876543211', phone_number: '9876543211', email: 'demo-nandini@cadieux.demo', role: 'sales', status: 'active', notes: 'New hire', created_at: '2026-05-01', partners: 2, assigned: 115, closed: 82 },
+    { id: 'a1', full_name: 'Kiran Joshi', phone: '9876543210', phone_number: '9876543210', email: 'demo-kiran@cadieux.demo', role: 'sales', status: 'active', notes: 'Senior exec', created_at: '2026-01-01', partners: 3, assigned: 235, closed: 176 },
+    { id: 'a2', full_name: 'Nandini Rao', phone: '9876543211', phone_number: '9876543211', email: 'demo-nandini@cadieux.demo', role: 'sales', status: 'active', notes: 'New hire', created_at: '2026-05-01', partners: 2, assigned: 115, closed: 82 },
   ],
 
   // Audit logs
@@ -408,16 +408,47 @@ const DEMO_TODAY = new Date('2026-06-03')
 // Larger demo partner roster used by drill-down views. Indexed by `id`.
 // Index aligns with DEMO_DATA.overview.partnerPerformance.
 const DRILLDOWN_PARTNERS = [
-  { id: 'p1', name: 'Rahul Kumar',   phone: '9876543201', status: 'active' },
-  { id: 'p2', name: 'Priya Sharma',  phone: '9876543202', status: 'active' },
-  { id: 'p3', name: 'Vikram Reddy',  phone: '9876543203', status: 'inactive' },
-  { id: 'p4', name: 'Anita Das',     phone: '9876543204', status: 'active' },
-  { id: 'p5', name: 'Suresh Patel',  phone: '9876543205', status: 'active' },
-  { id: 'p6', name: 'Meena Iyer',    phone: '9876543206', status: 'active' },
-  { id: 'p7', name: 'Arjun Mehta',   phone: '9876543207', status: 'active' },
-  { id: 'p8', name: 'Kavita Nair',   phone: '9876543208', status: 'inactive' },
-  { id: 'p9', name: 'Naveen Pillai', phone: '9876543209', status: 'active' },
-  { id: 'p10', name: 'Sneha Hegde',  phone: '9876543210', status: 'active' },
+  { id: 'p1',  name: 'Rahul Kumar',   phone: '9876543201', status: 'active' },
+  { id: 'p2',  name: 'Priya Sharma',  phone: '9876543202', status: 'active' },
+  { id: 'p3',  name: 'Vikram Reddy',  phone: '9876543203', status: 'inactive' },
+  { id: 'p4',  name: 'Anita Das',     phone: '9876543204', status: 'active' },
+  { id: 'p5',  name: 'Suresh Patel',  phone: '9876543205', status: 'active' },
+  { id: 'p6',  name: 'Meena Iyer',    phone: '9876543206', status: 'active' },
+  { id: 'p7',  name: 'Arjun Mehta',   phone: '9876543207', status: 'active' },
+  { id: 'p8',  name: 'Kavita Nair',   phone: '9876543208', status: 'inactive' },
+  { id: 'p9',  name: 'Naveen Pillai', phone: '9876543209', status: 'active' },
+  { id: 'p10', name: 'Sneha Hegde',   phone: '9876543219', status: 'active' },
+]
+
+// Agent → partner mapping used by AgentProfilePage.
+const DRILLDOWN_AGENTS = [
+  { id: 'a1', name: 'Kiran Joshi',  phone: '9876543210', status: 'active', joined_at: '2026-01-01', partner_ids: ['p1', 'p2', 'p3'] },
+  { id: 'a2', name: 'Nandini Rao', phone: '9876543211', status: 'active', joined_at: '2026-05-01', partner_ids: ['p4', 'p5'] },
+]
+
+// Today's activity per agent — what their partners did today (demo).
+const AGENT_TODAY_ACTIVITY = {
+  a1: [
+    { time: '09:15', partner_id: 'p1', partner_name: 'Rahul Kumar',  action: 'sold',     variant: 'multigrain', units: 3 },
+    { time: '10:30', partner_id: 'p2', partner_name: 'Priya Sharma', action: 'sold',     variant: 'plain',      units: 5 },
+    { time: '11:00', partner_id: 'p1', partner_name: 'Rahul Kumar',  action: 'assigned', variant: 'multigrain', units: 10 },
+    { time: '13:45', partner_id: 'p3', partner_name: 'Vikram Reddy', action: 'retracted',variant: 'multigrain', units: 1 },
+  ],
+  a2: [
+    { time: '08:45', partner_id: 'p4', partner_name: 'Anita Das',    action: 'sold',     variant: 'plain',      units: 4 },
+    { time: '10:00', partner_id: 'p5', partner_name: 'Suresh Patel', action: 'sold',     variant: 'multigrain', units: 6 },
+    { time: '14:30', partner_id: 'p5', partner_name: 'Suresh Patel', action: 'assigned', variant: 'plain',      units: 8 },
+  ],
+}
+
+// Diversion records — what happened to unsold stock sent to non-standard channels.
+// `diverted_to`: 'food_stalls' | 'b2b' | 'disposed' | 'other'
+const AGENT_DIVERSIONS = [
+  { id: 'div1', agent_id: 'a1', partner_id: 'p1', partner_name: 'Rahul Kumar',  variant: 'multigrain', units: 2, diverted_to: 'food_stalls', notes: 'Local food stall took day-end remainders', date: daysAgo(3) },
+  { id: 'div2', agent_id: 'a1', partner_id: 'p2', partner_name: 'Priya Sharma', variant: 'plain',      units: 3, diverted_to: 'b2b',        notes: 'Sold to nearby café at reduced rate',   date: daysAgo(5) },
+  { id: 'div3', agent_id: 'a1', partner_id: 'p3', partner_name: 'Vikram Reddy', variant: 'multigrain', units: 2, diverted_to: 'disposed',    notes: 'Expired — disposed per food safety SOP', date: daysAgo(7) },
+  { id: 'div4', agent_id: 'a2', partner_id: 'p4', partner_name: 'Anita Das',    variant: 'plain',      units: 1, diverted_to: 'other',       notes: 'Partner kept samples for display',       date: daysAgo(2) },
+  { id: 'div5', agent_id: 'a2', partner_id: 'p5', partner_name: 'Suresh Patel', variant: 'multigrain', units: 3, diverted_to: 'food_stalls', notes: 'End-of-week clearance at market',          date: daysAgo(9) },
 ]
 
 // Helper — produce an ISO date string `daysAgo` days before DEMO_TODAY.
@@ -554,6 +585,13 @@ export const ATTRIBUTION_REASONS = [
   { value: 'customer_return', label: 'Customer Return' },
   { value: 'unsold',          label: 'Unsold' },
   { value: 'other',           label: 'Other' },
+]
+
+export const DIVERSION_REASONS = [
+  { value: 'food_stalls', label: 'Food Stalls' },
+  { value: 'b2b',         label: 'B2B Channels' },
+  { value: 'disposed',    label: 'Disposed' },
+  { value: 'other',       label: 'Other' },
 ]
 
 // --- Drill-down adapters ----------------------------------------------------
@@ -971,6 +1009,102 @@ export function demoCTARetractions() {
       }
     })
     .sort((a, b) => new Date(b.date) - new Date(a.date))
+}
+
+// =========================================================================
+// Agent profile  —  /admin/agent/:id
+// =========================================================================
+
+export function demoAgentOptions() {
+  return DRILLDOWN_AGENTS.map((a) => ({ value: a.id, label: a.name }))
+}
+
+export function demoAgentProfile(agentId, { range = 'all' } = {}) {
+  const agent = DRILLDOWN_AGENTS.find((a) => a.id === agentId)
+  if (!agent) return null
+
+  const partnerIds = agent.partner_ids
+  const nameById   = Object.fromEntries(DRILLDOWN_PARTNERS.map((p) => [p.id, p]))
+
+  const sales   = SALES_RECORDS.filter((s) => partnerIds.includes(s.partner_id) && withinRange(s.date, range))
+  const assigns = ASSIGNMENTS.filter((a) => partnerIds.includes(a.partner_id) && withinRange(a.date, range))
+  const attrs   = ATTRIBUTIONS.filter((r) => partnerIds.includes(r.partner_id) && withinRange(r.date, range))
+
+  // KPI totals
+  const totalAssigned  = assigns.reduce((s, a) => s + a.mg + a.plain, 0)
+  const totalSold      = sales.reduce((s, r) => s + r.units, 0)
+  const totalRetracted = attrs.reduce((s, r) => s + r.units, 0)
+  const totalRevenue   = sales.reduce((s, r) => s + r.units * (VARIANTS[r.variant]?.price || 0), 0)
+
+  // Per-partner performance table
+  const partnerPerformance = partnerIds.map((pid) => {
+    const partner  = nameById[pid]
+    if (!partner) return null
+    const pSales   = sales.filter((s) => s.partner_id === pid)
+    const pAssigns = assigns.filter((a) => a.partner_id === pid)
+    const pAttrs   = attrs.filter((r) => r.partner_id === pid)
+    const assigned  = pAssigns.reduce((s, a) => s + a.mg + a.plain, 0)
+    const sold      = pSales.reduce((s, r) => s + r.units, 0)
+    const retracted = pAttrs.reduce((s, r) => s + r.units, 0)
+    const revenue   = pSales.reduce((s, r) => s + r.units * (VARIANTS[r.variant]?.price || 0), 0)
+    return {
+      id: partner.id,
+      name: partner.name,
+      phone: partner.phone,
+      status: partner.status,
+      assigned,
+      sold,
+      retracted,
+      revenue,
+      sellThrough: assigned > 0 ? Math.round((sold / assigned) * 100) : 0,
+    }
+  }).filter(Boolean).sort((a, b) => b.sold - a.sold)
+
+  // Variant breakdown
+  const variantRow = (key) => {
+    const price     = VARIANTS[key].price
+    const assigned  = assigns.reduce((s, a) => s + (key === 'multigrain' ? a.mg : a.plain), 0)
+    const sold      = sales.filter((s) => s.variant === key).reduce((s, r) => s + r.units, 0)
+    const retracted = attrs.filter((r) => r.variant === key).reduce((s, r) => s + r.units, 0)
+    return {
+      key,
+      label: VARIANTS[key].short,
+      price,
+      assigned,
+      sold,
+      retracted,
+      revenue: sold * price,
+      sellThrough: assigned > 0 ? (sold / assigned) * 100 : 0,
+    }
+  }
+
+  // Diversions filtered by range
+  const diversions = AGENT_DIVERSIONS
+    .filter((d) => d.agent_id === agentId && withinRange(d.date, range))
+    .sort((a, b) => new Date(b.date) - new Date(a.date))
+
+  return {
+    id: agent.id,
+    name: agent.name,
+    phone: agent.phone,
+    status: agent.status,
+    joined_at: agent.joined_at,
+    totals: {
+      partners: partnerIds.length,
+      assigned: totalAssigned,
+      sold: totalSold,
+      retracted: totalRetracted,
+      revenue: totalRevenue,
+    },
+    partnerPerformance,
+    variants: {
+      multigrain: variantRow('multigrain'),
+      plain: variantRow('plain'),
+    },
+    monthly: buildMonthlySeries(sales),
+    todayActivity: AGENT_TODAY_ACTIVITY[agentId] || [],
+    diversions,
+  }
 }
 
 export default DEMO_DATA

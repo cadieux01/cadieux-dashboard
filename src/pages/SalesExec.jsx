@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import KPICard from '../components/KPICard'
 import AlertBanner from '../components/AlertBanner'
@@ -16,10 +17,11 @@ import RefreshStatus from '../components/RefreshStatus'
 import useRefreshable from '../lib/useRefreshable'
 import { useAuth } from '../context/AuthContext'
 import DEMO_DATA, { demoBlock } from '../lib/demoData'
-import { Eye, Pencil, Send } from 'lucide-react'
+import { Eye, Pencil, Phone, Send } from 'lucide-react'
 
 export default function SalesExec() {
   const { isDemo } = useAuth()
+  const navigate = useNavigate()
   const [execs, setExecs] = useState([])
   const [stats, setStats] = useState({})
   const [loading, setLoading] = useState(true)
@@ -376,6 +378,14 @@ export default function SalesExec() {
     const busy = busyId === exec.id
     return (
       <div className="flex items-center justify-end gap-2">
+        <a
+          href={`tel:${execPhone(exec)}`}
+          title="Call agent"
+          onClick={(e) => e.stopPropagation()}
+          className="inline-flex items-center justify-center rounded bg-emerald-500/10 px-2 py-1.5 text-emerald-400 transition-colors hover:bg-emerald-500/20"
+        >
+          <Phone size={16} />
+        </a>
         <button
           onClick={() => openDetail(exec, 'view')}
           title="View details"
@@ -431,7 +441,7 @@ export default function SalesExec() {
       <div
         key={exec.id}
         ref={(el) => { rowRefs.current[exec.id] = el }}
-        onClick={() => setStatsForId(exec.id)}
+        onClick={() => navigate(`/admin/agent/${exec.id}`)}
         className={`cursor-pointer rounded-xl border bg-slate-900 p-4 transition-colors duration-500 ${
           highlightId === exec.id ? 'border-emerald-500 bg-emerald-500/5' : 'border-slate-800'
         }`}
@@ -581,7 +591,7 @@ export default function SalesExec() {
                   <tr
                     key={exec.id}
                     ref={(el) => { rowRefs.current[exec.id] = el }}
-                    onClick={() => setStatsForId(exec.id)}
+                    onClick={() => navigate(`/admin/agent/${exec.id}`)}
                     className={`cursor-pointer transition-colors duration-500 ${
                       highlightId === exec.id ? 'bg-emerald-500/10' : 'hover:bg-slate-800/30'
                     }`}

@@ -6,6 +6,7 @@ import { formatDateDDMMYY } from '../../lib/date'
 import { getAssignmentStatus, timeRemaining, timeLabel, SHELF_LIFE } from '../../lib/shelfLife'
 import {
   PageHeader,
+  StatTile,
   Pagination,
   FadeIn,
   VariantPill,
@@ -33,7 +34,7 @@ export default function PartnerProfile() {
   if (!isDemo) {
     return (
       <FadeIn className="dashboard-page">
-        <PageHeader backTo="/admin/overview/partners" backLabel="Partners" title="Partner profile" />
+        <PageHeader backTo="/admin/team" backLabel="Team" title="Partner profile" />
         <div className="dashboard-subpanel rounded-[24px] px-5 py-8 text-center text-sm text-slate-400">
           Partner profile is currently demo-only.
         </div>
@@ -44,7 +45,7 @@ export default function PartnerProfile() {
   if (!profile) {
     return (
       <FadeIn className="dashboard-page">
-        <PageHeader backTo="/admin/overview/partners" backLabel="Partners" title="Partner not found" />
+        <PageHeader backTo="/admin/team" backLabel="Team" title="Partner not found" />
         <div className="dashboard-subpanel rounded-[24px] px-5 py-8 text-center text-sm text-slate-400">
           No partner with id "{id}".
         </div>
@@ -64,8 +65,8 @@ export default function PartnerProfile() {
   return (
     <FadeIn className="dashboard-page">
       <PageHeader
-        backTo="/admin/overview/partners"
-        backLabel="Partners"
+        backTo="/admin/team"
+        backLabel="Team"
         title={profile.name}
         subtitle={`📞 ${profile.phone} · joined ${profile.joined_at ? formatDateDDMMYY(profile.joined_at) : 'N/A'}`}
         onRefresh={() => setTick((t) => t + 1)}
@@ -85,6 +86,14 @@ export default function PartnerProfile() {
         <select value={range} onChange={(e) => setRange(e.target.value)} className="dashboard-select inline-block !w-auto">
           {DRILLDOWN_RANGES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
+      </div>
+
+      {/* Overview KPI tiles */}
+      <div className="mb-6 grid grid-cols-2 gap-2 lg:grid-cols-4">
+        <StatTile label="Assigned"  value={profile.totals.assigned.toLocaleString()} color="indigo" />
+        <StatTile label="Sold"      value={profile.totals.sold.toLocaleString()} color="emerald" />
+        <StatTile label="Retracted" value={profile.totals.retracted.toLocaleString()} color="amber" />
+        <StatTile label="Revenue"   value={`₹${profile.totals.revenue.toLocaleString()}`} color="indigo" />
       </div>
 
       {/* Variant breakdown */}

@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import {
   demoAssignments,
@@ -118,7 +119,9 @@ export default function OverviewAssigned() {
                 {paged.map((a) => (
                   <tr key={a.id}>
                     <td className="px-3 py-2 text-slate-300">{formatDateDDMMYY(a.date_assigned)}</td>
-                    <td className="px-3 py-2 font-semibold text-white">{a.partner_name}</td>
+                    <td className="px-3 py-2 font-semibold text-white">
+                      <Link to={`/admin/partner/${a.partner_id}`} className="hover:text-emerald-200">{a.partner_name}</Link>
+                    </td>
                     <td className="px-3 py-2 text-right text-emerald-200">{a.multigrain_assigned.toLocaleString()}</td>
                     <td className="px-3 py-2 text-right text-amber-100">{a.plain_assigned.toLocaleString()}</td>
                     <td className="px-3 py-2 text-right font-semibold text-white">{a.total.toLocaleString()}</td>
@@ -141,7 +144,7 @@ export default function OverviewAssigned() {
             {paged.map((a) => (
               <div key={a.id} className="dashboard-subpanel rounded-[20px] px-4 py-3">
                 <div className="flex items-center justify-between">
-                  <p className="font-semibold text-white">{a.partner_name}</p>
+                  <Link to={`/admin/partner/${a.partner_id}`} className="font-semibold text-white hover:text-emerald-200">{a.partner_name}</Link>
                   <p className="text-xs text-slate-500">{formatDateDDMMYY(a.date_assigned)}</p>
                 </div>
                 <div className="mt-2 grid grid-cols-3 gap-2 text-xs">

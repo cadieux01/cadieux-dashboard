@@ -12,6 +12,7 @@ const AuditLogs = lazy(() => import('./pages/AuditLogs'))
 const PartnerDashboard = lazy(() => import('./pages/PartnerDashboard'))
 const Partners = lazy(() => import('./pages/Partners'))
 const SalesExec = lazy(() => import('./pages/SalesExec'))
+const Team = lazy(() => import('./pages/Team'))
 const Profile = lazy(() => import('./pages/Profile'))
 const ChangeRequests = lazy(() => import('./pages/ChangeRequests'))
 const Onboarding = lazy(() => import('./pages/Onboarding'))
@@ -20,6 +21,7 @@ const OverviewAssigned   = lazy(() => import('./pages/admin/OverviewAssigned'))
 const OverviewSold       = lazy(() => import('./pages/admin/OverviewSold'))
 const OverviewAttributed = lazy(() => import('./pages/admin/OverviewAttributed'))
 const PartnerProfile     = lazy(() => import('./pages/admin/PartnerProfile'))
+const AgentProfile       = lazy(() => import('./pages/admin/AgentProfilePage'))
 const VariantDetail      = lazy(() => import('./pages/admin/VariantDetail'))
 
 const PageLoader = () => (
@@ -82,6 +84,10 @@ export const router = createBrowserRouter([
         element: <ProtectedRoute allowedRoles={['admin', 'sales']}>{withSuspense(PartnerProfile)}</ProtectedRoute>,
       },
       {
+        path: 'agent/:id',
+        element: <ProtectedRoute requiredRole="admin">{withSuspense(AgentProfile)}</ProtectedRoute>,
+      },
+      {
         path: 'sales',
         element: withSuspense(Leads),
       },
@@ -90,12 +96,18 @@ export const router = createBrowserRouter([
         element: <ProtectedRoute allowedRoles={['admin', 'sales']}>{withSuspense(CTA)}</ProtectedRoute>,
       },
       {
-        path: 'partners',
-        element: <ProtectedRoute allowedRoles={['admin', 'sales']}>{withSuspense(Partners)}</ProtectedRoute>,
+        path: 'team',
+        element: <ProtectedRoute allowedRoles={['admin', 'sales']}>{withSuspense(Team)}</ProtectedRoute>,
       },
       {
+        // Legacy redirect: old /admin/partners → /admin/team
+        path: 'partners',
+        element: <Navigate to="/admin/team" replace />,
+      },
+      {
+        // Legacy redirect: old /admin/sales-exec → /admin/team?view=agents
         path: 'sales-exec',
-        element: <ProtectedRoute requiredRole="admin">{withSuspense(SalesExec)}</ProtectedRoute>,
+        element: <Navigate to="/admin/team?view=agents" replace />,
       },
       {
         path: 'onboarding',
