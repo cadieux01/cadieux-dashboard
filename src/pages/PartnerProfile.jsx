@@ -70,14 +70,14 @@ export default function PartnerProfile() {
   }
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 pb-24 sm:pb-8">
-      <div className="mb-6 sm:mb-8">
-        <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-2">Partner Profile</h1>
-        <p className="text-sm sm:text-base text-slate-400">View and manage your profile information</p>
+    <div className="dashboard-page">
+      <div className="mb-3">
+        <h1 className="dashboard-title">Partner Profile</h1>
+        <p className="dashboard-subtitle hidden sm:block">View and manage your profile information</p>
       </div>
 
       {/* KPI Cards - Mobile-first responsive grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4 mb-6 sm:mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-2 sm:gap-3 mb-4">
         <KPICard
           title="Total Units Assigned"
           value={stats.totalUnitsAssigned.toLocaleString()}

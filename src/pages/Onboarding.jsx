@@ -72,15 +72,15 @@ export default function Onboarding() {
     ]
 
     return (
-      <div className="p-8">
-        <div className="mb-6">
-          <h1 className="text-4xl font-bold text-white mb-2">User Onboarding</h1>
-          <p className="text-slate-400">
+      <div className="dashboard-page">
+        <div className="mb-3">
+          <h1 className="dashboard-title">User Onboarding</h1>
+          <p className="dashboard-subtitle">
             Create new partner or sales agent accounts (phone + password login)
           </p>
         </div>
 
-        <div className="mb-6 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm font-medium text-amber-200">
+        <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-200">
           🎬 Onboarding Preview — This is how new partners and sales agents are onboarded
         </div>
 
@@ -252,14 +252,14 @@ export default function Onboarding() {
   }
 
   return (
-    <div className="p-8">
-      <div className="mb-8">
+    <div className="dashboard-page">
+      <div className="mb-3">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
-            <h1 className="text-4xl font-bold text-white mb-2">
+            <h1 className="dashboard-title">
               {role === 'admin' ? 'User Onboarding' : 'Partner Onboarding'}
             </h1>
-            <p className="text-slate-400">
+            <p className="dashboard-subtitle">
               {role === 'admin'
                 ? 'Create new partner or sales agent accounts (phone + password login)'
                 : 'Create new partner accounts (phone + password login)'}

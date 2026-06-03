@@ -425,11 +425,11 @@ export default function PartnerDashboard() {
   return (
     <>
       <div className="dashboard-page pb-24 sm:pb-8">
-        <div className="relative z-10 mb-8 flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
+        <div className="relative z-10 mb-3 flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
           <div className="flex items-start justify-between gap-4">
             <div>
               <span className="dashboard-kicker">Partner</span>
-              <h1 className="dashboard-title mt-4">Sales</h1>
+              <h1 className="dashboard-title mt-2">Sales</h1>
             </div>
             <RefreshButton onRefresh={refresh} loading={refreshing} />
           </div>
@@ -443,7 +443,7 @@ export default function PartnerDashboard() {
           </div>
         </div>
 
-        <div className="mb-6 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="mb-4 grid grid-cols-2 gap-2 md:grid-cols-2 xl:grid-cols-4">
           <KPICard
             title="Customers"
             value={sales.length.toLocaleString()}
@@ -621,10 +621,10 @@ export default function PartnerDashboard() {
             setIsDateEditable(false)
             setIsCustomerModalOpen(true)
           }}
-        className="dashboard-fab fixed bottom-20 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full text-white transition-all hover:-translate-y-1 sm:h-16 sm:w-16 lg:bottom-8 lg:right-8"
+        className="dashboard-fab fixed bottom-[68px] right-4 z-40 flex items-center justify-center rounded-full text-white transition-all hover:-translate-y-0.5 lg:bottom-6 lg:right-6"
         aria-label="Add Customer"
       >
-        <svg className="w-6 h-6 sm:w-8 sm:h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
         </svg>
       </button>

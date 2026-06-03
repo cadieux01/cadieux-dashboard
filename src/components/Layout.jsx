@@ -133,7 +133,7 @@ export default function Layout() {
   const bottomTabs = navigation.slice(0, 3)
 
   const navLinkClass = ({ isActive }) =>
-    `group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-all duration-150 ${
+    `group relative flex h-9 items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-semibold transition-all duration-150 ${
       isActive
         ? 'bg-[rgba(2,70,40,0.15)] text-[#fbf3d4]'
         : 'text-slate-500 hover:bg-[rgba(2,70,40,0.08)] hover:text-slate-100'
@@ -166,15 +166,15 @@ export default function Layout() {
           fixed lg:static inset-y-0 left-0 z-40
           flex flex-col border-r border-[#1e2d3d] bg-[#0a0f14]
           transition-all duration-300 ease-in-out
-          ${isSidebarOpen ? 'w-[16rem]' : 'w-[4.75rem]'}
+          ${isSidebarOpen ? 'w-[13.75rem]' : 'w-[4.25rem]'}
           ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}
       >
         {/* Brand */}
-        <div className="flex min-h-[72px] items-center border-b border-[#1e2d3d] px-4">
-          <div className="flex min-w-0 flex-1 items-center gap-3">
-            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-[#024628] text-[#fbf3d4] shadow-[0_4px_12px_rgba(2,70,40,0.4)]">
-              <span className="font-display text-lg font-extrabold leading-none">C</span>
+        <div className="flex min-h-[52px] items-center border-b border-[#1e2d3d] px-3">
+          <div className="flex min-w-0 flex-1 items-center gap-2.5">
+            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-[#024628] text-[#fbf3d4] shadow-[0_4px_12px_rgba(2,70,40,0.4)]">
+              <span className="font-display text-base font-extrabold leading-none">C</span>
             </div>
             {isSidebarOpen && (
               <div className="min-w-0">
@@ -197,7 +197,7 @@ export default function Layout() {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 space-y-1 overflow-y-auto px-2.5 py-4">
+        <nav className="flex-1 space-y-1 overflow-y-auto px-2 py-2">
           {navigation.map((item) => {
             const Icon = item.Icon
             return (
@@ -214,7 +214,7 @@ export default function Layout() {
                       <span className="absolute left-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-r-full bg-[#024628]" />
                     )}
                     <span className="relative flex flex-shrink-0 items-center justify-center">
-                      <Icon size={18} className={isActive ? 'text-[#fbf3d4]' : 'text-slate-500 group-hover:text-slate-100'} />
+                      <Icon size={16} className={isActive ? 'text-[#fbf3d4]' : 'text-slate-500 group-hover:text-slate-100'} />
                       {item.badge && badgeCounts[item.badge] > 0 && !isSidebarOpen && (
                         <span className="absolute -right-2 -top-2 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-bold text-white">
                           {badgeCounts[item.badge]}
@@ -271,12 +271,12 @@ export default function Layout() {
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 overflow-auto pb-20 lg:ml-0 lg:pb-0">
+      <main className="flex-1 overflow-auto scroll-smooth pb-[52px] lg:ml-0 lg:pb-0">
         <Outlet />
       </main>
 
-      {/* Mobile bottom tab bar (< lg) */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 flex items-stretch border-t border-[#1e2d3d] bg-[#0a0f14] lg:hidden">
+      {/* Mobile bottom tab bar (< lg) — 52px tall, 4 evenly-spaced tabs */}
+      <nav className="fixed bottom-0 left-0 right-0 z-50 flex h-[52px] items-stretch border-t border-[#1e2d3d] bg-[#0a0f14] lg:hidden">
         {bottomTabs.map((item) => {
           const Icon = item.Icon
           return (
@@ -284,7 +284,7 @@ export default function Layout() {
               key={item.name}
               to={item.href}
               className={({ isActive }) =>
-                `relative flex flex-1 flex-col items-center justify-center gap-0.5 py-2.5 text-[10px] font-semibold transition-colors ${
+                `relative flex flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-semibold transition-colors ${
                   isActive ? 'text-[#fbf3d4]' : 'text-slate-500'
                 }`
               }
@@ -301,7 +301,7 @@ export default function Layout() {
         })}
         <button
           onClick={() => setIsMobileMenuOpen(true)}
-          className="flex flex-1 flex-col items-center justify-center gap-0.5 py-2.5 text-[10px] font-semibold text-slate-500"
+          className="flex flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-semibold text-slate-500"
         >
           <MoreHorizontal size={20} />
           <span>Menu</span>

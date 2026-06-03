@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import KPICard from '../components/KPICard'
 import AlertBanner from '../components/AlertBanner'
+import DismissibleInfo from '../components/DismissibleInfo'
 import Modal from '../components/Modal'
 import FormField from '../components/FormField'
 import { logAuditEvent } from '../lib/audit'
@@ -413,25 +414,23 @@ export default function SalesExec() {
   }
 
   return (
-    <div className="p-8">
-      <div className="mb-8">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="mb-2 text-4xl font-bold text-white">Sales Agents</h1>
-            <p className="text-slate-400">Manage sales agent accounts.</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <RefreshButton onRefresh={refresh} loading={refreshing} />
-            <button
-              onClick={() => setIsAddExecModalOpen(true)}
-              className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-emerald-600 to-emerald-500 px-4 py-2 font-medium text-white shadow-lg transition-all hover:from-emerald-500 hover:to-emerald-400"
-            >
-              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Add Sales Agent
-            </button>
-          </div>
+    <div className="dashboard-page">
+      <div className="dashboard-page-header">
+        <div className="min-w-0">
+          <h1 className="dashboard-title">Sales Agents</h1>
+          <p className="dashboard-subtitle hidden truncate sm:block">Manage sales agent accounts.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <RefreshButton onRefresh={refresh} loading={refreshing} />
+          <button
+            onClick={() => setIsAddExecModalOpen(true)}
+            className="dashboard-action-btn"
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            <span className="hidden sm:inline">Add Sales Agent</span>
+          </button>
         </div>
       </div>
 
@@ -446,15 +445,16 @@ export default function SalesExec() {
         </div>
       )}
 
-      <div className="mb-6">
-        <AlertBanner
+      <div className="mb-3">
+        <DismissibleInfo
+          storageKey="salesexec-phone-login"
           type="info"
           title="Phone login"
           message="Sales agents log in with their phone number and password. Deleting a login keeps all their data."
         />
       </div>
 
-      <div className="mb-6 grid grid-cols-1 gap-3 md:grid-cols-3">
+      <div className="mb-4 grid grid-cols-2 gap-2 md:grid-cols-3">
         <KPICard title="Total Agents" value={execs.length} color="indigo" />
         <KPICard title="Active" value={activeExecs} color="emerald" />
         <KPICard title="Deactivated" value={inactiveExecs} color="amber" />

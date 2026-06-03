@@ -433,7 +433,7 @@ export default function Sales() {
 
   return (
     <div className="dashboard-page !pt-2 sm:!pt-3 lg:!pt-4">
-      <div className="relative z-10 mb-6 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+      <div className="relative z-10 mb-3 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex items-center justify-between gap-4">
           <h1 className="dashboard-title">Overview</h1>
           <RefreshButton onRefresh={refresh} loading={refreshing} />
@@ -455,7 +455,7 @@ export default function Sales() {
         </div>
       </div>
 
-      <div className="mb-6 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="mb-4 grid grid-cols-2 gap-2 md:grid-cols-2 xl:grid-cols-4">
         <KPICard
           title="Partners"
           value={trainers.length.toLocaleString()}
@@ -540,7 +540,7 @@ export default function Sales() {
             // x-axis labels never clip; the inner wrapper keeps a sensible
             // minimum width while ResponsiveContainer fills whatever it gets.
             <div className={chartType === 'pie' ? '' : '-mx-1 overflow-x-auto px-1'}>
-              <div className={chartType === 'pie' ? 'h-[320px] w-full' : 'h-[320px] min-w-[480px]'}>
+              <div className={chartType === 'pie' ? 'h-[200px] w-full md:h-[300px]' : 'h-[200px] min-w-[480px] md:h-[300px]'}>
                 <ResponsiveContainer key={chartType} width="100%" height="100%">
                   {chartType === 'bar' ? (
                     <BarChart data={topRankings} barGap={10} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>

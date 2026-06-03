@@ -30,19 +30,19 @@ export default function FormField({
   const [showPassword, setShowPassword] = useState(false)
 
   const labelEl = (
-    <label className="mb-2 block text-sm font-semibold text-slate-300">
+    <label className="mb-1 block text-xs font-semibold text-slate-300">
       {label}
       {required && <span className="ml-1 text-rose-400">*</span>}
     </label>
   )
 
   const errorEl = error ? (
-    <p className="mt-1.5 text-xs text-rose-400">{error}</p>
+    <p className="mt-1 text-xs text-rose-400">{error}</p>
   ) : null
 
   if (type === 'select') {
     return (
-      <div className="mb-4">
+      <div className="mb-3">
         {labelEl}
         <select
           value={value}
@@ -64,7 +64,7 @@ export default function FormField({
 
   if (type === 'textarea') {
     return (
-      <div className="mb-4">
+      <div className="mb-3">
         {labelEl}
         <textarea
           value={value}
@@ -82,7 +82,7 @@ export default function FormField({
   // Password fields get a right-aligned show/hide eye toggle.
   if (type === 'password') {
     return (
-      <div className="mb-4">
+      <div className="mb-3">
         {labelEl}
         <div className="relative">
           <input
@@ -112,7 +112,7 @@ export default function FormField({
   }
 
   return (
-    <div className="mb-4">
+    <div className="mb-3">
       {labelEl}
       <input
         type={type}

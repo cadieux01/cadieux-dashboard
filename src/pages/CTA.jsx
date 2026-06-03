@@ -184,15 +184,13 @@ export default function CTA() {
   return (
     <div className="dashboard-page">
       {/* Header */}
-      <div className="relative z-10 mb-8 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="dashboard-title">CTA</h1>
-        </div>
+      <div className="dashboard-page-header">
+        <h1 className="dashboard-title">CTA</h1>
         <RefreshButton onRefresh={refresh} loading={refreshing} />
       </div>
 
       {/* KPI Cards */}
-      <div className="mb-6 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="mb-4 grid grid-cols-2 gap-2 md:grid-cols-2 xl:grid-cols-4">
         <KPICard
           title="Active"
           value={activeSales}

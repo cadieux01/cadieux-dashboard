@@ -163,7 +163,7 @@ export default function Profile() {
   }
 
   return (
-    <div className="p-8">
+    <div className="dashboard-page">
       {/* Green success toast */}
       {toast && (
         <div className="fixed top-6 right-6 z-50 rounded-xl border border-emerald-600 bg-emerald-500/15 px-4 py-3 text-sm text-emerald-300 shadow-lg backdrop-blur">
@@ -171,12 +171,11 @@ export default function Profile() {
         </div>
       )}
 
-      <div className="mb-8 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-4xl font-bold text-white mb-2">My Profile</h1>
-          <p className="text-slate-400">
-            Request changes to your name, phone, or password. Changes take effect
-            after approval.
+      <div className="dashboard-page-header">
+        <div className="min-w-0">
+          <h1 className="dashboard-title">My Profile</h1>
+          <p className="dashboard-subtitle hidden truncate sm:block">
+            Request changes to your name, phone, or password. Changes take effect after approval.
           </p>
         </div>
         <RefreshButton onRefresh={refresh} loading={refreshing} />

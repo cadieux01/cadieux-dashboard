@@ -1272,44 +1272,44 @@ export default function Leads() {
   }
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8">
+    <div className="dashboard-page">
       {/* Header */}
-      <div className="mb-6 sm:mb-8">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+      <div className="mb-3">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-1 sm:mb-2">Sales</h1>
-              <p className="text-sm sm:text-base text-slate-400">Track and manage buyer leads from partners</p>
+              <h1 className="dashboard-title">Sales</h1>
+              <p className="dashboard-subtitle hidden sm:block">Track and manage buyer leads from partners</p>
             </div>
             <RefreshButton onRefresh={refresh} loading={refreshing} />
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 w-full lg:w-auto">
+          <div className="grid grid-cols-3 gap-2 w-full lg:w-auto">
             <button
               onClick={() => setIsAddSaleModalOpen(true)}
-              className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white text-sm sm:text-base font-medium rounded-lg shadow-lg transition-all"
+              className="flex h-8 items-center justify-center gap-1.5 px-3 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white text-xs font-medium rounded-lg shadow-lg transition-all"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
-              Assign Unit
+              <span className="hidden sm:inline">Assign Unit</span>
             </button>
             <button
               onClick={() => setIsAddSaleEntryModalOpen(true)}
-              className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white text-sm sm:text-base font-medium rounded-lg shadow-lg transition-all"
+              className="flex h-8 items-center justify-center gap-1.5 px-3 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white text-xs font-medium rounded-lg shadow-lg transition-all"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
-              Add Sale
+              <span className="hidden sm:inline">Add Sale</span>
             </button>
             <button
               onClick={() => setIsAddRetractModalOpen(true)}
-              className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 text-white text-sm sm:text-base font-medium rounded-lg shadow-lg transition-all"
+              className="flex h-8 items-center justify-center gap-1.5 px-3 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 text-white text-xs font-medium rounded-lg shadow-lg transition-all"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
               </svg>
-              Add Retract
+              <span className="hidden sm:inline">Add Retract</span>
             </button>
           </div>
         </div>
@@ -1317,12 +1317,12 @@ export default function Leads() {
 
 
       {/* Sales Records Section */}
-      <div className="mb-8">
-        <div className="mb-6">
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent drop-shadow-lg">
+      <div className="mb-4">
+        <div className="mb-3">
+          <h2 className="dashboard-section-title font-extrabold tracking-tight bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
             Sales Records
           </h2>
-          <p className="text-sm sm:text-base text-slate-400 mt-2">Active sales: {activeSalesCount}</p>
+          <p className="dashboard-subtitle mt-1">Active sales: {activeSalesCount}</p>
         </div>
         
         {/* Sales Filters */}

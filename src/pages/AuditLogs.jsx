@@ -280,11 +280,11 @@ export default function AuditLogs() {
   }
 
   return (
-    <div className="p-8 font-mono">
-      <div className="mb-6 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-4xl font-bold text-white mb-2 font-sans">Audit Logs</h1>
-          <p className="text-slate-400 font-sans">
+    <div className="dashboard-page font-mono">
+      <div className="dashboard-page-header">
+        <div className="min-w-0">
+          <h1 className="dashboard-title font-sans">Audit Logs</h1>
+          <p className="dashboard-subtitle hidden truncate font-sans sm:block">
             Every recorded action across the system, oldest hidden beneath the newest.
           </p>
         </div>

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import KPICard from '../components/KPICard'
 import AlertBanner from '../components/AlertBanner'
+import DismissibleInfo from '../components/DismissibleInfo'
 import Modal from '../components/Modal'
 import FormField from '../components/FormField'
 import { logAuditEvent } from '../lib/audit'
@@ -418,25 +419,23 @@ export default function Partners() {
   }
 
   return (
-    <div className="p-8">
-      <div className="mb-8">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div>
-            <h1 className="text-4xl font-bold text-white mb-2">Partners</h1>
-            <p className="text-slate-400">Centralized partner user management and credential operations</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <RefreshButton onRefresh={refresh} loading={refreshing} />
-            <button
-              onClick={() => setIsAddPartnerModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-medium rounded-lg shadow-lg transition-all"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Add Partner
-            </button>
-          </div>
+    <div className="dashboard-page">
+      <div className="dashboard-page-header">
+        <div className="min-w-0">
+          <h1 className="dashboard-title">Partners</h1>
+          <p className="dashboard-subtitle hidden truncate sm:block">Centralized partner user management and credential operations</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <RefreshButton onRefresh={refresh} loading={refreshing} />
+          <button
+            onClick={() => setIsAddPartnerModalOpen(true)}
+            className="dashboard-action-btn"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            <span className="hidden sm:inline">Add Partner</span>
+          </button>
         </div>
       </div>
 
@@ -451,15 +450,16 @@ export default function Partners() {
         </div>
       )}
 
-      <div className="mb-6">
-        <AlertBanner
+      <div className="mb-3">
+        <DismissibleInfo
+          storageKey="partners-phone-login"
           type="info"
           title="Phone login"
           message="Partners log in with their phone number and password. Deleting a login keeps all their data."
         />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-4">
         <KPICard title="Total Partners" value={partners.length} color="indigo" />
         <KPICard title="Active" value={activePartners} color="emerald" />
         <KPICard title="Deactivated" value={inactivePartners} color="amber" />

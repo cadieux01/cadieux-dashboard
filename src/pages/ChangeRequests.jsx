@@ -244,11 +244,11 @@ export default function ChangeRequests() {
   }
 
   return (
-    <div className="p-8">
-      <div className="mb-8 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-4xl font-bold text-white mb-2">{title}</h1>
-          <p className="text-slate-400">
+    <div className="dashboard-page">
+      <div className="dashboard-page-header">
+        <div className="min-w-0">
+          <h1 className="dashboard-title">{title}</h1>
+          <p className="dashboard-subtitle hidden truncate sm:block">
             {isAdmin
               ? 'Review and approve name, phone, and password change requests.'
               : 'Review and approve change requests from your partners.'}

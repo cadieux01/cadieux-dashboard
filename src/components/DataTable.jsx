@@ -15,7 +15,7 @@ export default function DataTable({ columns, data, onSort, sortField, sortDirect
             {columns.map((column) => (
               <th
                 key={column.key}
-                className={`border-b border-white/8 px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500 ${
+                className={`h-7 border-b border-white/8 px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 ${
                   column.sortable ? 'cursor-pointer transition-colors hover:text-white' : ''
                 }`}
                 onClick={() => column.sortable && handleSort(column.key)}
@@ -53,7 +53,7 @@ export default function DataTable({ columns, data, onSort, sortField, sortDirect
                 }`}
               >
                 {columns.map((column) => (
-                  <td key={column.key} className="px-4 py-3.5 text-sm text-slate-300">
+                  <td key={column.key} className="h-9 px-2 py-1.5 text-xs text-slate-300">
                     {column.render ? column.render(row[column.key], row) : row[column.key]}
                   </td>
                 ))}
