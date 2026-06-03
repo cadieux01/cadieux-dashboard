@@ -397,4 +397,271 @@ export function demoCtaPartners() {
   return DEMO_DATA.partnersList.map((p) => ({ id: p.id, name: p.full_name }))
 }
 
+// =========================================================================
+// Drill-down records (Admin Overview clickable KPI cards)
+// =========================================================================
+// Hard-coded reference "today" so the demo data is deterministic.
+const DEMO_TODAY = new Date('2026-06-03')
+
+// Larger demo partner roster used by drill-down views. Indexed by `id`.
+// Index aligns with DEMO_DATA.overview.partnerPerformance.
+const DRILLDOWN_PARTNERS = [
+  { id: 'p1', name: 'Rahul Kumar',   phone: '9876543201', status: 'active' },
+  { id: 'p2', name: 'Priya Sharma',  phone: '9876543202', status: 'active' },
+  { id: 'p3', name: 'Vikram Reddy',  phone: '9876543203', status: 'inactive' },
+  { id: 'p4', name: 'Anita Das',     phone: '9876543204', status: 'active' },
+  { id: 'p5', name: 'Suresh Patel',  phone: '9876543205', status: 'active' },
+  { id: 'p6', name: 'Meena Iyer',    phone: '9876543206', status: 'active' },
+  { id: 'p7', name: 'Arjun Mehta',   phone: '9876543207', status: 'active' },
+  { id: 'p8', name: 'Kavita Nair',   phone: '9876543208', status: 'inactive' },
+  { id: 'p9', name: 'Naveen Pillai', phone: '9876543209', status: 'active' },
+  { id: 'p10', name: 'Sneha Hegde',  phone: '9876543210', status: 'active' },
+]
+
+// Helper — produce an ISO date string `daysAgo` days before DEMO_TODAY.
+function daysAgo(n) {
+  const d = new Date(DEMO_TODAY)
+  d.setDate(d.getDate() - n)
+  return d.toISOString().split('T')[0]
+}
+
+// Helper — date-range filter. Returns true if `iso` falls within `range`.
+function withinRange(iso, range) {
+  if (range === 'all') return true
+  const d = new Date(iso)
+  const diff = (DEMO_TODAY - d) / 86400000
+  switch (range) {
+    case 'today':   return diff < 1
+    case 'week':    return diff <= 7
+    case 'month':   return diff <= 30
+    case 'lastmonth': return diff > 30 && diff <= 60
+    case '3m':      return diff <= 90
+    case '6m':      return diff <= 180
+    case 'year':    return diff <= 365
+    default:        return true
+  }
+}
+
+// --- Assignment records (Assigned KPI drill-down) ---------------------------
+// Each row = one assignment event (partner received N units of each variant).
+const ASSIGNMENTS = [
+  { id: 'a1', partner_id: 'p1', mg: 25, plain: 15, date: daysAgo(2) },
+  { id: 'a2', partner_id: 'p2', mg: 20, plain: 15, date: daysAgo(3) },
+  { id: 'a3', partner_id: 'p3', mg: 18, plain: 12, date: daysAgo(5) },
+  { id: 'a4', partner_id: 'p4', mg: 15, plain: 10, date: daysAgo(7) },
+  { id: 'a5', partner_id: 'p1', mg: 25, plain: 20, date: daysAgo(10) },
+  { id: 'a6', partner_id: 'p5', mg: 12, plain: 8, date: daysAgo(12) },
+  { id: 'a7', partner_id: 'p2', mg: 25, plain: 20, date: daysAgo(15) },
+  { id: 'a8', partner_id: 'p6', mg: 10, plain: 6, date: daysAgo(18) },
+  { id: 'a9', partner_id: 'p3', mg: 22, plain: 18, date: daysAgo(22) },
+  { id: 'a10', partner_id: 'p7', mg: 9, plain: 5, date: daysAgo(25) },
+  { id: 'a11', partner_id: 'p4', mg: 20, plain: 18, date: daysAgo(30) },
+  { id: 'a12', partner_id: 'p8', mg: 8, plain: 4, date: daysAgo(35) },
+  { id: 'a13', partner_id: 'p9', mg: 7, plain: 4, date: daysAgo(42) },
+  { id: 'a14', partner_id: 'p10', mg: 6, plain: 3, date: daysAgo(50) },
+  { id: 'a15', partner_id: 'p5', mg: 18, plain: 14, date: daysAgo(65) },
+  { id: 'a16', partner_id: 'p6', mg: 8, plain: 7, date: daysAgo(75) },
+  { id: 'a17', partner_id: 'p7', mg: 7, plain: 6, date: daysAgo(95) },
+  { id: 'a18', partner_id: 'p1', mg: 15, plain: 10, date: daysAgo(120) },
+  { id: 'a19', partner_id: 'p2', mg: 12, plain: 8, date: daysAgo(160) },
+  { id: 'a20', partner_id: 'p3', mg: 10, plain: 8, date: daysAgo(200) },
+]
+
+// --- Sale records (Sold KPI drill-down) -----------------------------------
+// Each row = one sale (partner sold N units of variant on date to customer).
+// `assigned_date` enables "days to sell" computation.
+const SALES_RECORDS = [
+  // Recent (last 7 days)
+  { id: 's1', partner_id: 'p1', customer: 'Mohan Rao', variant: 'multigrain', units: 3, date: daysAgo(0), assigned_date: daysAgo(2) },
+  { id: 's2', partner_id: 'p2', customer: 'Lakshmi Devi', variant: 'plain', units: 5, date: daysAgo(0), assigned_date: daysAgo(3) },
+  { id: 's3', partner_id: 'p1', customer: 'Karthik Iyer', variant: 'multigrain', units: 4, date: daysAgo(1), assigned_date: daysAgo(2) },
+  { id: 's4', partner_id: 'p3', customer: 'Ravi Teja', variant: 'multigrain', units: 2, date: daysAgo(2), assigned_date: daysAgo(5) },
+  { id: 's5', partner_id: 'p4', customer: 'Sita Ram', variant: 'plain', units: 4, date: daysAgo(3), assigned_date: daysAgo(7) },
+  { id: 's6', partner_id: 'p5', customer: 'Krishna Murthy', variant: 'multigrain', units: 6, date: daysAgo(3), assigned_date: daysAgo(12) },
+  { id: 's7', partner_id: 'p2', customer: 'Ayesha Khan', variant: 'multigrain', units: 8, date: daysAgo(4), assigned_date: daysAgo(3) },
+  { id: 's8', partner_id: 'p1', customer: 'Deepak Joshi', variant: 'plain', units: 3, date: daysAgo(5), assigned_date: daysAgo(10) },
+  { id: 's9', partner_id: 'p6', customer: 'Nisha Kapoor', variant: 'multigrain', units: 4, date: daysAgo(6), assigned_date: daysAgo(18) },
+  { id: 's10', partner_id: 'p3', customer: 'Sunita Verma', variant: 'plain', units: 5, date: daysAgo(7), assigned_date: daysAgo(5) },
+  // Mid range (8–30 days)
+  { id: 's11', partner_id: 'p2', customer: 'Rohit Mehra', variant: 'multigrain', units: 7, date: daysAgo(9), assigned_date: daysAgo(15) },
+  { id: 's12', partner_id: 'p7', customer: 'Asha Pillai', variant: 'multigrain', units: 3, date: daysAgo(11), assigned_date: daysAgo(25) },
+  { id: 's13', partner_id: 'p4', customer: 'Manoj Tiwari', variant: 'plain', units: 4, date: daysAgo(13), assigned_date: daysAgo(7) },
+  { id: 's14', partner_id: 'p5', customer: 'Geeta Nair', variant: 'plain', units: 3, date: daysAgo(15), assigned_date: daysAgo(12) },
+  { id: 's15', partner_id: 'p1', customer: 'Vishal Goel', variant: 'multigrain', units: 6, date: daysAgo(17), assigned_date: daysAgo(10) },
+  { id: 's16', partner_id: 'p8', customer: 'Pooja Shah', variant: 'multigrain', units: 2, date: daysAgo(19), assigned_date: daysAgo(35) },
+  { id: 's17', partner_id: 'p3', customer: 'Arvind Rao', variant: 'multigrain', units: 5, date: daysAgo(22), assigned_date: daysAgo(22) },
+  { id: 's18', partner_id: 'p2', customer: 'Divya Menon', variant: 'plain', units: 6, date: daysAgo(24), assigned_date: daysAgo(15) },
+  { id: 's19', partner_id: 'p6', customer: 'Sanjay Bhatt', variant: 'plain', units: 3, date: daysAgo(26), assigned_date: daysAgo(18) },
+  { id: 's20', partner_id: 'p4', customer: 'Rekha Yadav', variant: 'multigrain', units: 5, date: daysAgo(28), assigned_date: daysAgo(30) },
+  // Older (31–180 days)
+  { id: 's21', partner_id: 'p1', customer: 'Tanvi Saha', variant: 'multigrain', units: 8, date: daysAgo(35), assigned_date: daysAgo(120) },
+  { id: 's22', partner_id: 'p5', customer: 'Imran Sheikh', variant: 'plain', units: 4, date: daysAgo(42), assigned_date: daysAgo(65) },
+  { id: 's23', partner_id: 'p2', customer: 'Neha Kulkarni', variant: 'multigrain', units: 6, date: daysAgo(48), assigned_date: daysAgo(160) },
+  { id: 's24', partner_id: 'p7', customer: 'Aditya Bose', variant: 'plain', units: 2, date: daysAgo(55), assigned_date: daysAgo(95) },
+  { id: 's25', partner_id: 'p3', customer: 'Shruti Pandit', variant: 'multigrain', units: 5, date: daysAgo(70), assigned_date: daysAgo(200) },
+  { id: 's26', partner_id: 'p9', customer: 'Vivek Choudhary', variant: 'multigrain', units: 3, date: daysAgo(85), assigned_date: daysAgo(42) },
+  { id: 's27', partner_id: 'p6', customer: 'Anjali Ravi', variant: 'multigrain', units: 4, date: daysAgo(105), assigned_date: daysAgo(75) },
+  { id: 's28', partner_id: 'p1', customer: 'Harish Naidu', variant: 'plain', units: 5, date: daysAgo(130), assigned_date: daysAgo(120) },
+  { id: 's29', partner_id: 'p10', customer: 'Komal Pawar', variant: 'plain', units: 3, date: daysAgo(160), assigned_date: daysAgo(50) },
+  { id: 's30', partner_id: 'p4', customer: 'Mahesh Acharya', variant: 'multigrain', units: 6, date: daysAgo(220), assigned_date: daysAgo(30) },
+  { id: 's31', partner_id: 'p2', customer: 'Reema D\'Souza', variant: 'plain', units: 4, date: daysAgo(280), assigned_date: daysAgo(160) },
+  { id: 's32', partner_id: 'p3', customer: 'Akash Sinha', variant: 'multigrain', units: 7, date: daysAgo(340), assigned_date: daysAgo(200) },
+]
+
+// --- Attribution records (Attributed KPI drill-down) ------------------------
+// Each row = one return/retract event. Reason is one of:
+// 'damaged' | 'expired' | 'customer_return' | 'unsold' | 'other'.
+const ATTRIBUTIONS = [
+  { id: 'r1', partner_id: 'p1', variant: 'multigrain', units: 1, reason: 'damaged', notes: 'Package torn during transit', attributed_by: 'Kiran Joshi', date: daysAgo(1) },
+  { id: 'r2', partner_id: 'p2', variant: 'plain', units: 1, reason: 'customer_return', notes: 'Customer changed mind after delivery', attributed_by: 'Kiran Joshi', date: daysAgo(3) },
+  { id: 'r3', partner_id: 'p3', variant: 'multigrain', units: 2, reason: 'expired', notes: 'Past best-before date', attributed_by: 'Nandini Rao', date: daysAgo(6) },
+  { id: 'r4', partner_id: 'p4', variant: 'plain', units: 2, reason: 'unsold', notes: 'Did not move from partner shelf in 21 days', attributed_by: 'Kiran Joshi', date: daysAgo(10) },
+  { id: 'r5', partner_id: 'p1', variant: 'multigrain', units: 1, reason: 'damaged', notes: 'Wet during rain', attributed_by: 'Nandini Rao', date: daysAgo(14) },
+  { id: 'r6', partner_id: 'p5', variant: 'plain', units: 1, reason: 'customer_return', notes: 'Wrong variant — wanted Multi-Grain', attributed_by: 'Kiran Joshi', date: daysAgo(20) },
+  { id: 'r7', partner_id: 'p6', variant: 'multigrain', units: 1, reason: 'other', notes: 'Sample for partner training', attributed_by: 'Nandini Rao', date: daysAgo(35) },
+  { id: 'r8', partner_id: 'p2', variant: 'plain', units: 2, reason: 'unsold', notes: '', attributed_by: 'Kiran Joshi', date: daysAgo(48) },
+  { id: 'r9', partner_id: 'p3', variant: 'plain', units: 1, reason: 'expired', notes: 'Stock rotation cleanup', attributed_by: 'Nandini Rao', date: daysAgo(72) },
+  { id: 'r10', partner_id: 'p7', variant: 'multigrain', units: 1, reason: 'damaged', notes: 'Crushed in handling', attributed_by: 'Kiran Joshi', date: daysAgo(95) },
+  { id: 'r11', partner_id: 'p1', variant: 'plain', units: 1, reason: 'customer_return', notes: 'Reported off taste', attributed_by: 'Nandini Rao', date: daysAgo(140) },
+  { id: 'r12', partner_id: 'p4', variant: 'multigrain', units: 1, reason: 'unsold', notes: '', attributed_by: 'Kiran Joshi', date: daysAgo(210) },
+]
+
+const REASON_LABELS = {
+  damaged: 'Damaged',
+  expired: 'Expired',
+  customer_return: 'Customer Return',
+  unsold: 'Unsold',
+  other: 'Other',
+}
+
+// --- Date-range constant for drill-downs ------------------------------------
+export const DRILLDOWN_RANGES = [
+  { value: 'today',     label: 'Today' },
+  { value: 'week',      label: 'This Week' },
+  { value: 'month',     label: 'This Month' },
+  { value: 'lastmonth', label: 'Last Month' },
+  { value: '3m',        label: 'Last 3 Months' },
+  { value: '6m',        label: 'Last 6 Months' },
+  { value: 'year',      label: '1 Year' },
+  { value: 'all',       label: 'Overall' },
+]
+
+export const ATTRIBUTION_REASONS = [
+  { value: 'damaged',         label: 'Damaged' },
+  { value: 'expired',         label: 'Expired' },
+  { value: 'customer_return', label: 'Customer Return' },
+  { value: 'unsold',          label: 'Unsold' },
+  { value: 'other',           label: 'Other' },
+]
+
+// --- Drill-down adapters ----------------------------------------------------
+
+// Returns the drill-down partner list with totals (sold / attributed / status).
+export function demoDrilldownPartners() {
+  return DRILLDOWN_PARTNERS.map((p) => {
+    const sold = SALES_RECORDS
+      .filter((s) => s.partner_id === p.id)
+      .reduce((acc, s) => acc + s.units, 0)
+    const attributed = ATTRIBUTIONS
+      .filter((r) => r.partner_id === p.id)
+      .reduce((acc, r) => acc + r.units, 0)
+    return { id: p.id, name: p.name, phone: p.phone, status: p.status, sold, attributed }
+  })
+}
+
+// Filters demo assignments by `range` and `variant` ('all' | 'multigrain' | 'plain').
+export function demoAssignments({ range = 'all', variant = 'all' } = {}) {
+  const nameById = Object.fromEntries(DRILLDOWN_PARTNERS.map((p) => [p.id, p.name]))
+  return ASSIGNMENTS
+    .filter((a) => withinRange(a.date, range))
+    .map((a) => {
+      let mg = a.mg
+      let plain = a.plain
+      if (variant === 'multigrain') plain = 0
+      if (variant === 'plain') mg = 0
+      return {
+        id: a.id,
+        partner_id: a.partner_id,
+        partner_name: nameById[a.partner_id] || 'Unknown',
+        multigrain_assigned: mg,
+        plain_assigned: plain,
+        total: mg + plain,
+        date_assigned: a.date,
+      }
+    })
+    .filter((r) => r.total > 0)
+    .sort((a, b) => new Date(b.date_assigned) - new Date(a.date_assigned))
+}
+
+// Filters demo sales records by range, variant, partner.
+export function demoSalesRecords({ range = 'all', variant = 'all', partnerId = 'all' } = {}) {
+  const nameById = Object.fromEntries(DRILLDOWN_PARTNERS.map((p) => [p.id, p.name]))
+  return SALES_RECORDS
+    .filter((s) => withinRange(s.date, range))
+    .filter((s) => variant === 'all' || s.variant === variant)
+    .filter((s) => partnerId === 'all' || s.partner_id === partnerId)
+    .map((s) => {
+      const v = VARIANTS[s.variant] || VARIANTS.multigrain
+      const daysToSell = Math.max(0, Math.round(
+        (new Date(s.date) - new Date(s.assigned_date)) / 86400000,
+      ))
+      return {
+        id: s.id,
+        date: s.date,
+        partner_id: s.partner_id,
+        partner_name: nameById[s.partner_id] || 'Unknown',
+        customer: s.customer,
+        variant: s.variant,
+        variant_label: v.short,
+        units: s.units,
+        revenue: s.units * v.price,
+        days_to_sell: daysToSell,
+      }
+    })
+    .sort((a, b) => new Date(b.date) - new Date(a.date))
+}
+
+// Filters demo attribution records by range, variant, partner, reason.
+export function demoAttributions({ range = 'all', variant = 'all', partnerId = 'all', reason = 'all' } = {}) {
+  const nameById = Object.fromEntries(DRILLDOWN_PARTNERS.map((p) => [p.id, p.name]))
+  return ATTRIBUTIONS
+    .filter((r) => withinRange(r.date, range))
+    .filter((r) => variant === 'all' || r.variant === variant)
+    .filter((r) => partnerId === 'all' || r.partner_id === partnerId)
+    .filter((r) => reason === 'all' || r.reason === reason)
+    .map((r) => {
+      const v = VARIANTS[r.variant] || VARIANTS.multigrain
+      return {
+        id: r.id,
+        date: r.date,
+        partner_id: r.partner_id,
+        partner_name: nameById[r.partner_id] || 'Unknown',
+        variant: r.variant,
+        variant_label: v.short,
+        units: r.units,
+        reason: r.reason,
+        reason_label: REASON_LABELS[r.reason] || r.reason,
+        notes: r.notes,
+        attributed_by: r.attributed_by,
+        loss_value: r.units * v.price,
+      }
+    })
+    .sort((a, b) => new Date(b.date) - new Date(a.date))
+}
+
+// Roll-up totals used by the KPI cards. Filtered by date range only.
+export function demoDrilldownTotals({ range = 'all' } = {}) {
+  const assigned = demoAssignments({ range }).reduce((s, a) => s + a.total, 0)
+  const sold = demoSalesRecords({ range }).reduce((s, r) => s + r.units, 0)
+  const attributed = demoAttributions({ range }).reduce((s, r) => s + r.units, 0)
+  const partners = DRILLDOWN_PARTNERS.length
+  const activePartners = DRILLDOWN_PARTNERS.filter((p) => p.status === 'active').length
+  return { assigned, sold, attributed, partners, activePartners }
+}
+
+// Returns the partner list used by drill-down dropdowns.
+export function demoDrilldownPartnerOptions() {
+  return DRILLDOWN_PARTNERS.map((p) => ({ value: p.id, label: p.name }))
+}
+
 export default DEMO_DATA

@@ -21,7 +21,7 @@ const STATUS_OPTIONS = [
 ]
 
 export default function Leads() {
-  const { isDemo } = useAuth()
+  const { isDemo, user } = useAuth()
   const [leads, setLeads] = useState([])
   const [sales, setSales] = useState([])
   const [trainers, setTrainers] = useState([])
@@ -58,6 +58,9 @@ export default function Leads() {
     trainer_id: '',
     sale_id: '',
     units: '',
+    variant: 'multigrain',
+    reason: 'damaged',
+    notes: '',
   })
   const [leadFormData, setLeadFormData] = useState({
     trainer_id: '',
@@ -967,6 +970,10 @@ export default function Leads() {
       alert('Please enter valid units')
       return
     }
+    if (!retractFormData.reason) {
+      alert('Please select a reason')
+      return
+    }
 
     try {
       const sale = sales.find(s => s.id === retractFormData.sale_id)
@@ -981,9 +988,21 @@ export default function Leads() {
         return
       }
 
+      const isPlain = retractFormData.variant === 'plain'
+      const nowIso = new Date().toISOString()
+
       const nextValues = {
         units_sold: sale.units_sold || 0,
         retracted_units: (sale.retracted_units || 0) + units,
+        // Attribution fields — best-effort. Columns are added by the
+        // attribution-columns.sql migration; if they don't exist yet the
+        // update payload is filtered down to known columns by Supabase.
+        retract_reason: retractFormData.reason,
+        retract_notes: retractFormData.notes || null,
+        retracted_by: user?.id || null,
+        retract_date: nowIso,
+        multigrain_retracted: (sale.multigrain_retracted || 0) + (isPlain ? 0 : units),
+        plain_retracted: (sale.plain_retracted || 0) + (isPlain ? units : 0),
       }
 
       const { error } = await supabase
@@ -1021,6 +1040,9 @@ export default function Leads() {
         trainer_id: '',
         sale_id: '',
         units: '',
+        variant: 'multigrain',
+        reason: 'damaged',
+        notes: '',
       })
       setIsAddRetractModalOpen(false)
       await fetchData()
@@ -1036,6 +1058,9 @@ export default function Leads() {
       trainer_id: '',
       sale_id: '',
       units: '',
+      variant: 'multigrain',
+      reason: 'damaged',
+      notes: '',
     })
   }
 
@@ -2127,6 +2152,18 @@ export default function Leads() {
           })()}
 
           <FormField
+            label="Variant"
+            type="select"
+            value={retractFormData.variant}
+            onChange={(value) => setRetractFormData({ ...retractFormData, variant: value })}
+            options={[
+              { value: 'multigrain', label: 'Multi-Grain' },
+              { value: 'plain', label: 'Plain' },
+            ]}
+            required
+          />
+
+          <FormField
             label="Retracted Units"
             type="number"
             value={retractFormData.units}
@@ -2138,6 +2175,29 @@ export default function Leads() {
               const selectedSale = sales.find(s => s.id === retractFormData.sale_id)
               return getRemainingUnsoldUnits(selectedSale)
             })() : undefined}
+          />
+
+          <FormField
+            label="Reason"
+            type="select"
+            value={retractFormData.reason}
+            onChange={(value) => setRetractFormData({ ...retractFormData, reason: value })}
+            options={[
+              { value: 'damaged',         label: 'Damaged' },
+              { value: 'expired',         label: 'Expired' },
+              { value: 'customer_return', label: 'Customer Return' },
+              { value: 'unsold',          label: 'Unsold' },
+              { value: 'other',           label: 'Other' },
+            ]}
+            required
+          />
+
+          <FormField
+            label="Notes"
+            type="textarea"
+            value={retractFormData.notes}
+            onChange={(value) => setRetractFormData({ ...retractFormData, notes: value })}
+            placeholder="Why is this product being returned?"
           />
 
           <div className="flex flex-col sm:flex-row gap-3 mt-6">

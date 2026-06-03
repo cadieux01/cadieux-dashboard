@@ -1,4 +1,4 @@
-export default function KPICard({ title, value, subtitle, icon, trend, trendUp, color = 'indigo' }) {
+export default function KPICard({ title, value, subtitle, icon, trend, trendUp, color = 'indigo', onClick, active = false }) {
   const themes = {
     indigo: {
       glow: 'from-indigo-400/18 via-indigo-300/6 to-transparent',
@@ -34,10 +34,24 @@ export default function KPICard({ title, value, subtitle, icon, trend, trendUp, 
 
   const theme = themes[color] || themes.indigo
 
+  const interactive = typeof onClick === 'function'
+  const activeRing = active ? 'ring-2 ring-[#024628] ring-offset-2 ring-offset-[#0a0f14]' : ''
+  const interactiveCls = interactive
+    ? `cursor-pointer transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-lg ${activeRing}`
+    : ''
+
+  const Wrapper = interactive ? 'button' : 'div'
+  const wrapperProps = interactive
+    ? {
+        type: 'button',
+        onClick,
+        'aria-pressed': active,
+        className: `dashboard-panel relative rounded-xl p-3 text-left w-full ${theme.border} ${interactiveCls}`,
+      }
+    : { className: `dashboard-panel rounded-xl p-3 ${theme.border}` }
+
   return (
-    <div
-      className={`dashboard-panel rounded-xl p-3 ${theme.border}`}
-    >
+    <Wrapper {...wrapperProps}>
       <div className={`absolute -right-8 -top-10 h-16 w-16 rounded-full bg-gradient-to-br ${theme.glow} blur-3xl`} />
       <div className="relative flex items-start justify-between gap-2">
         <div className="min-w-0">
@@ -67,6 +81,19 @@ export default function KPICard({ title, value, subtitle, icon, trend, trendUp, 
           </div>
         )}
       </div>
-    </div>
+      {interactive && (
+        <div className="mt-2 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+          <span>{active ? 'Hide details' : 'Tap to view'}</span>
+          <svg
+            className={`h-3 w-3 transition-transform ${active ? 'rotate-180' : ''}`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
+      )}
+    </Wrapper>
   )
 }
