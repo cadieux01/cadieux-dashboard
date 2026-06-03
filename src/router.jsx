@@ -13,6 +13,7 @@ const Partners = lazy(() => import('./pages/Partners'))
 const SalesExec = lazy(() => import('./pages/SalesExec'))
 const Profile = lazy(() => import('./pages/Profile'))
 const ChangeRequests = lazy(() => import('./pages/ChangeRequests'))
+const Onboarding = lazy(() => import('./pages/Onboarding'))
 
 const PageLoader = () => (
   <div className="dashboard-page flex min-h-[50vh] w-full items-center justify-center">
@@ -62,6 +63,10 @@ export const router = createBrowserRouter([
       {
         path: 'sales-exec',
         element: <ProtectedRoute requiredRole="admin">{withSuspense(SalesExec)}</ProtectedRoute>,
+      },
+      {
+        path: 'onboarding',
+        element: <ProtectedRoute allowedRoles={['admin', 'sales']}>{withSuspense(Onboarding)}</ProtectedRoute>,
       },
       {
         // Admin manages ALL requests; sales sees only partner requests

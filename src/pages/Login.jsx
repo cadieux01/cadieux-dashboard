@@ -247,11 +247,30 @@ export default function Login() {
           </form>
 
           <div className="mt-6 pt-6 border-t border-slate-800">
-            <p className="text-xs text-slate-500 text-center">
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/[0.06] p-4">
+              <p className="flex items-center gap-2 text-sm font-semibold text-amber-300">
+                <span aria-hidden="true">🎯</span> Demo Accounts
+              </p>
+              <div className="mt-3 space-y-1.5 font-mono text-xs">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-slate-500">Admin</span>
+                  <span className="text-slate-200">demo-admin / demo123</span>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-slate-500">Sales</span>
+                  <span className="text-slate-200">demo-sales / demo123</span>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-slate-500">Partner</span>
+                  <span className="text-slate-200">demo-partner / demo123</span>
+                </div>
+              </div>
+              <p className="mt-3 text-center text-[11px] text-slate-500">
+                Showcase only — no real data
+              </p>
+            </div>
+            <p className="mt-4 text-xs text-slate-500 text-center">
               Admin only.
-            </p>
-            <p className="mt-2 text-xs text-amber-400/80 text-center">
-              Demo accounts available — ask admin for details.
             </p>
           </div>
         </div>

@@ -12,7 +12,7 @@ import ShareCredentials from '../components/ShareCredentials'
 // password (the Edge Function builds a synthetic `<phone>@cadieux.<role>`
 // auth email server-side — see ../lib/adminApi.js).
 export default function Onboarding() {
-  const { role } = useAuth()
+  const { role, isDemo } = useAuth()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -33,6 +33,129 @@ export default function Onboarding() {
     if (formErrors[field]) {
       setFormErrors((prev) => ({ ...prev, [field]: undefined }))
     }
+  }
+
+  // Demo showcase: a fully static mockup of the onboarding flow. No inputs
+  // are editable and every button is disabled — it never creates a user.
+  if (isDemo) {
+    const inputClass =
+      'w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-300 cursor-not-allowed'
+    const steps = [
+      {
+        title: 'Admin enters partner details',
+        desc: 'Phone number, a temporary password, full name and role.',
+        icon: (
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+        ),
+      },
+      {
+        title: 'Account is created instantly',
+        desc: 'A login is provisioned server-side — no email signup needed.',
+        icon: (
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+        ),
+      },
+      {
+        title: 'Credentials are shared via WhatsApp/SMS',
+        desc: 'The phone number and password are sent directly to the user.',
+        icon: (
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-4 4v-4z" />
+        ),
+      },
+      {
+        title: 'Partner logs in with phone + password',
+        desc: 'They sign in on the dashboard using the shared credentials.',
+        icon: (
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+        ),
+      },
+    ]
+
+    return (
+      <div className="p-8">
+        <div className="mb-6">
+          <h1 className="text-4xl font-bold text-white mb-2">User Onboarding</h1>
+          <p className="text-slate-400">
+            Create new partner or sales executive accounts (phone + password login)
+          </p>
+        </div>
+
+        <div className="mb-6 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm font-medium text-amber-200">
+          🎬 Onboarding Preview — This is how new partners and sales executives are onboarded
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          {/* Static, pre-filled form */}
+          <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+            <h2 className="text-lg font-semibold text-white mb-4">Onboard New User</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">User Role</label>
+                <select value="partner" disabled className={inputClass}>
+                  <option value="partner">Partner</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">Phone Number</label>
+                <input type="text" value="9876543210" disabled readOnly className={inputClass} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">Password</label>
+                <input type="text" value="demo123" disabled readOnly className={inputClass} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">Full Name</label>
+                <input type="text" value="Rahul Kumar" disabled readOnly className={inputClass} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">Notes</label>
+                <textarea value="Example partner — preview only." disabled readOnly rows={2} className={inputClass} />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  disabled
+                  title="Disabled in demo mode"
+                  className="flex-1 px-4 py-2 bg-slate-800 text-slate-400 rounded-lg cursor-not-allowed opacity-60"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled
+                  title="Disabled in demo mode"
+                  className="flex-1 px-4 py-2 bg-emerald-600 text-white font-medium rounded-lg cursor-not-allowed opacity-60"
+                >
+                  Create Partner
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Visual walkthrough */}
+          <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+            <h2 className="text-lg font-semibold text-white mb-4">How onboarding works</h2>
+            <ol className="space-y-5">
+              {steps.map((step, i) => (
+                <li key={i} className="flex gap-4">
+                  <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-300">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      {step.icon}
+                    </svg>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-white">
+                      Step {i + 1}: {step.title}
+                    </p>
+                    <p className="mt-0.5 text-sm text-slate-400">{step.desc}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   // Access check
