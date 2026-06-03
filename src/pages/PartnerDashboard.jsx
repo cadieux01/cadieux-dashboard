@@ -12,7 +12,50 @@ import { logAuditEvent } from '../lib/audit'
 import { formatDateDDMMYY } from '../lib/date'
 import { demoBlock, demoPartnerSales } from '../lib/demoData'
 
-const QUICK_SALE_DEFAULTS = { mg_units: '', plain_units: '', customer_name: '' }
+const QUICK_SALE_DEFAULTS = { mg_units: 0, plain_units: 0, customer_name: '', customer_phone: '' }
+
+// Mobile-friendly stepper for the Quick Sale unit counts. The buttons are the
+// only way to change the value, so a partner can never enter more than the
+// available stock. When nothing is available the control is disabled.
+function QuantityStepper({ value, available, onChange }) {
+  if (available <= 0) {
+    return <p className="py-2 text-center text-sm font-medium text-slate-500">0 available</p>
+  }
+  const atMin = value <= 0
+  const atMax = value >= available
+  const btn =
+    'flex h-11 w-11 items-center justify-center rounded-full border text-2xl leading-none text-slate-200 transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-30'
+  const btnEnabled = 'border-slate-700 hover:border-emerald-500 hover:bg-emerald-500/10'
+  return (
+    <div className="flex items-center justify-center gap-4">
+      <button
+        type="button"
+        aria-label="Decrease"
+        onClick={() => onChange(Math.max(0, value - 1))}
+        disabled={atMin}
+        className={`${btn} ${atMin ? 'border-slate-800' : btnEnabled}`}
+      >
+        −
+      </button>
+      <span
+        className={`min-w-[2ch] text-center text-[28px] font-bold tabular-nums ${
+          value > 0 ? 'text-emerald-400' : 'text-slate-500'
+        }`}
+      >
+        {value}
+      </span>
+      <button
+        type="button"
+        aria-label="Increase"
+        onClick={() => onChange(Math.min(available, value + 1))}
+        disabled={atMax}
+        className={`${btn} ${atMax ? 'border-slate-800' : btnEnabled}`}
+      >
+        +
+      </button>
+    </div>
+  )
+}
 
 const VARIANTS = {
   multigrain: { name: 'Multi-Grain High Protein Bread', price: 149 },
@@ -74,6 +117,8 @@ export default function PartnerDashboard() {
   const quickMgUnits = parseInt(quickSaleData.mg_units) || 0
   const quickPlUnits = parseInt(quickSaleData.plain_units) || 0
   const quickTotal = quickMgUnits * VARIANTS.multigrain.price + quickPlUnits * VARIANTS.plain.price
+  const quickPhone = quickSaleData.customer_phone.trim()
+  const quickPhoneValid = !quickPhone || /^\d{10}$/.test(quickPhone)
 
   const closeQuickSale = () => {
     setIsQuickSaleOpen(false)
@@ -331,6 +376,7 @@ export default function PartnerDashboard() {
       setTrainerId(tid)
 
       const buyerName = quickSaleData.customer_name.trim() || null
+      const buyerContact = quickSaleData.customer_phone.trim() || null
       const today = new Date().toISOString().split('T')[0]
 
       const rows = []
@@ -338,6 +384,7 @@ export default function PartnerDashboard() {
         rows.push({
           trainer_id: tid,
           buyer_name: buyerName,
+          buyer_contact: buyerContact,
           units_sold: quickMgUnits,
           units_assigned: quickMgUnits,
           product_variant: VARIANTS.multigrain.name,
@@ -350,6 +397,7 @@ export default function PartnerDashboard() {
         rows.push({
           trainer_id: tid,
           buyer_name: buyerName,
+          buyer_contact: buyerContact,
           units_sold: quickPlUnits,
           units_assigned: quickPlUnits,
           product_variant: VARIANTS.plain.name,
@@ -966,7 +1014,7 @@ export default function PartnerDashboard() {
           const plLeft = summary.variants.plain.left
           const mgOver = quickMgUnits > mgLeft
           const plOver = quickPlUnits > plLeft
-          const valid = (quickMgUnits > 0 || quickPlUnits > 0) && !mgOver && !plOver
+          const valid = (quickMgUnits > 0 || quickPlUnits > 0) && !mgOver && !plOver && quickPhoneValid
 
           return (
             <form
@@ -978,7 +1026,7 @@ export default function PartnerDashboard() {
             >
               <div>
                 <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Your Assigned Stock
+                  Your Stock
                 </p>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="dashboard-panel rounded-xl p-3">
@@ -988,10 +1036,15 @@ export default function PartnerDashboard() {
                         Multi-Grain
                       </p>
                     </div>
-                    <div className="mt-2 space-y-1 text-xs">
-                      <div className="flex justify-between"><span className="text-slate-400">Assigned</span><span className="font-semibold text-white">{summary.variants.multigrain.assigned}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-400">Sold</span><span className="font-semibold text-emerald-300">{summary.variants.multigrain.sold}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-400">Available</span><span className="font-semibold text-white">{mgLeft}</span></div>
+                    <p className="mt-1 text-[11px] text-slate-400">
+                      ₹149 · Avail: <span className="font-semibold text-white">{mgLeft}</span>
+                    </p>
+                    <div className="mt-3">
+                      <QuantityStepper
+                        value={quickMgUnits}
+                        available={mgLeft}
+                        onChange={(n) => setQuickSaleData({ ...quickSaleData, mg_units: n })}
+                      />
                     </div>
                   </div>
                   <div className="dashboard-panel rounded-xl p-3">
@@ -999,51 +1052,16 @@ export default function PartnerDashboard() {
                       <span className="h-2 w-2 rounded-full" style={{ backgroundColor: '#FBF3D4' }} />
                       <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-200">Plain</p>
                     </div>
-                    <div className="mt-2 space-y-1 text-xs">
-                      <div className="flex justify-between"><span className="text-slate-400">Assigned</span><span className="font-semibold text-white">{summary.variants.plain.assigned}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-400">Sold</span><span className="font-semibold text-emerald-300">{summary.variants.plain.sold}</span></div>
-                      <div className="flex justify-between"><span className="text-slate-400">Available</span><span className="font-semibold text-white">{plLeft}</span></div>
+                    <p className="mt-1 text-[11px] text-slate-400">
+                      ₹109 · Avail: <span className="font-semibold text-white">{plLeft}</span>
+                    </p>
+                    <div className="mt-3">
+                      <QuantityStepper
+                        value={quickPlUnits}
+                        available={plLeft}
+                        onChange={(n) => setQuickSaleData({ ...quickSaleData, plain_units: n })}
+                      />
                     </div>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Record Sale
-                </p>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div>
-                    <label className="mb-1 block text-xs font-semibold text-slate-300">Multi-Grain (₹149)</label>
-                    <input
-                      type="number"
-                      inputMode="numeric"
-                      min="0"
-                      max={mgLeft}
-                      value={quickSaleData.mg_units}
-                      onChange={(e) => setQuickSaleData({ ...quickSaleData, mg_units: e.target.value })}
-                      placeholder="0"
-                      className={`dashboard-input w-full ${mgOver ? 'border-rose-500/60 ring-rose-500/30' : ''}`}
-                    />
-                    {mgOver && (
-                      <p className="mt-1 text-xs text-rose-400">Only {mgLeft} Multi-Grain available</p>
-                    )}
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-semibold text-slate-300">Plain (₹109)</label>
-                    <input
-                      type="number"
-                      inputMode="numeric"
-                      min="0"
-                      max={plLeft}
-                      value={quickSaleData.plain_units}
-                      onChange={(e) => setQuickSaleData({ ...quickSaleData, plain_units: e.target.value })}
-                      placeholder="0"
-                      className={`dashboard-input w-full ${plOver ? 'border-rose-500/60 ring-rose-500/30' : ''}`}
-                    />
-                    {plOver && (
-                      <p className="mt-1 text-xs text-rose-400">Only {plLeft} Plain available</p>
-                    )}
                   </div>
                 </div>
               </div>
@@ -1053,6 +1071,16 @@ export default function PartnerDashboard() {
                 value={quickSaleData.customer_name}
                 onChange={(value) => setQuickSaleData({ ...quickSaleData, customer_name: value })}
                 placeholder="Optional"
+              />
+
+              <FormField
+                label="Customer Phone"
+                value={quickSaleData.customer_phone}
+                onChange={(value) =>
+                  setQuickSaleData({ ...quickSaleData, customer_phone: value.replace(/\D/g, '').slice(0, 10) })
+                }
+                placeholder="Optional"
+                error={!quickPhoneValid ? 'Enter a valid 10-digit number.' : undefined}
               />
 
               <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-3 py-2.5">
