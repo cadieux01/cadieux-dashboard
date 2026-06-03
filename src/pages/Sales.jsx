@@ -32,6 +32,7 @@ import {
   demoRankings,
   demoVariantTotals,
   demoVariantByPartner,
+  demoPartnerPerformance,
   demoVariantTrend,
   VARIANTS,
 } from '../lib/demoData'
@@ -42,44 +43,17 @@ const chartPalette = ['#024628', '#035c36', '#0a7a4a', '#3f9e6e', '#8fbf9f', '#F
 const ACCENT_GREEN = '#024628'
 const ACCENT_CREAM = '#FBF3D4'
 
-const CHART_TYPES = [
-  { value: 'bar', label: 'Bar' },
-  { value: 'line', label: 'Line' },
-  { value: 'area', label: 'Area' },
-  { value: 'pie', label: 'Pie' },
-]
-
 const DATE_RANGES = [
+  { value: 'today', label: 'Today' },
   { value: '7d', label: 'Last 7 Days' },
-  { value: '30d', label: 'Last 30 Days' },
-  { value: 'month', label: 'This Month' },
+  { value: '15d', label: 'Last 15 Days' },
+  { value: 'month', label: 'Last Month' },
+  { value: '2m', label: 'Last 2 Months' },
   { value: '3m', label: 'Last 3 Months' },
   { value: '6m', label: 'Last 6 Months' },
-  { value: 'year', label: 'This Year' },
+  { value: 'year', label: '1 Year' },
+  { value: 'all', label: 'Overall' },
 ]
-
-function OverviewTooltip({ active, payload }) {
-  if (!active || !payload?.length) return null
-
-  const row = payload[0]?.payload
-  if (!row) return null
-
-  return (
-    <div className="rounded-lg border border-[#1e2d3d] bg-[#1a2332] px-4 py-3 shadow-[0_8px_24px_rgba(0,0,0,0.45)]">
-      <p className="font-semibold text-[#f1f5f9]">{row.trainer_name}</p>
-      <div className="mt-2 space-y-1.5 text-sm text-[#cbd5e1]">
-        <div className="flex items-center justify-between gap-4">
-          <span className="text-[#7c8a9a]">Assigned</span>
-          <span>{(row.total_units_assigned || 0).toLocaleString()} units</span>
-        </div>
-        <div className="flex items-center justify-between gap-4">
-          <span className="text-[#7c8a9a]">Sold</span>
-          <span>{(row.total_units_sold || 0).toLocaleString()} units</span>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 function ShareTooltip({ active, payload }) {
   if (!active || !payload?.length) return null
@@ -173,13 +147,180 @@ function aggregateVariantRows(rows, nameById) {
   return { totals, byPartner: Object.values(byPartner) }
 }
 
+// ===========================================================================
+// PartnerPerformanceSection — scrollable list of partners, each rendered as
+// two CSS bars (sold = green, retracted = red). Bar widths are proportional
+// to the max across the visible set. Hovering a bar surfaces a dark tooltip
+// with per-variant breakdown + revenue. No assigned bar.
+// ===========================================================================
+function PartnerPerformanceSection({ data, dateRange, onDateRangeChange }) {
+  const [hover, setHover] = useState(null) // { id, kind: 'sold' | 'retracted' }
+
+  const maxSold = useMemo(
+    () => data.reduce((m, p) => Math.max(m, p.totalSold || 0), 0),
+    [data],
+  )
+  const maxRetracted = useMemo(
+    () => data.reduce((m, p) => Math.max(m, p.totalRetracted || 0), 0),
+    [data],
+  )
+
+  return (
+    <section className="dashboard-panel rounded-[32px] p-5 sm:p-6">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Performance</p>
+          <h2 className="mt-2 font-display text-2xl font-semibold tracking-[-0.04em] text-white">
+            Partner Performance
+          </h2>
+        </div>
+        <select
+          value={dateRange}
+          onChange={(e) => onDateRangeChange(e.target.value)}
+          className="dashboard-select !w-auto"
+          aria-label="Performance date range"
+        >
+          {DATE_RANGES.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+      </div>
+
+      {data.length === 0 ? (
+        <div className="dashboard-subpanel flex h-[200px] items-center justify-center rounded-[24px] px-5 text-center text-sm text-slate-400">
+          No partner data yet
+        </div>
+      ) : (
+        <div
+          className="max-h-[400px] overflow-y-auto pr-1 scroll-smooth md:max-h-[500px]"
+          style={{ scrollbarWidth: 'thin' }}
+        >
+          {data.map((p) => {
+            const soldPct = maxSold > 0 ? (p.totalSold / maxSold) * 100 : 0
+            const retPct = maxRetracted > 0 ? (p.totalRetracted / maxRetracted) * 100 : 0
+            const soldHovered = hover?.id === p.id && hover.kind === 'sold'
+            const retHovered = hover?.id === p.id && hover.kind === 'retracted'
+
+            return (
+              <div key={p.id} className="relative border-b border-[#1e2d3d] py-2">
+                <p className="mb-1 text-[12px] font-semibold text-[#f1f5f9] sm:text-[13px]">
+                  {p.name}
+                </p>
+
+                {/* SOLD bar */}
+                <div
+                  className="relative mb-1 h-4 w-full overflow-hidden rounded bg-[#111921] sm:h-5"
+                  onMouseEnter={() => setHover({ id: p.id, kind: 'sold' })}
+                  onMouseLeave={() => setHover(null)}
+                >
+                  <div
+                    className="flex h-full items-center rounded px-2 text-[10px] font-semibold text-white transition-[width] duration-500 ease-out sm:text-[11px]"
+                    style={{
+                      width: `${Math.max(soldPct, p.totalSold > 0 ? 6 : 0)}%`,
+                      backgroundColor: '#10b981',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {soldPct >= 18 && <span>{p.totalSold} units</span>}
+                  </div>
+                  {soldPct < 18 && p.totalSold > 0 && (
+                    <span
+                      className="absolute top-1/2 -translate-y-1/2 text-[10px] font-semibold text-slate-300 sm:text-[11px]"
+                      style={{ left: `calc(${Math.max(soldPct, 6)}% + 6px)` }}
+                    >
+                      {p.totalSold} units
+                    </span>
+                  )}
+                </div>
+
+                {/* RETRACTED bar */}
+                <div
+                  className="relative h-4 w-full overflow-hidden rounded bg-[#111921] sm:h-5"
+                  onMouseEnter={() => setHover({ id: p.id, kind: 'retracted' })}
+                  onMouseLeave={() => setHover(null)}
+                >
+                  <div
+                    className="flex h-full items-center rounded px-2 text-[10px] font-semibold text-white transition-[width] duration-500 ease-out sm:text-[11px]"
+                    style={{
+                      width: `${Math.max(retPct, p.totalRetracted > 0 ? 6 : 0)}%`,
+                      backgroundColor: '#ef4444',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {retPct >= 18 && <span>{p.totalRetracted} retracted</span>}
+                  </div>
+                  {retPct < 18 && p.totalRetracted > 0 && (
+                    <span
+                      className="absolute top-1/2 -translate-y-1/2 text-[10px] font-semibold text-slate-300 sm:text-[11px]"
+                      style={{ left: `calc(${Math.max(retPct, 6)}% + 6px)` }}
+                    >
+                      {p.totalRetracted} retracted
+                    </span>
+                  )}
+                </div>
+
+                {(soldHovered || retHovered) && (
+                  <div className="pointer-events-none absolute right-2 top-[-6px] z-10 -translate-y-full rounded-lg border border-[#2d3748] bg-[#1a2332] px-3 py-2 text-xs shadow-[0_8px_24px_rgba(0,0,0,0.45)]">
+                    <p className="font-semibold text-[#f1f5f9]">
+                      {p.name}{retHovered ? ' — Retracted' : ''}
+                    </p>
+                    {soldHovered ? (
+                      <div className="mt-1.5 space-y-0.5 text-[11px] text-[#cbd5e1]">
+                        <div className="flex justify-between gap-6">
+                          <span className="text-[#7c8a9a]">Total Sold</span>
+                          <span>{p.totalSold} units</span>
+                        </div>
+                        <div className="flex justify-between gap-6">
+                          <span className="text-[#7c8a9a]">Revenue</span>
+                          <span className="text-[#34d399]">₹{p.totalRevenue.toLocaleString()}</span>
+                        </div>
+                        <div className="mt-1.5 border-t border-[#2d3748] pt-1.5">
+                          <div className="flex justify-between gap-6">
+                            <span className="text-[#7c8a9a]">Multi-Grain</span>
+                            <span>{p.mg_sold} <span className="text-[#7c8a9a]">(₹{p.mg_revenue.toLocaleString()})</span></span>
+                          </div>
+                          <div className="flex justify-between gap-6">
+                            <span className="text-[#7c8a9a]">Plain</span>
+                            <span>{p.plain_sold} <span className="text-[#7c8a9a]">(₹{p.plain_revenue.toLocaleString()})</span></span>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mt-1.5 space-y-0.5 text-[11px] text-[#cbd5e1]">
+                        <div className="flex justify-between gap-6">
+                          <span className="text-[#7c8a9a]">Total Retracted</span>
+                          <span>{p.totalRetracted} units</span>
+                        </div>
+                        <div className="mt-1.5 border-t border-[#2d3748] pt-1.5">
+                          <div className="flex justify-between gap-6">
+                            <span className="text-[#7c8a9a]">Multi-Grain</span>
+                            <span>{p.mg_retracted}</span>
+                          </div>
+                          <div className="flex justify-between gap-6">
+                            <span className="text-[#7c8a9a]">Plain</span>
+                            <span>{p.plain_retracted}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </section>
+  )
+}
+
 export default function Sales() {
   const { isDemo } = useAuth()
   const [trainers, setTrainers] = useState([])
   const [rankings, setRankings] = useState([])
   const [loading, setLoading] = useState(true)
-  const [chartType, setChartType] = useState('bar')
-  const [dateRange, setDateRange] = useState('30d')
+  const [dateRange, setDateRange] = useState('all')
+  const [partnerPerformance, setPartnerPerformance] = useState([])
   const [variantData, setVariantData] = useState(null)
   const [variantTrend, setVariantTrend] = useState([])
   const [variantSort, setVariantSort] = useState({ field: 'revenue', dir: 'desc' })
@@ -504,17 +645,6 @@ export default function Sales() {
 
   const topRankings = useMemo(() => rankings.slice(0, 6), [rankings])
 
-  // The bar chart is only meaningful if at least one partner has some
-  // assigned or sold units — otherwise Recharts renders an empty axis frame
-  // that looks broken.
-  const hasChartData = useMemo(
-    () =>
-      topRankings.some(
-        (row) => (row.total_units_assigned || 0) > 0 || (row.total_units_sold || 0) > 0,
-      ),
-    [topRankings],
-  )
-
   const contributionData = useMemo(() => {
     const sold = topRankings.filter((partner) => (partner.total_units_sold || 0) > 0)
     const total = sold.reduce((sum, p) => sum + (p.total_units_sold || 0), 0)
@@ -531,6 +661,28 @@ export default function Sales() {
   useEffect(() => {
     setVariantTrend(isDemo ? demoVariantTrend(dateRange) : [])
   }, [isDemo, dateRange])
+
+  // Partner Performance chart data. Demo mode scales all-time numbers by the
+  // selected date range; live mode derives a minimal shape from rankings
+  // (no per-variant or retracted breakdown — tooltip just shows totals).
+  useEffect(() => {
+    if (isDemo) {
+      setPartnerPerformance(demoPartnerPerformance(dateRange))
+      return
+    }
+    const shaped = rankings
+      .map((r, i) => ({
+        id: r.trainer_id || String(i + 1),
+        name: r.trainer_name,
+        totalSold: r.total_units_sold || 0,
+        totalRetracted: 0,
+        totalRevenue: (r.total_units_sold || 0) * UNIT_PRICE,
+        mg_sold: 0, plain_sold: 0, mg_retracted: 0, plain_retracted: 0,
+        mg_revenue: 0, plain_revenue: 0,
+      }))
+      .sort((a, b) => b.totalSold - a.totalSold)
+    setPartnerPerformance(shaped)
+  }, [isDemo, dateRange, rankings])
 
   const variantTotals = variantData?.totals || null
 
@@ -670,113 +822,11 @@ export default function Sales() {
       </div>
 
       <div className="mb-8 grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.92fr)]">
-        <section className="dashboard-panel rounded-[32px] p-5 sm:p-6">
-          <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Sales Performance</p>
-              <h2 className="mt-2 font-display text-2xl font-semibold tracking-[-0.04em] text-white">
-                Assigned vs sold
-              </h2>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <select
-                value={chartType}
-                onChange={(e) => setChartType(e.target.value)}
-                className="dashboard-select !w-auto"
-                aria-label="Chart type"
-              >
-                {CHART_TYPES.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-              <select
-                value={dateRange}
-                onChange={(e) => setDateRange(e.target.value)}
-                className="dashboard-select !w-auto"
-                aria-label="Date range"
-              >
-                {DATE_RANGES.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {hasChartData ? (
-            // Horizontal scroll on small screens so several partners' bars and
-            // x-axis labels never clip; the inner wrapper keeps a sensible
-            // minimum width while ResponsiveContainer fills whatever it gets.
-            <div className={chartType === 'pie' ? '' : '-mx-1 overflow-x-auto px-1'}>
-              <div className={chartType === 'pie' ? 'h-[200px] w-full md:h-[300px]' : 'h-[200px] min-w-[480px] md:h-[300px]'}>
-                <ResponsiveContainer key={chartType} width="100%" height="100%">
-                  {chartType === 'bar' ? (
-                    <BarChart data={topRankings} barGap={10} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
-                      <CartesianGrid vertical={false} stroke="#1e2d3d" />
-                      <XAxis
-                        dataKey="trainer_name"
-                        axisLine={false}
-                        tickLine={false}
-                        stroke="#7c8a9a"
-                        fontSize={11}
-                        interval={0}
-                        tickFormatter={(value) => (value?.length > 12 ? `${value.slice(0, 12)}...` : value)}
-                      />
-                      <YAxis axisLine={false} tickLine={false} stroke="#7c8a9a" fontSize={11} allowDecimals={false} />
-                      <Tooltip content={<OverviewTooltip />} cursor={{ fill: 'rgba(2,70,40,0.08)' }} />
-                      <Legend iconType="circle" wrapperStyle={{ paddingTop: 12, fontSize: 12, color: '#7c8a9a' }} />
-                      <Bar name="Assigned" dataKey="total_units_assigned" radius={[8, 8, 0, 0]} fill={ACCENT_CREAM} maxBarSize={26} animationDuration={500} />
-                      <Bar name="Sold" dataKey="total_units_sold" radius={[8, 8, 0, 0]} fill={ACCENT_GREEN} maxBarSize={26} animationDuration={500} />
-                    </BarChart>
-                  ) : chartType === 'line' ? (
-                    <LineChart data={topRankings} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
-                      <CartesianGrid vertical={false} stroke="#1e2d3d" />
-                      <XAxis dataKey="trainer_name" axisLine={false} tickLine={false} stroke="#7c8a9a" fontSize={11} interval={0} tickFormatter={(value) => (value?.length > 12 ? `${value.slice(0, 12)}...` : value)} />
-                      <YAxis axisLine={false} tickLine={false} stroke="#7c8a9a" fontSize={11} allowDecimals={false} />
-                      <Tooltip content={<OverviewTooltip />} />
-                      <Legend iconType="circle" wrapperStyle={{ paddingTop: 12, fontSize: 12, color: '#7c8a9a' }} />
-                      <Line name="Assigned" type="monotone" dataKey="total_units_assigned" stroke={ACCENT_CREAM} strokeWidth={2} dot={{ r: 3, fill: ACCENT_CREAM }} animationDuration={500} />
-                      <Line name="Sold" type="monotone" dataKey="total_units_sold" stroke={ACCENT_GREEN} strokeWidth={2} dot={{ r: 3, fill: ACCENT_GREEN }} animationDuration={500} />
-                    </LineChart>
-                  ) : chartType === 'area' ? (
-                    <AreaChart data={topRankings} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
-                      <defs>
-                        <linearGradient id="areaSold" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor={ACCENT_GREEN} stopOpacity={0.5} />
-                          <stop offset="95%" stopColor={ACCENT_GREEN} stopOpacity={0} />
-                        </linearGradient>
-                        <linearGradient id="areaAssigned" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor={ACCENT_CREAM} stopOpacity={0.4} />
-                          <stop offset="95%" stopColor={ACCENT_CREAM} stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid vertical={false} stroke="#1e2d3d" />
-                      <XAxis dataKey="trainer_name" axisLine={false} tickLine={false} stroke="#7c8a9a" fontSize={11} interval={0} tickFormatter={(value) => (value?.length > 12 ? `${value.slice(0, 12)}...` : value)} />
-                      <YAxis axisLine={false} tickLine={false} stroke="#7c8a9a" fontSize={11} allowDecimals={false} />
-                      <Tooltip content={<OverviewTooltip />} />
-                      <Legend iconType="circle" wrapperStyle={{ paddingTop: 12, fontSize: 12, color: '#7c8a9a' }} />
-                      <Area name="Assigned" type="monotone" dataKey="total_units_assigned" stroke={ACCENT_CREAM} strokeWidth={2} fill="url(#areaAssigned)" animationDuration={500} />
-                      <Area name="Sold" type="monotone" dataKey="total_units_sold" stroke={ACCENT_GREEN} strokeWidth={2} fill="url(#areaSold)" animationDuration={500} />
-                    </AreaChart>
-                  ) : (
-                    <PieChart>
-                      <Tooltip content={<ShareTooltip />} />
-                      <Legend iconType="circle" wrapperStyle={{ paddingTop: 12, fontSize: 12, color: '#7c8a9a' }} />
-                      <Pie data={contributionData} dataKey="value" nameKey="name" outerRadius={110} paddingAngle={3} stroke="none" isAnimationActive={false}>
-                        {contributionData.map((entry, index) => (
-                          <Cell key={entry.name} fill={chartPalette[index % chartPalette.length]} />
-                        ))}
-                      </Pie>
-                    </PieChart>
-                  )}
-                </ResponsiveContainer>
-              </div>
-            </div>
-          ) : (
-            <div className="dashboard-subpanel flex h-[320px] items-center justify-center rounded-[24px] px-5 text-center text-sm text-slate-400">
-              No sales data yet
-            </div>
-          )}
-        </section>
+        <PartnerPerformanceSection
+          data={partnerPerformance}
+          dateRange={dateRange}
+          onDateRangeChange={setDateRange}
+        />
 
         <div className="space-y-6">
           <section className="dashboard-panel rounded-[32px] p-5 sm:p-6">

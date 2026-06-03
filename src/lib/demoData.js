@@ -106,6 +106,21 @@ const DEMO_DATA = {
       { name: 'Anita Das', mg_assigned: 35, mg_sold: 26, plain_assigned: 28, plain_sold: 18 },
       { name: 'Suresh Patel', mg_assigned: 30, mg_sold: 20, plain_assigned: 22, plain_sold: 14 },
     ],
+    // All-time per-partner performance for the scrollable Partner Performance
+    // chart. Larger roster so vertical scroll is visible. Numbers are derived
+    // from each partner's all-time sold + a small retraction count.
+    partnerPerformance: [
+      { name: 'Rahul Kumar',    mg_sold: 42, plain_sold: 24, mg_retracted: 1, plain_retracted: 1 },
+      { name: 'Priya Sharma',   mg_sold: 36, plain_sold: 22, mg_retracted: 0, plain_retracted: 1 },
+      { name: 'Vikram Reddy',   mg_sold: 32, plain_sold: 20, mg_retracted: 2, plain_retracted: 1 },
+      { name: 'Anita Das',      mg_sold: 26, plain_sold: 18, mg_retracted: 1, plain_retracted: 2 },
+      { name: 'Suresh Patel',   mg_sold: 20, plain_sold: 14, mg_retracted: 1, plain_retracted: 0 },
+      { name: 'Meena Iyer',     mg_sold: 18, plain_sold: 13, mg_retracted: 0, plain_retracted: 1 },
+      { name: 'Arjun Mehta',    mg_sold: 16, plain_sold: 11, mg_retracted: 1, plain_retracted: 0 },
+      { name: 'Kavita Nair',    mg_sold: 14, plain_sold:  9, mg_retracted: 0, plain_retracted: 0 },
+      { name: 'Naveen Pillai',  mg_sold: 12, plain_sold:  8, mg_retracted: 2, plain_retracted: 1 },
+      { name: 'Sneha Hegde',    mg_sold:  9, plain_sold:  6, mg_retracted: 0, plain_retracted: 0 },
+    ],
     recentSales: [
       { customer: 'Mohan Rao', contact: '9876543210', units: 3, revenue: 420, date: '2026-06-01', partner: 'Rahul Kumar' },
       { customer: 'Lakshmi Devi', contact: '9876543211', units: 5, revenue: 700, date: '2026-06-01', partner: 'Priya Sharma' },
@@ -261,16 +276,66 @@ export function demoVariantByPartner() {
   }))
 }
 
+// Scaling factor mapped from the Partner Performance date-range dropdown to
+// how much of all-time data should be attributed to the selected window.
+// `all` keeps numbers untouched; smaller ranges scale down deterministically.
+export const RANGE_FACTOR = {
+  today: 0.02,
+  '7d': 0.08,
+  '15d': 0.15,
+  '30d': 0.25,
+  month: 0.25,
+  '2m': 0.40,
+  '3m': 0.55,
+  '6m': 0.80,
+  year: 0.95,
+  all: 1.0,
+}
+
+// Per-partner performance for the scrollable bar chart. Scales the all-time
+// numbers in DEMO_DATA.overview.partnerPerformance by RANGE_FACTOR[range] and
+// returns a tooltip-ready shape with per-variant breakdown + revenue.
+export function demoPartnerPerformance(range = 'all') {
+  const factor = RANGE_FACTOR[range] ?? 1.0
+  const mgPrice = VARIANTS.multigrain.price
+  const plPrice = VARIANTS.plain.price
+  return DEMO_DATA.overview.partnerPerformance
+    .map((p, i) => {
+      const mg_sold = Math.round((p.mg_sold || 0) * factor)
+      const plain_sold = Math.round((p.plain_sold || 0) * factor)
+      const mg_retracted = Math.round((p.mg_retracted || 0) * factor)
+      const plain_retracted = Math.round((p.plain_retracted || 0) * factor)
+      return {
+        id: String(i + 1),
+        name: p.name,
+        mg_sold,
+        plain_sold,
+        mg_retracted,
+        plain_retracted,
+        totalSold: mg_sold + plain_sold,
+        totalRetracted: mg_retracted + plain_retracted,
+        mg_revenue: mg_sold * mgPrice,
+        plain_revenue: plain_sold * plPrice,
+        totalRevenue: mg_sold * mgPrice + plain_sold * plPrice,
+      }
+    })
+    .sort((a, b) => b.totalSold - a.totalSold)
+}
+
 // Variant sales over time. Returns evenly-spaced points across the range with
 // a gently upward multi-grain trend and a flatter plain trend.
 export function demoVariantTrend(range = '30d') {
   const config = {
+    today: { points: 6, step: 0 },
     '7d': { points: 7, step: 1 },
+    '15d': { points: 8, step: 2 },
     '30d': { points: 10, step: 3 },
     month: { points: 10, step: 3 },
+    '2m': { points: 10, step: 6 },
     '3m': { points: 12, step: 7 },
     '6m': { points: 12, step: 15 },
     year: { points: 12, step: 30 },
+    all: { points: 12, step: 30 },
   }[range] || { points: 10, step: 3 }
 
   const today = new Date('2026-06-03')
