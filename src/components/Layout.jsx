@@ -21,7 +21,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import SessionTimeout from './SessionTimeout'
-import { displayLogin, displayName, isAdminAccount } from '../lib/phone'
+import { displayLogin, displayName } from '../lib/phone'
 import { fetchPendingCount } from '../lib/changeRequests'
 
 // Floating "DEMO MODE" badge + transient toast. Only mounted when a demo
@@ -161,10 +161,11 @@ export default function Layout() {
         />
       )}
 
-      {/* Sidebar */}
+      {/* Sidebar — on mobile, ends 52px above the bottom (above the bottom
+          nav bar) so the user/sign-out section is always tappable. */}
       <aside
         className={`
-          fixed lg:static inset-y-0 left-0 z-40
+          fixed top-0 bottom-[52px] lg:static lg:inset-y-0 left-0 z-40
           flex flex-col border-r border-[#1e2d3d] bg-[#0a0f14]
           transition-all duration-300 ease-in-out
           ${isSidebarOpen ? 'w-[13.75rem]' : 'w-[4.25rem]'}
@@ -239,25 +240,26 @@ export default function Layout() {
           })}
         </nav>
 
-        {/* User section */}
-        <div className="border-t border-[#1e2d3d] p-3">
+        {/* User section — pinned to the bottom of the sidebar (sibling of the
+            scrollable nav, not inside it), so it never scrolls away. */}
+        <div className="flex-shrink-0 border-t border-[#1e2d3d] p-3">
           <div
             className={`mb-2.5 flex items-center gap-3 rounded-lg border border-[#1e2d3d] bg-[#111921] p-2.5 ${
               !isSidebarOpen ? 'justify-center' : ''
             }`}
           >
             <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[#024628] text-sm font-bold text-[#fbf3d4]">
-              {isAdminAccount(profile)
+              {role === 'admin'
                 ? <Shield size={16} className="text-[#fbf3d4]" />
                 : (profile?.full_name?.charAt(0) || displayLogin(profile?.email)?.charAt(0) || 'A')}
             </div>
             {isSidebarOpen && (
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-bold text-white">
-                  {isAdminAccount(profile) ? 'Admin Dashboard' : (displayName(profile) || 'Admin')}
+                  {role === 'admin' ? 'Admin' : (displayName(profile) || 'Admin')}
                 </p>
                 <p className="truncate text-xs text-slate-500">
-                  {isAdminAccount(profile) ? 'Admin' : (profile?.phone || displayLogin(profile?.email))}
+                  {role === 'admin' ? 'Administrator' : (profile?.phone || displayLogin(profile?.email))}
                 </p>
               </div>
             )}
