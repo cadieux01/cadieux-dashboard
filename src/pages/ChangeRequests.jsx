@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
+import usePinGate from '../lib/usePinGate'
 import { supabase } from '../lib/supabase'
 import { logAuditEvent } from '../lib/audit'
 import { formatDateDDMMYY } from '../lib/date'
@@ -34,6 +35,7 @@ function StatusBadge({ status }) {
 
 export default function ChangeRequests() {
   const { profile, isAdmin, isDemo } = useAuth()
+  const { gate, PinGateElement } = usePinGate()
 
   const [requests, setRequests] = useState([])
   const [loading, setLoading] = useState(true)
@@ -218,14 +220,14 @@ export default function ChangeRequests() {
     return (
       <div className="flex items-center justify-end gap-2">
         <button
-          onClick={() => handleApprove(r)}
+          onClick={() => gate(() => handleApprove(r), 'Approve change request')}
           disabled={busy}
           className="rounded bg-emerald-500/20 px-3 py-1 text-xs text-emerald-400 transition-colors hover:bg-emerald-500/30 disabled:opacity-50"
         >
           {busy ? '...' : 'Approve'}
         </button>
         <button
-          onClick={() => { setRejectReason(''); setRejectTarget(r) }}
+          onClick={() => gate(() => { setRejectReason(''); setRejectTarget(r) }, 'Reject change request')}
           disabled={busy}
           className="rounded bg-rose-500/20 px-3 py-1 text-xs text-rose-400 transition-colors hover:bg-rose-500/30 disabled:opacity-50"
         >
@@ -433,6 +435,8 @@ export default function ChangeRequests() {
           </div>
         </form>
       </Modal>
+
+      {PinGateElement}
 
       <RefreshStatus pullDistance={pullDistance} refreshing={refreshing} at={lastUpdated} onRefresh={refresh} />
     </div>

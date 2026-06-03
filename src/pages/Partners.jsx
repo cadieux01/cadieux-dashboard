@@ -16,6 +16,7 @@ import RefreshStatus from '../components/RefreshStatus'
 import useRefreshable from '../lib/useRefreshable'
 import { useAuth } from '../context/AuthContext'
 import DEMO_DATA, { demoBlock } from '../lib/demoData'
+import usePinGate from '../lib/usePinGate'
 import { Eye, Pencil, Send } from 'lucide-react'
 
 // A partner's "display phone" is either the dedicated `phone` column or the
@@ -29,6 +30,7 @@ function partnerPhone(p) {
 
 export default function Partners() {
   const { isDemo } = useAuth()
+  const { gate, PinGateElement } = usePinGate()
   const [partners, setPartners] = useState([])
   const [stats, setStats] = useState({})
   const [loading, setLoading] = useState(true)
@@ -369,13 +371,13 @@ export default function Partners() {
       <div className="flex items-center justify-end gap-2">
         <button
           onClick={() => openDetail(partner, 'view')}
-          title="View details"
+          title="View details (read-only)"
           className="inline-flex items-center justify-center rounded bg-slate-700/50 px-2 py-1.5 text-slate-300 transition-colors hover:bg-slate-700"
         >
           <Eye size={16} />
         </button>
         <button
-          onClick={() => openDetail(partner, 'edit')}
+          onClick={() => gate(() => openDetail(partner, 'edit'), 'Edit partner details')}
           title="Edit details"
           className="inline-flex items-center justify-center rounded bg-emerald-500/20 px-2 py-1.5 text-emerald-400 transition-colors hover:bg-emerald-500/30"
         >
@@ -390,7 +392,7 @@ export default function Partners() {
         </button>
         {status === 'inactive' ? (
           <button
-            onClick={() => handleReactivate(partner)}
+            onClick={() => gate(() => handleReactivate(partner), 'Reactivate partner')}
             disabled={busy}
             className="rounded bg-emerald-500/20 px-3 py-1 text-xs text-emerald-400 transition-colors hover:bg-emerald-500/30 disabled:opacity-50"
           >
@@ -398,7 +400,7 @@ export default function Partners() {
           </button>
         ) : status === 'active' ? (
           <button
-            onClick={() => handleDeactivate(partner)}
+            onClick={() => gate(() => handleDeactivate(partner), 'Deactivate partner')}
             disabled={busy}
             className="rounded bg-amber-500/20 px-3 py-1 text-xs text-amber-400 transition-colors hover:bg-amber-500/30 disabled:opacity-50"
           >
@@ -406,7 +408,7 @@ export default function Partners() {
           </button>
         ) : null}
         <button
-          onClick={() => handleDelete(partner)}
+          onClick={() => gate(() => handleDelete(partner), 'Delete partner login')}
           disabled={busy}
           className="rounded bg-rose-500/20 px-3 py-1 text-xs text-rose-400 transition-colors hover:bg-rose-500/30 disabled:opacity-50"
         >
@@ -466,7 +468,7 @@ export default function Partners() {
         <div className="flex items-center gap-2">
           <RefreshButton onRefresh={refresh} loading={refreshing} />
           <button
-            onClick={() => setIsAddPartnerModalOpen(true)}
+            onClick={() => gate(() => setIsAddPartnerModalOpen(true), 'Create new partner')}
             className="dashboard-action-btn"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -787,8 +789,8 @@ export default function Partners() {
           onClose={() => setDetailUser(null)}
           onShareLogin={(u) => handleReshare(u)}
           onShareNewPassword={(d) => setShareData(d)}
-          onDeactivate={(u) => { setDetailUser(null); handleDeactivate(u) }}
-          onReactivate={(u) => { setDetailUser(null); handleReactivate(u) }}
+          onDeactivate={(u) => gate(() => { setDetailUser(null); handleDeactivate(u) }, 'Deactivate partner')}
+          onReactivate={(u) => gate(() => { setDetailUser(null); handleReactivate(u) }, 'Reactivate partner')}
           refreshList={fetchPartners}
           setBanner={setBanner}
         />
@@ -803,6 +805,8 @@ export default function Partners() {
           onClose={() => setShareData(null)}
         />
       )}
+
+      {PinGateElement}
 
       <RefreshStatus pullDistance={pullDistance} refreshing={refreshing} at={lastUpdated} onRefresh={refresh} />
     </div>

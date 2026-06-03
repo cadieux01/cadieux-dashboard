@@ -16,10 +16,12 @@ import RefreshStatus from '../components/RefreshStatus'
 import useRefreshable from '../lib/useRefreshable'
 import { useAuth } from '../context/AuthContext'
 import DEMO_DATA, { demoBlock } from '../lib/demoData'
+import usePinGate from '../lib/usePinGate'
 import { Eye, Pencil, Send } from 'lucide-react'
 
 export default function SalesExec() {
   const { isDemo } = useAuth()
+  const { gate, PinGateElement } = usePinGate()
   const [execs, setExecs] = useState([])
   const [stats, setStats] = useState({})
   const [loading, setLoading] = useState(true)
@@ -384,7 +386,7 @@ export default function SalesExec() {
           <Eye size={16} />
         </button>
         <button
-          onClick={() => openDetail(exec, 'edit')}
+          onClick={() => gate(() => openDetail(exec, 'edit'), 'Edit agent details')}
           title="Edit details"
           className="inline-flex items-center justify-center rounded bg-emerald-500/20 px-2 py-1.5 text-emerald-400 transition-colors hover:bg-emerald-500/30"
         >
@@ -399,7 +401,7 @@ export default function SalesExec() {
         </button>
         {status === 'inactive' ? (
           <button
-            onClick={() => handleReactivate(exec)}
+            onClick={() => gate(() => handleReactivate(exec), 'Reactivate agent')}
             disabled={busy}
             className="rounded bg-emerald-500/20 px-3 py-1 text-xs text-emerald-400 transition-colors hover:bg-emerald-500/30 disabled:opacity-50"
           >
@@ -407,7 +409,7 @@ export default function SalesExec() {
           </button>
         ) : status === 'active' ? (
           <button
-            onClick={() => handleDeactivate(exec)}
+            onClick={() => gate(() => handleDeactivate(exec), 'Deactivate agent')}
             disabled={busy}
             className="rounded bg-amber-500/20 px-3 py-1 text-xs text-amber-400 transition-colors hover:bg-amber-500/30 disabled:opacity-50"
           >
@@ -415,7 +417,7 @@ export default function SalesExec() {
           </button>
         ) : null}
         <button
-          onClick={() => handleDelete(exec)}
+          onClick={() => gate(() => handleDelete(exec), 'Delete agent login')}
           disabled={busy}
           className="rounded bg-rose-500/20 px-3 py-1 text-xs text-rose-400 transition-colors hover:bg-rose-500/30 disabled:opacity-50"
         >
@@ -475,7 +477,7 @@ export default function SalesExec() {
         <div className="flex items-center gap-2">
           <RefreshButton onRefresh={refresh} loading={refreshing} />
           <button
-            onClick={() => setIsAddExecModalOpen(true)}
+            onClick={() => gate(() => setIsAddExecModalOpen(true), 'Create new agent')}
             className="dashboard-action-btn"
           >
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -771,8 +773,8 @@ export default function SalesExec() {
           onClose={() => setDetailUser(null)}
           onShareLogin={(u) => handleReshare(u)}
           onShareNewPassword={(d) => setShareData(d)}
-          onDeactivate={(u) => { setDetailUser(null); handleDeactivate(u) }}
-          onReactivate={(u) => { setDetailUser(null); handleReactivate(u) }}
+          onDeactivate={(u) => gate(() => { setDetailUser(null); handleDeactivate(u) }, 'Deactivate agent')}
+          onReactivate={(u) => gate(() => { setDetailUser(null); handleReactivate(u) }, 'Reactivate agent')}
           refreshList={fetchExecs}
           setBanner={setBanner}
         />
@@ -787,6 +789,8 @@ export default function SalesExec() {
           onClose={() => setShareData(null)}
         />
       )}
+
+      {PinGateElement}
 
       <RefreshStatus pullDistance={pullDistance} refreshing={refreshing} at={lastUpdated} onRefresh={refresh} />
     </div>

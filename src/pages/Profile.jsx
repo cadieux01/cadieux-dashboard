@@ -12,6 +12,7 @@ import { demoBlock } from '../lib/demoData'
 import RefreshButton from '../components/RefreshButton'
 import RefreshStatus from '../components/RefreshStatus'
 import useRefreshable from '../lib/useRefreshable'
+import { isPinSet, setPin, clearPin, verifyPin, PIN_LENGTH } from '../lib/pinSecurity'
 
 // Self-service profile page for ALL roles. Name / phone / password can't
 // be edited directly — each change is filed as a request for an admin (or,
@@ -358,6 +359,11 @@ export default function Profile() {
         )}
       </div>
 
+      {/* Dashboard PIN — admin-only */}
+      {profile.role === 'admin' && (
+        <DashboardPinSection onToast={showToast} />
+      )}
+
       {/* Pending / past requests */}
       <div className={CARD}>
         <h2 className="text-lg font-semibold text-white mb-4">My Requests</h2>
@@ -396,6 +402,229 @@ export default function Profile() {
       </div>
 
       <RefreshStatus pullDistance={pullDistance} refreshing={refreshing} at={lastUpdated} onRefresh={refresh} />
+    </div>
+  )
+}
+
+// ============================================================================
+// DashboardPinSection — admin-only card for setting / changing / removing the
+// dashboard PIN. The PIN gates every write across the dashboard for admin and
+// sales users via usePinGate(). Stored as a SHA-256 hash in localStorage.
+// ============================================================================
+function DashboardPinSection({ onToast }) {
+  // 'idle' | 'setting' | 'changing' | 'removing'
+  const [mode, setMode] = useState('idle')
+  const [hasPin, setHasPin] = useState(isPinSet())
+  const [currentPin, setCurrentPin] = useState('')
+  const [newPin, setNewPin] = useState('')
+  const [confirmPin, setConfirmPin] = useState('')
+  const [err, setErr] = useState(null)
+  const [busy, setBusy] = useState(false)
+
+  const reset = () => {
+    setMode('idle')
+    setCurrentPin('')
+    setNewPin('')
+    setConfirmPin('')
+    setErr(null)
+    setBusy(false)
+  }
+
+  const digitsOnly = (v) => (v || '').replace(/\D/g, '').slice(0, PIN_LENGTH)
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setErr(null)
+    if (mode === 'setting') {
+      if (newPin.length !== PIN_LENGTH) {
+        setErr(`PIN must be ${PIN_LENGTH} digits.`)
+        return
+      }
+      if (newPin !== confirmPin) {
+        setErr('PINs do not match.')
+        return
+      }
+      setBusy(true)
+      try {
+        await setPin(newPin)
+        setHasPin(true)
+        reset()
+        onToast?.('Dashboard PIN saved.')
+      } catch (e) {
+        setErr(e.message)
+        setBusy(false)
+      }
+      return
+    }
+    if (mode === 'changing') {
+      try {
+        setBusy(true)
+        await verifyPin(currentPin)
+      } catch (e) {
+        setErr(e.message)
+        setBusy(false)
+        return
+      }
+      if (newPin.length !== PIN_LENGTH) {
+        setErr(`New PIN must be ${PIN_LENGTH} digits.`)
+        setBusy(false)
+        return
+      }
+      if (newPin !== confirmPin) {
+        setErr('PINs do not match.')
+        setBusy(false)
+        return
+      }
+      try {
+        await setPin(newPin)
+        reset()
+        onToast?.('Dashboard PIN updated.')
+      } catch (e) {
+        setErr(e.message)
+        setBusy(false)
+      }
+      return
+    }
+    if (mode === 'removing') {
+      try {
+        setBusy(true)
+        await verifyPin(currentPin)
+        clearPin()
+        setHasPin(false)
+        reset()
+        onToast?.('Dashboard PIN removed.')
+      } catch (e) {
+        setErr(e.message)
+        setBusy(false)
+      }
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-slate-800 bg-slate-900 p-4 sm:p-6 mb-6">
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div>
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-white">
+            <span aria-hidden>🔐</span>
+            <span>Dashboard Security PIN</span>
+          </h2>
+          <p className="mt-1 text-sm text-slate-400">
+            A 6-digit PIN every admin and sales user must enter before making
+            changes in the dashboard. Share it with your team out-of-band.
+          </p>
+        </div>
+      </div>
+
+      <div className="mb-4 rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2.5 text-sm">
+        <span className="text-slate-400">Status: </span>
+        {hasPin ? (
+          <span className="font-semibold text-emerald-300">PIN is set ✓</span>
+        ) : (
+          <span className="font-semibold text-amber-300">No PIN set</span>
+        )}
+      </div>
+
+      {mode === 'idle' && (
+        <div className="flex flex-wrap gap-2">
+          {hasPin ? (
+            <>
+              <button
+                type="button"
+                onClick={() => { reset(); setMode('changing') }}
+                className="rounded-lg bg-indigo-500/20 px-3 py-1.5 text-sm font-semibold text-indigo-200 hover:bg-indigo-500/30"
+              >
+                Change PIN
+              </button>
+              <button
+                type="button"
+                onClick={() => { reset(); setMode('removing') }}
+                className="rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-1.5 text-sm font-semibold text-rose-300 hover:bg-rose-500/20"
+              >
+                Remove PIN
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={() => { reset(); setMode('setting') }}
+              className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-emerald-500"
+            >
+              Set PIN
+            </button>
+          )}
+        </div>
+      )}
+
+      {mode !== 'idle' && (
+        <form onSubmit={handleSubmit} className="mt-2 max-w-sm space-y-3">
+          {(mode === 'changing' || mode === 'removing') && (
+            <div>
+              <label className="mb-1 block text-sm font-semibold text-slate-300">Current PIN</label>
+              <input
+                type="password"
+                value={currentPin}
+                inputMode="numeric"
+                autoComplete="off"
+                onChange={(e) => setCurrentPin(digitsOnly(e.target.value))}
+                placeholder={`Enter your ${PIN_LENGTH}-digit PIN`}
+                className="dashboard-input tracking-[0.4em]"
+                autoFocus
+              />
+            </div>
+          )}
+
+          {(mode === 'setting' || mode === 'changing') && (
+            <>
+              <div>
+                <label className="mb-1 block text-sm font-semibold text-slate-300">New PIN</label>
+                <input
+                  type="password"
+                  value={newPin}
+                  inputMode="numeric"
+                  autoComplete="off"
+                  onChange={(e) => setNewPin(digitsOnly(e.target.value))}
+                  placeholder={`${PIN_LENGTH} digits`}
+                  className="dashboard-input tracking-[0.4em]"
+                  autoFocus={mode === 'setting'}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-semibold text-slate-300">Confirm New PIN</label>
+                <input
+                  type="password"
+                  value={confirmPin}
+                  inputMode="numeric"
+                  autoComplete="off"
+                  onChange={(e) => setConfirmPin(digitsOnly(e.target.value))}
+                  placeholder={`Repeat ${PIN_LENGTH} digits`}
+                  className="dashboard-input tracking-[0.4em]"
+                />
+              </div>
+            </>
+          )}
+
+          {err && (
+            <p className="text-sm font-semibold text-rose-400">{err}</p>
+          )}
+
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={busy}
+              className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
+            >
+              {busy ? '...' : mode === 'removing' ? 'Remove PIN' : 'Save PIN'}
+            </button>
+            <button
+              type="button"
+              onClick={reset}
+              className="rounded-lg bg-slate-800 px-3 py-2 text-sm text-slate-300 hover:bg-slate-700"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
     </div>
   )
 }

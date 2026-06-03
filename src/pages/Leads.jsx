@@ -12,6 +12,7 @@ import { logAuditEvent, createAuditDescription } from '../lib/audit'
 import { formatDateDDMMYY } from '../lib/date'
 import { useAuth } from '../context/AuthContext'
 import { demoBlock, demoLeads, demoLeadSales, demoLeadTrainers, VARIANTS } from '../lib/demoData'
+import usePinGate from '../lib/usePinGate'
 
 const STATUS_OPTIONS = [
   { value: 'all', label: 'All Status' },
@@ -22,6 +23,7 @@ const STATUS_OPTIONS = [
 
 export default function Leads() {
   const { isDemo, user } = useAuth()
+  const { gate, PinGateElement } = usePinGate()
   const [leads, setLeads] = useState([])
   const [sales, setSales] = useState([])
   const [trainers, setTrainers] = useState([])
@@ -1346,7 +1348,7 @@ export default function Leads() {
           </div>
           <div className="grid grid-cols-3 gap-2 w-full lg:w-auto">
             <button
-              onClick={() => setIsAddSaleModalOpen(true)}
+              onClick={() => gate(() => setIsAddSaleModalOpen(true), 'Assign stock')}
               className="flex h-8 items-center justify-center gap-1.5 px-3 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white text-xs font-medium rounded-lg shadow-lg transition-all"
             >
               <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1355,7 +1357,7 @@ export default function Leads() {
               <span className="hidden sm:inline">Assign Unit</span>
             </button>
             <button
-              onClick={() => setIsAddSaleEntryModalOpen(true)}
+              onClick={() => gate(() => setIsAddSaleEntryModalOpen(true), 'Record a sale')}
               className="flex h-8 items-center justify-center gap-1.5 px-3 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white text-xs font-medium rounded-lg shadow-lg transition-all"
             >
               <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1364,7 +1366,7 @@ export default function Leads() {
               <span className="hidden sm:inline">Add Sale</span>
             </button>
             <button
-              onClick={() => setIsAddRetractModalOpen(true)}
+              onClick={() => gate(() => setIsAddRetractModalOpen(true), 'Retract stock')}
               className="flex h-8 items-center justify-center gap-1.5 px-3 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 text-white text-xs font-medium rounded-lg shadow-lg transition-all"
             >
               <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2217,6 +2219,8 @@ export default function Leads() {
           </div>
         </form>
       </Modal>
+
+      {PinGateElement}
 
       <RefreshStatus pullDistance={pullDistance} refreshing={refreshing} at={lastUpdated} onRefresh={refresh} />
     </div>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, Link } from 'react-router-dom'
 import {
   LayoutDashboard,
   TrendingUp,
@@ -17,6 +17,7 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  ChevronRight as ChevronRightIcon,
   MoreHorizontal,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
@@ -241,10 +242,14 @@ export default function Layout() {
         </nav>
 
         {/* User section — pinned to the bottom of the sidebar (sibling of the
-            scrollable nav, not inside it), so it never scrolls away. */}
+            scrollable nav, not inside it), so it never scrolls away. The card
+            itself is a Link to the role-specific profile page. */}
         <div className="flex-shrink-0 border-t border-[#1e2d3d] p-3">
-          <div
-            className={`mb-2.5 flex items-center gap-3 rounded-lg border border-[#1e2d3d] bg-[#111921] p-2.5 ${
+          <Link
+            to={role === 'partner' ? '/partner/profile' : '/admin/profile'}
+            onClick={() => setIsMobileMenuOpen(false)}
+            title={!isSidebarOpen ? 'My profile' : undefined}
+            className={`group mb-2.5 flex cursor-pointer items-center gap-3 rounded-lg border border-[#1e2d3d] bg-[#111921] p-2.5 transition-colors hover:bg-[#162133] ${
               !isSidebarOpen ? 'justify-center' : ''
             }`}
           >
@@ -254,16 +259,22 @@ export default function Layout() {
                 : (profile?.full_name?.charAt(0) || displayLogin(profile?.email)?.charAt(0) || 'A')}
             </div>
             {isSidebarOpen && (
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-bold text-white">
-                  {role === 'admin' ? 'Admin' : (displayName(profile) || 'Admin')}
-                </p>
-                <p className="truncate text-xs text-slate-500">
-                  {role === 'admin' ? 'Administrator' : (profile?.phone || displayLogin(profile?.email))}
-                </p>
-              </div>
+              <>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-bold text-white">
+                    {role === 'admin' ? 'Admin' : (displayName(profile) || 'Admin')}
+                  </p>
+                  <p className="truncate text-xs text-slate-500">
+                    {role === 'admin' ? 'Administrator' : (profile?.phone || displayLogin(profile?.email))}
+                  </p>
+                </div>
+                <ChevronRightIcon
+                  size={16}
+                  className="flex-shrink-0 text-slate-500 transition-transform group-hover:translate-x-0.5 group-hover:text-slate-300"
+                />
+              </>
             )}
-          </div>
+          </Link>
           <button
             onClick={handleSignOut}
             className={`flex w-full items-center justify-center gap-2 rounded-lg border border-[#1e2d3d] px-3 py-2 text-sm font-semibold text-slate-400 transition-all hover:border-rose-500/40 hover:bg-rose-500/10 hover:text-rose-400 ${
