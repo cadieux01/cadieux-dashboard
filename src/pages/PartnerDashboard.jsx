@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Plus, X, UserPlus, ShoppingCart } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import Modal from '../components/Modal'
@@ -10,6 +11,8 @@ import useRefreshable from '../lib/useRefreshable'
 import { logAuditEvent } from '../lib/audit'
 import { formatDateDDMMYY } from '../lib/date'
 import { demoBlock, demoPartnerSales } from '../lib/demoData'
+
+const QUICK_SALE_DEFAULTS = { mg_units: '', plain_units: '', customer_name: '' }
 
 const VARIANTS = {
   multigrain: { name: 'Multi-Grain High Protein Bread', price: 149 },
@@ -58,11 +61,24 @@ export default function PartnerDashboard() {
   })
   const [formErrors, setFormErrors] = useState({})
   const [isDateEditable, setIsDateEditable] = useState(false)
+  const [isFabExpanded, setIsFabExpanded] = useState(false)
+  const [isQuickSaleOpen, setIsQuickSaleOpen] = useState(false)
+  const [quickSaleData, setQuickSaleData] = useState(QUICK_SALE_DEFAULTS)
+  const [quickToast, setQuickToast] = useState(null)
   const { refresh, refreshing, lastUpdated, pullDistance } = useRefreshable(() => fetchTrainerAndSales())
 
   const selectedVariant = VARIANTS[customerFormData.product_variant] || null
   const previewUnits = parseInt(customerFormData.units_purchased) || 0
   const previewRevenue = selectedVariant ? selectedVariant.price * previewUnits : 0
+
+  const quickMgUnits = parseInt(quickSaleData.mg_units) || 0
+  const quickPlUnits = parseInt(quickSaleData.plain_units) || 0
+  const quickTotal = quickMgUnits * VARIANTS.multigrain.price + quickPlUnits * VARIANTS.plain.price
+
+  const closeQuickSale = () => {
+    setIsQuickSaleOpen(false)
+    setQuickSaleData(QUICK_SALE_DEFAULTS)
+  }
 
   const validateCustomerForm = () => {
     const errors = {}
@@ -294,6 +310,73 @@ export default function PartnerDashboard() {
     } catch (error) {
       console.error('Error saving customer:', error)
       alert(`Failed to save customer: ${error.message || 'Please try again.'}`)
+    }
+  }
+
+  // Quick Sale: one insert per variant that has units > 0. No picture/contact;
+  // customer name optional. Stock guard happens client-side from `summary`.
+  const handleSaveQuickSale = async () => {
+    if (isDemo) return demoBlock()
+    if (quickMgUnits <= 0 && quickPlUnits <= 0) return
+    if (quickMgUnits > summary.variants.multigrain.left) return
+    if (quickPlUnits > summary.variants.plain.left) return
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user || !profile) {
+        alert('User session expired. Please refresh the page.')
+        return
+      }
+      const tid = trainerId || user.id
+      setTrainerId(tid)
+
+      const buyerName = quickSaleData.customer_name.trim() || null
+      const today = new Date().toISOString().split('T')[0]
+
+      const rows = []
+      if (quickMgUnits > 0) {
+        rows.push({
+          trainer_id: tid,
+          buyer_name: buyerName,
+          units_sold: quickMgUnits,
+          units_assigned: quickMgUnits,
+          product_variant: VARIANTS.multigrain.name,
+          unit_price: VARIANTS.multigrain.price,
+          purchase_date: today,
+          date_of_assignment: today,
+        })
+      }
+      if (quickPlUnits > 0) {
+        rows.push({
+          trainer_id: tid,
+          buyer_name: buyerName,
+          units_sold: quickPlUnits,
+          units_assigned: quickPlUnits,
+          product_variant: VARIANTS.plain.name,
+          unit_price: VARIANTS.plain.price,
+          purchase_date: today,
+          date_of_assignment: today,
+        })
+      }
+
+      const { data, error } = await supabase.from('sales').insert(rows).select()
+      if (error) throw error
+
+      await logAuditEvent({
+        actionType: 'CREATE',
+        entityType: 'sale',
+        entityId: data?.[0]?.id || null,
+        description: `Quick sale: ${buyerName || 'walk-in'} | ${quickMgUnits} MG + ${quickPlUnits} Plain | ₹${quickTotal}`,
+        newValues: { rows },
+      })
+
+      closeQuickSale()
+      setQuickToast(`Sale recorded: ₹${quickTotal.toLocaleString()}`)
+      setTimeout(() => setQuickToast(null), 2500)
+      await fetchSales(tid)
+    } catch (error) {
+      console.error('Error saving quick sale:', error)
+      alert(`Failed to record sale: ${error.message || 'Please try again.'}`)
     }
   }
 
@@ -571,7 +654,7 @@ export default function PartnerDashboard() {
                 {sales.length === 0 ? (
                   <tr>
                     <td colSpan="7" className="px-4 sm:px-6 py-8 text-center text-slate-400">
-                      No sales records found. Click the + button to add a customer.
+                      No sales records found. Tap the + button to add a customer or record a quick sale.
                     </td>
                   </tr>
                 ) : (
@@ -648,30 +731,69 @@ export default function PartnerDashboard() {
         <RefreshStatus pullDistance={pullDistance} refreshing={refreshing} at={lastUpdated} onRefresh={refresh} />
       </div>
 
-      {/* Floating + Button */}
+      {/* Expandable FAB: tap to reveal "New Customer" + "Quick Sale" */}
+      {isFabExpanded && (
         <button
-          onClick={() => {
-            setEditingSaleId(null)
-            setCustomerFormData({
-            buyer_name: '',
-            buyer_contact: '',
-            product_variant: '',
-            units_purchased: '',
-            purchase_date: new Date().toISOString().split('T')[0],
-            notes: '',
-            picture_file: null,
-          })
-            setFormErrors({})
-            setIsDateEditable(false)
-            setIsCustomerModalOpen(true)
-          }}
-        className="dashboard-fab fixed bottom-[68px] right-4 z-40 flex items-center justify-center rounded-full text-white transition-all hover:-translate-y-0.5 lg:bottom-6 lg:right-6"
-        aria-label="Add Customer"
-      >
-        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-        </svg>
-      </button>
+          type="button"
+          aria-label="Close action menu"
+          onClick={() => setIsFabExpanded(false)}
+          className="fixed inset-0 z-30 cursor-default bg-slate-950/30 backdrop-blur-[2px]"
+        />
+      )}
+      <div className="fixed bottom-[68px] right-4 z-40 flex flex-col items-end gap-3 lg:bottom-6 lg:right-6">
+        {isFabExpanded && (
+          <>
+            <button
+              onClick={() => {
+                setIsFabExpanded(false)
+                setEditingSaleId(null)
+                setCustomerFormData({
+                  buyer_name: '',
+                  buyer_contact: '',
+                  product_variant: '',
+                  units_purchased: '',
+                  purchase_date: new Date().toISOString().split('T')[0],
+                  notes: '',
+                  picture_file: null,
+                })
+                setFormErrors({})
+                setIsDateEditable(false)
+                setIsCustomerModalOpen(true)
+              }}
+              className="flex animate-[fab-rise_180ms_ease-out] items-center gap-2 rounded-full border border-white/10 bg-[#111921] py-2 pl-3 pr-4 text-sm font-semibold text-white shadow-lg ring-1 ring-black/30 transition hover:bg-[#1a2332]"
+            >
+              <UserPlus size={16} className="text-emerald-300" />
+              New Customer
+            </button>
+            <button
+              onClick={() => {
+                setIsFabExpanded(false)
+                setQuickSaleData(QUICK_SALE_DEFAULTS)
+                setIsQuickSaleOpen(true)
+              }}
+              className="flex animate-[fab-rise_220ms_ease-out] items-center gap-2 rounded-full border border-white/10 bg-[#111921] py-2 pl-3 pr-4 text-sm font-semibold text-white shadow-lg ring-1 ring-black/30 transition hover:bg-[#1a2332]"
+            >
+              <ShoppingCart size={16} className="text-amber-200" />
+              Quick Sale
+            </button>
+          </>
+        )}
+        <button
+          onClick={() => setIsFabExpanded((v) => !v)}
+          className="dashboard-fab flex items-center justify-center rounded-full text-white transition-all hover:-translate-y-0.5"
+          aria-label={isFabExpanded ? 'Close action menu' : 'Open action menu'}
+          aria-expanded={isFabExpanded}
+        >
+          {isFabExpanded ? <X size={22} /> : <Plus size={22} />}
+        </button>
+      </div>
+
+      {/* Quick Sale success toast */}
+      {quickToast && (
+        <div className="fixed bottom-[140px] right-4 z-50 rounded-lg bg-emerald-500/95 px-4 py-2.5 text-sm font-semibold text-white shadow-lg lg:bottom-24">
+          {quickToast}
+        </div>
+      )}
 
       {/* Customer Onboarding Modal */}
       <Modal
@@ -835,6 +957,126 @@ export default function PartnerDashboard() {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Quick Sale Modal */}
+      <Modal isOpen={isQuickSaleOpen} onClose={closeQuickSale} title="Quick Sale">
+        {(() => {
+          const mgLeft = summary.variants.multigrain.left
+          const plLeft = summary.variants.plain.left
+          const mgOver = quickMgUnits > mgLeft
+          const plOver = quickPlUnits > plLeft
+          const valid = (quickMgUnits > 0 || quickPlUnits > 0) && !mgOver && !plOver
+
+          return (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault()
+                handleSaveQuickSale()
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  Your Assigned Stock
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="dashboard-panel rounded-xl p-3">
+                    <div className="flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: '#024628' }} />
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-300">
+                        Multi-Grain
+                      </p>
+                    </div>
+                    <div className="mt-2 space-y-1 text-xs">
+                      <div className="flex justify-between"><span className="text-slate-400">Assigned</span><span className="font-semibold text-white">{summary.variants.multigrain.assigned}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-400">Sold</span><span className="font-semibold text-emerald-300">{summary.variants.multigrain.sold}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-400">Available</span><span className="font-semibold text-white">{mgLeft}</span></div>
+                    </div>
+                  </div>
+                  <div className="dashboard-panel rounded-xl p-3">
+                    <div className="flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: '#FBF3D4' }} />
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-200">Plain</p>
+                    </div>
+                    <div className="mt-2 space-y-1 text-xs">
+                      <div className="flex justify-between"><span className="text-slate-400">Assigned</span><span className="font-semibold text-white">{summary.variants.plain.assigned}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-400">Sold</span><span className="font-semibold text-emerald-300">{summary.variants.plain.sold}</span></div>
+                      <div className="flex justify-between"><span className="text-slate-400">Available</span><span className="font-semibold text-white">{plLeft}</span></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  Record Sale
+                </p>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-slate-300">Multi-Grain (₹149)</label>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min="0"
+                      max={mgLeft}
+                      value={quickSaleData.mg_units}
+                      onChange={(e) => setQuickSaleData({ ...quickSaleData, mg_units: e.target.value })}
+                      placeholder="0"
+                      className={`dashboard-input w-full ${mgOver ? 'border-rose-500/60 ring-rose-500/30' : ''}`}
+                    />
+                    {mgOver && (
+                      <p className="mt-1 text-xs text-rose-400">Only {mgLeft} Multi-Grain available</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-slate-300">Plain (₹109)</label>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min="0"
+                      max={plLeft}
+                      value={quickSaleData.plain_units}
+                      onChange={(e) => setQuickSaleData({ ...quickSaleData, plain_units: e.target.value })}
+                      placeholder="0"
+                      className={`dashboard-input w-full ${plOver ? 'border-rose-500/60 ring-rose-500/30' : ''}`}
+                    />
+                    {plOver && (
+                      <p className="mt-1 text-xs text-rose-400">Only {plLeft} Plain available</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <FormField
+                label="Customer Name"
+                value={quickSaleData.customer_name}
+                onChange={(value) => setQuickSaleData({ ...quickSaleData, customer_name: value })}
+                placeholder="Optional"
+              />
+
+              <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-3 py-2.5">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-semibold text-emerald-200">Total</span>
+                  <span className="font-mono text-base font-semibold text-emerald-100">
+                    ₹{quickTotal.toLocaleString()}
+                  </span>
+                </div>
+                <p className="mt-1 text-[11px] text-slate-400">
+                  ({quickMgUnits || 0} × ₹149) + ({quickPlUnits || 0} × ₹109) — auto-calculated
+                </p>
+              </div>
+
+              <button
+                type="submit"
+                disabled={!valid}
+                className="dashboard-button dashboard-button-primary w-full disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Submit Sale
+              </button>
+            </form>
+          )
+        })()}
       </Modal>
 
       {/* QR Code Modal */}
