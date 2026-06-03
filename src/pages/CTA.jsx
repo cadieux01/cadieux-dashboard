@@ -4,6 +4,9 @@ import KPICard from '../components/KPICard'
 import { formatDateDDMMYY } from '../lib/date'
 import { useAuth } from '../context/AuthContext'
 import DEMO_DATA, { demoCtaPartners } from '../lib/demoData'
+import RefreshButton from '../components/RefreshButton'
+import RefreshStatus from '../components/RefreshStatus'
+import useRefreshable from '../lib/useRefreshable'
 
 export default function CTA() {
   const { isDemo } = useAuth()
@@ -13,6 +16,8 @@ export default function CTA() {
   const [partnerFilter, setPartnerFilter] = useState('all')
   const [colorFilter, setColorFilter] = useState('all')
   const [dateRange, setDateRange] = useState({ start: '', end: '' })
+
+  const { refresh, refreshing, lastUpdated, pullDistance } = useRefreshable(() => fetchData())
 
   useEffect(() => {
     fetchData()
@@ -179,10 +184,11 @@ export default function CTA() {
   return (
     <div className="dashboard-page">
       {/* Header */}
-      <div className="relative z-10 mb-8">
+      <div className="relative z-10 mb-8 flex items-start justify-between gap-4">
         <div>
           <h1 className="dashboard-title">CTA</h1>
         </div>
+        <RefreshButton onRefresh={refresh} loading={refreshing} />
       </div>
 
       {/* KPI Cards */}
@@ -356,6 +362,8 @@ export default function CTA() {
           })
         )}
       </div>
+
+      <RefreshStatus pullDistance={pullDistance} refreshing={refreshing} at={lastUpdated} onRefresh={refresh} />
     </div>
   )
 }

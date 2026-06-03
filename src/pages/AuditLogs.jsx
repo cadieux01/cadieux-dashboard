@@ -5,6 +5,9 @@ import { categoryForEntity } from '../lib/audit'
 import { displayLogin } from '../lib/phone'
 import { useAuth } from '../context/AuthContext'
 import DEMO_DATA from '../lib/demoData'
+import RefreshButton from '../components/RefreshButton'
+import RefreshStatus from '../components/RefreshStatus'
+import useRefreshable from '../lib/useRefreshable'
 
 // Read-only audit trail. Audit logs are IMMUTABLE: this page can only
 // read and export them — never edit or delete. Mutations to the
@@ -120,6 +123,11 @@ export default function AuditLogs() {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [expandedId, setExpandedId] = useState(null)
+  const [reloadKey, setReloadKey] = useState(0)
+
+  const { refresh, refreshing, lastUpdated, pullDistance } = useRefreshable(
+    () => new Promise((resolve) => { setReloadKey((k) => k + 1); setTimeout(resolve, 400) }),
+  )
 
   const { from, to } = rangeForPreset(preset, customFrom, customTo)
 
@@ -185,7 +193,7 @@ export default function AuditLogs() {
     return () => {
       active = false
     }
-  }, [from, to])
+  }, [from, to, reloadKey])
 
   // Reset to first page whenever the result set changes.
   useEffect(() => {
@@ -273,11 +281,14 @@ export default function AuditLogs() {
 
   return (
     <div className="p-8 font-mono">
-      <div className="mb-6">
-        <h1 className="text-4xl font-bold text-white mb-2 font-sans">Audit Logs</h1>
-        <p className="text-slate-400 font-sans">
-          Every recorded action across the system, oldest hidden beneath the newest.
-        </p>
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-4xl font-bold text-white mb-2 font-sans">Audit Logs</h1>
+          <p className="text-slate-400 font-sans">
+            Every recorded action across the system, oldest hidden beneath the newest.
+          </p>
+        </div>
+        <RefreshButton onRefresh={refresh} loading={refreshing} />
       </div>
 
       {/* Immutability notice */}
@@ -510,6 +521,8 @@ export default function AuditLogs() {
           </div>
         )}
       </div>
+
+      <RefreshStatus pullDistance={pullDistance} refreshing={refreshing} at={lastUpdated} onRefresh={refresh} />
     </div>
   )
 }

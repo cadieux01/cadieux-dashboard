@@ -10,6 +10,9 @@ import { createUser, deactivateUser, deleteUser, reactivateUser } from '../lib/a
 import { displayLogin, isValidPhone, normalizePhone } from '../lib/phone'
 import ShareCredentials from '../components/ShareCredentials'
 import UserDetailModal from '../components/UserDetailModal'
+import RefreshButton from '../components/RefreshButton'
+import RefreshStatus from '../components/RefreshStatus'
+import useRefreshable from '../lib/useRefreshable'
 import { useAuth } from '../context/AuthContext'
 import DEMO_DATA, { demoBlock } from '../lib/demoData'
 import { Eye, Pencil, Send } from 'lucide-react'
@@ -45,6 +48,8 @@ export default function Partners() {
     full_name: '',
     notes: '',
   })
+
+  const { refresh, refreshing, lastUpdated, pullDistance } = useRefreshable(() => fetchPartners())
 
   useEffect(() => {
     fetchPartners()
@@ -420,15 +425,18 @@ export default function Partners() {
             <h1 className="text-4xl font-bold text-white mb-2">Partners</h1>
             <p className="text-slate-400">Centralized partner user management and credential operations</p>
           </div>
-          <button
-            onClick={() => setIsAddPartnerModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-medium rounded-lg shadow-lg transition-all"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Add Partner
-          </button>
+          <div className="flex items-center gap-2">
+            <RefreshButton onRefresh={refresh} loading={refreshing} />
+            <button
+              onClick={() => setIsAddPartnerModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-medium rounded-lg shadow-lg transition-all"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Add Partner
+            </button>
+          </div>
         </div>
       </div>
 
@@ -660,6 +668,8 @@ export default function Partners() {
           onClose={() => setShareData(null)}
         />
       )}
+
+      <RefreshStatus pullDistance={pullDistance} refreshing={refreshing} at={lastUpdated} onRefresh={refresh} />
     </div>
   )
 }

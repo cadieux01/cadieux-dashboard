@@ -9,6 +9,9 @@ import {
   REQUEST_TYPE_LABELS,
 } from '../lib/changeRequests'
 import { demoBlock } from '../lib/demoData'
+import RefreshButton from '../components/RefreshButton'
+import RefreshStatus from '../components/RefreshStatus'
+import useRefreshable from '../lib/useRefreshable'
 
 // Self-service profile page for ALL roles. Name / phone / password can't
 // be edited directly — each change is filed as a request for an admin (or,
@@ -72,6 +75,8 @@ export default function Profile() {
       setLoadingRequests(false)
     }
   }
+
+  const { refresh, refreshing, lastUpdated, pullDistance } = useRefreshable(() => loadRequests())
 
   useEffect(() => {
     loadRequests()
@@ -166,12 +171,15 @@ export default function Profile() {
         </div>
       )}
 
-      <div className="mb-8">
-        <h1 className="text-4xl font-bold text-white mb-2">My Profile</h1>
-        <p className="text-slate-400">
-          Request changes to your name, phone, or password. Changes take effect
-          after approval.
-        </p>
+      <div className="mb-8 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-4xl font-bold text-white mb-2">My Profile</h1>
+          <p className="text-slate-400">
+            Request changes to your name, phone, or password. Changes take effect
+            after approval.
+          </p>
+        </div>
+        <RefreshButton onRefresh={refresh} loading={refreshing} />
       </div>
 
       {error && (
@@ -387,6 +395,8 @@ export default function Profile() {
           </div>
         )}
       </div>
+
+      <RefreshStatus pullDistance={pullDistance} refreshing={refreshing} at={lastUpdated} onRefresh={refresh} />
     </div>
   )
 }

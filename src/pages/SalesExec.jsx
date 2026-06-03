@@ -10,6 +10,9 @@ import { createUser, deactivateUser, deleteUser, reactivateUser } from '../lib/a
 import { displayLogin, isValidPhone, normalizePhone } from '../lib/phone'
 import ShareCredentials from '../components/ShareCredentials'
 import UserDetailModal from '../components/UserDetailModal'
+import RefreshButton from '../components/RefreshButton'
+import RefreshStatus from '../components/RefreshStatus'
+import useRefreshable from '../lib/useRefreshable'
 import { useAuth } from '../context/AuthContext'
 import DEMO_DATA, { demoBlock } from '../lib/demoData'
 import { Eye, Pencil, Send } from 'lucide-react'
@@ -36,6 +39,8 @@ export default function SalesExec() {
     full_name: '',
     notes: '',
   })
+
+  const { refresh, refreshing, lastUpdated, pullDistance } = useRefreshable(() => fetchExecs())
 
   useEffect(() => {
     fetchExecs()
@@ -415,15 +420,18 @@ export default function SalesExec() {
             <h1 className="mb-2 text-4xl font-bold text-white">Sales Agents</h1>
             <p className="text-slate-400">Manage sales agent accounts.</p>
           </div>
-          <button
-            onClick={() => setIsAddExecModalOpen(true)}
-            className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-emerald-600 to-emerald-500 px-4 py-2 font-medium text-white shadow-lg transition-all hover:from-emerald-500 hover:to-emerald-400"
-          >
-            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Add Sales Agent
-          </button>
+          <div className="flex items-center gap-2">
+            <RefreshButton onRefresh={refresh} loading={refreshing} />
+            <button
+              onClick={() => setIsAddExecModalOpen(true)}
+              className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-emerald-600 to-emerald-500 px-4 py-2 font-medium text-white shadow-lg transition-all hover:from-emerald-500 hover:to-emerald-400"
+            >
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Add Sales Agent
+            </button>
+          </div>
         </div>
       </div>
 
@@ -655,6 +663,8 @@ export default function SalesExec() {
           onClose={() => setShareData(null)}
         />
       )}
+
+      <RefreshStatus pullDistance={pullDistance} refreshing={refreshing} at={lastUpdated} onRefresh={refresh} />
     </div>
   )
 }

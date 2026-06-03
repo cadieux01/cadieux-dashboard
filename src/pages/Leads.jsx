@@ -5,6 +5,9 @@ import DataTable from '../components/DataTable'
 import AlertBanner from '../components/AlertBanner'
 import Modal from '../components/Modal'
 import FormField from '../components/FormField'
+import RefreshButton from '../components/RefreshButton'
+import RefreshStatus from '../components/RefreshStatus'
+import useRefreshable from '../lib/useRefreshable'
 import { logAuditEvent, createAuditDescription } from '../lib/audit'
 import { formatDateDDMMYY } from '../lib/date'
 import { useAuth } from '../context/AuthContext'
@@ -104,6 +107,8 @@ export default function Leads() {
     const fallbackTrainer = record?.trainer_id ? trainerById[record.trainer_id] : null
     return joinedTrainer?.contact || fallbackTrainer?.contact || joinedTrainer?.email || fallbackTrainer?.email || ''
   }
+
+  const { refresh, refreshing, lastUpdated, pullDistance } = useRefreshable(() => fetchData())
 
   useEffect(() => {
     fetchData()
@@ -1271,9 +1276,12 @@ export default function Leads() {
       {/* Header */}
       <div className="mb-6 sm:mb-8">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-1 sm:mb-2">Sales</h1>
-            <p className="text-sm sm:text-base text-slate-400">Track and manage buyer leads from partners</p>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-1 sm:mb-2">Sales</h1>
+              <p className="text-sm sm:text-base text-slate-400">Track and manage buyer leads from partners</p>
+            </div>
+            <RefreshButton onRefresh={refresh} loading={refreshing} />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 w-full lg:w-auto">
             <button
@@ -2073,6 +2081,8 @@ export default function Leads() {
           </div>
         </form>
       </Modal>
+
+      <RefreshStatus pullDistance={pullDistance} refreshing={refreshing} at={lastUpdated} onRefresh={refresh} />
     </div>
   )
 }

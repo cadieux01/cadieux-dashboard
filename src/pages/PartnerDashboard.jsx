@@ -4,6 +4,9 @@ import { useAuth } from '../context/AuthContext'
 import Modal from '../components/Modal'
 import FormField from '../components/FormField'
 import KPICard from '../components/KPICard'
+import RefreshButton from '../components/RefreshButton'
+import RefreshStatus from '../components/RefreshStatus'
+import useRefreshable from '../lib/useRefreshable'
 import { logAuditEvent } from '../lib/audit'
 import { formatDateDDMMYY } from '../lib/date'
 import { demoBlock, demoPartnerSales } from '../lib/demoData'
@@ -55,6 +58,7 @@ export default function PartnerDashboard() {
   })
   const [formErrors, setFormErrors] = useState({})
   const [isDateEditable, setIsDateEditable] = useState(false)
+  const { refresh, refreshing, lastUpdated, pullDistance } = useRefreshable(() => fetchTrainerAndSales())
 
   const selectedVariant = VARIANTS[customerFormData.product_variant] || null
   const previewUnits = parseInt(customerFormData.units_purchased) || 0
@@ -422,9 +426,12 @@ export default function PartnerDashboard() {
     <>
       <div className="dashboard-page pb-24 sm:pb-8">
         <div className="relative z-10 mb-8 flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
-          <div>
-            <span className="dashboard-kicker">Partner</span>
-            <h1 className="dashboard-title mt-4">Sales</h1>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <span className="dashboard-kicker">Partner</span>
+              <h1 className="dashboard-title mt-4">Sales</h1>
+            </div>
+            <RefreshButton onRefresh={refresh} loading={refreshing} />
           </div>
           <div className="dashboard-panel flex items-center justify-between gap-4 rounded-2xl px-4 py-3 xl:max-w-md">
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Done</p>
@@ -593,6 +600,8 @@ export default function PartnerDashboard() {
             </table>
           </div>
         </div>
+
+        <RefreshStatus pullDistance={pullDistance} refreshing={refreshing} at={lastUpdated} onRefresh={refresh} />
       </div>
 
       {/* Floating + Button */}

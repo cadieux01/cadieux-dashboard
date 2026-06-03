@@ -8,6 +8,9 @@ import { fetchManagedRequests, REQUEST_TYPE_LABELS } from '../lib/changeRequests
 import Modal from '../components/Modal'
 import AlertBanner from '../components/AlertBanner'
 import DEMO_DATA, { demoBlock } from '../lib/demoData'
+import RefreshButton from '../components/RefreshButton'
+import RefreshStatus from '../components/RefreshStatus'
+import useRefreshable from '../lib/useRefreshable'
 
 // Approval queue for profile change requests.
 //   • Admin  → manages ALL requests (sales + partner), with a role filter.
@@ -67,6 +70,8 @@ export default function ChangeRequests() {
       setLoading(false)
     }
   }
+
+  const { refresh, refreshing, lastUpdated, pullDistance } = useRefreshable(() => load())
 
   useEffect(() => {
     load()
@@ -240,13 +245,16 @@ export default function ChangeRequests() {
 
   return (
     <div className="p-8">
-      <div className="mb-8">
-        <h1 className="text-4xl font-bold text-white mb-2">{title}</h1>
-        <p className="text-slate-400">
-          {isAdmin
-            ? 'Review and approve name, phone, and password change requests.'
-            : 'Review and approve change requests from your partners.'}
-        </p>
+      <div className="mb-8 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-4xl font-bold text-white mb-2">{title}</h1>
+          <p className="text-slate-400">
+            {isAdmin
+              ? 'Review and approve name, phone, and password change requests.'
+              : 'Review and approve change requests from your partners.'}
+          </p>
+        </div>
+        <RefreshButton onRefresh={refresh} loading={refreshing} />
       </div>
 
       {banner && (
@@ -425,6 +433,8 @@ export default function ChangeRequests() {
           </div>
         </form>
       </Modal>
+
+      <RefreshStatus pullDistance={pullDistance} refreshing={refreshing} at={lastUpdated} onRefresh={refresh} />
     </div>
   )
 }

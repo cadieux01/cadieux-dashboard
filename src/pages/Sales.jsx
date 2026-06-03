@@ -19,6 +19,9 @@ import {
 import KPICard from '../components/KPICard'
 import Modal from '../components/Modal'
 import FormField from '../components/FormField'
+import RefreshButton from '../components/RefreshButton'
+import RefreshStatus from '../components/RefreshStatus'
+import useRefreshable from '../lib/useRefreshable'
 import { supabase } from '../lib/supabase'
 import { logAuditEvent, createAuditDescription } from '../lib/audit'
 import { formatDateDDMMYY } from '../lib/date'
@@ -105,6 +108,8 @@ export default function Sales() {
     notes: '',
     joining_date: new Date().toISOString().split('T')[0],
   })
+
+  const { refresh, refreshing, lastUpdated, pullDistance } = useRefreshable(() => fetchData())
 
   useEffect(() => {
     fetchData()
@@ -429,8 +434,9 @@ export default function Sales() {
   return (
     <div className="dashboard-page !pt-2 sm:!pt-3 lg:!pt-4">
       <div className="relative z-10 mb-6 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-        <div>
+        <div className="flex items-center justify-between gap-4">
           <h1 className="dashboard-title">Overview</h1>
+          <RefreshButton onRefresh={refresh} loading={refreshing} />
         </div>
 
         <div className="dashboard-panel flex items-center justify-between gap-4 rounded-2xl px-4 py-3 xl:max-w-md">
@@ -856,6 +862,8 @@ export default function Sales() {
           </div>
         </form>
       </Modal>
+
+      <RefreshStatus pullDistance={pullDistance} refreshing={refreshing} at={lastUpdated} onRefresh={refresh} />
     </div>
   )
 }
