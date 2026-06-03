@@ -1,7 +1,15 @@
 import { useMemo, useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
-import { demoAgentProfile, DRILLDOWN_RANGES, DIVERSION_REASONS } from '../../lib/demoData'
+import { supabase } from '../../lib/supabase'
+import {
+  demoAgentProfile,
+  DRILLDOWN_RANGES,
+  DIVERSION_REASONS,
+  VARIANTS,
+  PARTNER_TYPE_LABELS,
+  PARTNER_TYPE_PILL,
+} from '../../lib/demoData'
 import { formatDateDDMMYY } from '../../lib/date'
 import {
   PageHeader,
@@ -12,16 +20,9 @@ import {
   MonthlyLineChart,
 } from '../../components/drilldown/Shared'
 
-const ROWS_PER_PAGE = 10
+const ROWS_PER_PAGE = 20
 
 const DIVERSION_LABEL = Object.fromEntries(DIVERSION_REASONS.map((r) => [r.value, r.label]))
-
-const DIVERSION_PILL = {
-  food_stalls: 'border-orange-400/30 bg-orange-400/10 text-orange-200',
-  b2b:         'border-blue-400/30 bg-blue-400/10 text-blue-200',
-  disposed:    'border-rose-400/30 bg-rose-400/10 text-rose-200',
-  other:       'border-slate-500/30 bg-slate-500/10 text-slate-300',
-}
 
 const ACTIVITY_ICON = {
   sold:      { emoji: '✅', color: 'text-emerald-300' },
@@ -29,28 +30,231 @@ const ACTIVITY_ICON = {
   retracted: { emoji: '↩️', color: 'text-amber-300' },
 }
 
+// --- Live-mode helpers ------------------------------------------------------
+
+function liveInRange(dateStr, range) {
+  if (range === 'all' || !dateStr) return range === 'all'
+  const d = new Date(dateStr)
+  if (Number.isNaN(d.getTime())) return false
+  const diff = (Date.now() - d.getTime()) / 86400000
+  switch (range) {
+    case 'today':     return diff < 1
+    case 'week':      return diff <= 7
+    case 'month':     return diff <= 30
+    case 'lastmonth': return diff > 30 && diff <= 60
+    case '3m':        return diff <= 90
+    case '6m':        return diff <= 180
+    case 'year':      return diff <= 365
+    default:          return true
+  }
+}
+
+function variantKeyFromName(name) {
+  return /plain/i.test(name || '') ? 'plain' : 'multigrain'
+}
+
+function buildLiveMonthly(soldRows) {
+  const months = []
+  const ref = new Date()
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(ref.getFullYear(), ref.getMonth() - i, 1)
+    months.push({
+      key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
+      label: d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
+      multigrain: 0, plain: 0,
+    })
+  }
+  const byKey = Object.fromEntries(months.map((m) => [m.key, m]))
+  for (const r of soldRows) {
+    const d = new Date(r.date)
+    const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+    if (byKey[k]) byKey[k][r.variant] += r.units
+  }
+  return months
+}
+
+function buildLiveAgentProfile(agentRow, partnerRows, salesRows, range) {
+  const partnerById = Object.fromEntries((partnerRows || []).map((p) => [p.id, p]))
+  const rows = (salesRows || []).filter((r) => liveInRange(r.purchase_date || r.date_of_assignment || r.created_at, range))
+
+  const perPartner = {}
+  for (const p of partnerRows || []) {
+    perPartner[p.id] = {
+      id: p.id,
+      name: p.full_name || 'Partner',
+      phone: p.phone || p.phone_number || '',
+      status: p.status || 'active',
+      partner_type: p.partner_type || 'other',
+      assigned: 0, sold: 0, retracted: 0, revenue: 0,
+    }
+  }
+  for (const r of rows) {
+    const pp = perPartner[r.trainer_id]
+    if (!pp) continue
+    const key = variantKeyFromName(r.product_variant)
+    pp.assigned += r.units_assigned || ((r.multigrain_assigned || 0) + (r.plain_assigned || 0))
+    pp.sold += r.units_sold || 0
+    pp.retracted += r.retracted_units || 0
+    pp.revenue += (r.units_sold || 0) * (r.unit_price || VARIANTS[key].price)
+  }
+  const partnerPerformance = Object.values(perPartner)
+    .map((p) => ({ ...p, sellThrough: p.assigned > 0 ? Math.round((p.sold / p.assigned) * 100) : 0 }))
+    .sort((a, b) => b.sold - a.sold)
+
+  const totalAssigned  = partnerPerformance.reduce((s, p) => s + p.assigned, 0)
+  const totalSold      = partnerPerformance.reduce((s, p) => s + p.sold, 0)
+  const totalRetracted = partnerPerformance.reduce((s, p) => s + p.retracted, 0)
+  const totalRevenue   = partnerPerformance.reduce((s, p) => s + p.revenue, 0)
+
+  const variantRow = (key) => {
+    const price = VARIANTS[key].price
+    const assigned = rows.reduce((s, r) => s + (key === 'multigrain' ? (r.multigrain_assigned || 0) : (r.plain_assigned || 0)), 0)
+    const sold = rows.filter((r) => variantKeyFromName(r.product_variant) === key).reduce((s, r) => s + (r.units_sold || 0), 0)
+    const retracted = rows.filter((r) => variantKeyFromName(r.product_variant) === key).reduce((s, r) => s + (r.retracted_units || 0), 0)
+    return { key, label: VARIANTS[key].short, price, assigned, sold, retracted, revenue: sold * price, sellThrough: assigned > 0 ? (sold / assigned) * 100 : 0 }
+  }
+
+  const deliveries = rows
+    .filter((r) => (r.units_assigned || 0) > 0 || (r.multigrain_assigned || 0) > 0 || (r.plain_assigned || 0) > 0)
+    .map((r) => {
+      const delivered = r.units_assigned || ((r.multigrain_assigned || 0) + (r.plain_assigned || 0))
+      const sold = r.units_sold || 0
+      return {
+        id: r.id,
+        date: r.date_of_assignment || r.purchase_date || r.created_at,
+        partner_id: r.trainer_id,
+        partner_name: partnerById[r.trainer_id]?.full_name || 'Unknown',
+        mg: r.multigrain_assigned || 0,
+        plain: r.plain_assigned || 0,
+        delivered, sold,
+        left: Math.max(0, delivered - sold),
+      }
+    })
+    .sort((a, b) => new Date(b.date) - new Date(a.date))
+
+  const retractions = rows
+    .filter((r) => (r.retracted_units || 0) > 0)
+    .map((r) => {
+      const key = variantKeyFromName(r.product_variant)
+      return {
+        id: `${r.id}-ret`,
+        date: r.purchase_date || r.created_at,
+        partner_id: r.trainer_id,
+        partner_name: partnerById[r.trainer_id]?.full_name || 'Unknown',
+        variant: key,
+        variant_label: VARIANTS[key].short,
+        units: r.retracted_units || 0,
+        reason_label: r.retraction_reason || 'Retracted',
+        notes: r.retraction_notes || '',
+      }
+    })
+    .sort((a, b) => new Date(b.date) - new Date(a.date))
+
+  const typeMap = {}
+  for (const p of partnerPerformance) {
+    const t = p.partner_type || 'other'
+    if (!typeMap[t]) typeMap[t] = { type: t, label: PARTNER_TYPE_LABELS[t] || t, partners: 0, delivered: 0, sold: 0 }
+    typeMap[t].partners += 1
+    typeMap[t].delivered += p.assigned
+    typeMap[t].sold += p.sold
+  }
+
+  const soldRowsForMonthly = rows.filter((r) => (r.units_sold || 0) > 0).map((r) => ({
+    date: r.purchase_date || r.created_at,
+    variant: variantKeyFromName(r.product_variant),
+    units: r.units_sold || 0,
+  }))
+
+  return {
+    id: agentRow.id,
+    name: agentRow.full_name || 'Agent',
+    phone: agentRow.phone || agentRow.phone_number || '',
+    status: agentRow.status || 'active',
+    joined_at: agentRow.created_at || null,
+    totals: { partners: partnerPerformance.length, assigned: totalAssigned, sold: totalSold, retracted: totalRetracted, revenue: totalRevenue, suppliedToStalls: 0 },
+    partnerPerformance,
+    partnerTypeBreakdown: Object.values(typeMap).sort((a, b) => b.delivered - a.delivered),
+    variants: { multigrain: variantRow('multigrain'), plain: variantRow('plain') },
+    monthly: buildLiveMonthly(soldRowsForMonthly),
+    todayActivity: [],
+    deliveries,
+    retractions,
+    stallSupplies: [],
+    diversions: [],
+  }
+}
+
 export default function AgentProfilePage() {
   const { id } = useParams()
   const { isDemo } = useAuth()
-  const [range, setRange] = useState('all')
+  const [range, setRange] = useState('month')
   const [tick, setTick] = useState(0)
   const [partnerPage, setPartnerPage] = useState(1)
-  const [divPage, setDivPage] = useState(1)
+  const [delivPage, setDelivPage] = useState(1)
+  const [retrPage, setRetrPage] = useState(1)
+  const [liveProfile, setLiveProfile] = useState(null)
+  const [liveLoading, setLiveLoading] = useState(!isDemo)
+  const [liveError, setLiveError] = useState(null)
 
-  useEffect(() => { setPartnerPage(1); setDivPage(1) }, [range, id])
+  useEffect(() => { setPartnerPage(1); setDelivPage(1); setRetrPage(1) }, [range, id])
 
-  const profile = useMemo(() => {
-    if (!isDemo) return null
-    return demoAgentProfile(id, { range })
+  useEffect(() => {
+    if (isDemo) return
+    let alive = true
+    setLiveLoading(true)
+    setLiveError(null)
+    ;(async () => {
+      try {
+        const { data: agentRow, error: aErr } = await supabase
+          .from('profiles')
+          .select('id, full_name, phone, phone_number, email, status, created_at')
+          .eq('id', id)
+          .single()
+        if (aErr) throw aErr
+        const { data: partnerRows, error: pErr } = await supabase
+          .from('profiles')
+          .select('id, full_name, phone, phone_number, status, partner_type, created_at')
+          .eq('role', 'partner')
+          .eq('onboarded_by', id)
+        if (pErr) throw pErr
+        const partnerIds = (partnerRows || []).map((p) => p.id)
+        let salesRows = []
+        if (partnerIds.length > 0) {
+          const { data: sr, error: sErr } = await supabase.from('sales').select('*').in('trainer_id', partnerIds)
+          if (sErr) throw sErr
+          salesRows = sr || []
+        }
+        if (alive) setLiveProfile(buildLiveAgentProfile(agentRow, partnerRows, salesRows, range))
+      } catch (e) {
+        if (alive) setLiveError(e.message || 'Failed to load agent')
+      } finally {
+        if (alive) setLiveLoading(false)
+      }
+    })()
+    return () => { alive = false }
   }, [isDemo, id, range, tick])
 
-  if (!isDemo) {
+  const profile = useMemo(() => {
+    if (isDemo) return demoAgentProfile(id, { range })
+    return liveProfile
+  }, [isDemo, id, range, tick, liveProfile])
+
+  if (!isDemo && liveLoading && !profile) {
     return (
       <FadeIn className="dashboard-page">
         <PageHeader backTo="/admin/team?view=agents" backLabel="Team" title="Agent profile" />
-        <div className="dashboard-subpanel rounded-[24px] px-5 py-8 text-center text-sm text-slate-400">
-          Agent profile is currently demo-only.
+        <div className="flex items-center justify-center py-16">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-500 border-t-transparent" />
         </div>
+      </FadeIn>
+    )
+  }
+
+  if (liveError) {
+    return (
+      <FadeIn className="dashboard-page">
+        <PageHeader backTo="/admin/team?view=agents" backLabel="Team" title="Agent profile" />
+        <div className="dashboard-subpanel rounded-[24px] px-5 py-8 text-center text-sm text-rose-300">{liveError}</div>
       </FadeIn>
     )
   }
@@ -71,8 +275,11 @@ export default function AgentProfilePage() {
   const partnerTotalPages = Math.max(1, Math.ceil(profile.partnerPerformance.length / ROWS_PER_PAGE))
   const partnerPaged = profile.partnerPerformance.slice((partnerPage - 1) * ROWS_PER_PAGE, partnerPage * ROWS_PER_PAGE)
 
-  const divTotalPages = Math.max(1, Math.ceil(profile.diversions.length / ROWS_PER_PAGE))
-  const divPaged = profile.diversions.slice((divPage - 1) * ROWS_PER_PAGE, divPage * ROWS_PER_PAGE)
+  const delivTotalPages = Math.max(1, Math.ceil(profile.deliveries.length / ROWS_PER_PAGE))
+  const delivPaged = profile.deliveries.slice((delivPage - 1) * ROWS_PER_PAGE, delivPage * ROWS_PER_PAGE)
+
+  const retrTotalPages = Math.max(1, Math.ceil(profile.retractions.length / ROWS_PER_PAGE))
+  const retrPaged = profile.retractions.slice((retrPage - 1) * ROWS_PER_PAGE, retrPage * ROWS_PER_PAGE)
 
   return (
     <FadeIn className="dashboard-page">
@@ -80,42 +287,66 @@ export default function AgentProfilePage() {
         backTo="/admin/team?view=agents"
         backLabel="Team"
         title={profile.name}
-        subtitle={`📞 ${profile.phone} · joined ${profile.joined_at ? formatDateDDMMYY(profile.joined_at) : 'N/A'}`}
+        subtitle={`📞 ${profile.phone || 'N/A'} · joined ${profile.joined_at ? formatDateDDMMYY(profile.joined_at) : 'N/A'}`}
         onRefresh={() => setTick((t) => t + 1)}
       />
 
-      {/* Action bar */}
-      <div className="mb-4 flex flex-wrap gap-2">
-        <a href={`tel:${profile.phone}`} className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1.5 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-400/20">📞 Call</a>
-        <a href={`sms:${profile.phone}`} className="rounded-full border border-indigo-300/20 bg-indigo-400/10 px-3 py-1.5 text-sm font-semibold text-indigo-100 transition hover:bg-indigo-400/20">💬 Message</a>
+      {/* HEADER — status + contact actions */}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
         <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-sm font-semibold ${active ? 'bg-emerald-400/15 text-emerald-200' : 'bg-amber-400/15 text-amber-200'}`}>
           {active ? '🟢 Active' : '🟡 Inactive'}
         </span>
+        <a href={`tel:${profile.phone}`} className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1.5 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-400/20">📞 Call</a>
+        <a href={`sms:${profile.phone}`} className="rounded-full border border-indigo-300/20 bg-indigo-400/10 px-3 py-1.5 text-sm font-semibold text-indigo-100 transition hover:bg-indigo-400/20">💬 SMS</a>
       </div>
 
-      {/* Period selector */}
+      {/* TIME RANGE — affects every section below */}
       <div className="mb-4">
-        <label className="mr-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Period</label>
+        <label className="mr-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Time range</label>
         <select value={range} onChange={(e) => setRange(e.target.value)} className="dashboard-select inline-block !w-auto">
           {DRILLDOWN_RANGES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
       </div>
 
-      {/* KPI tiles */}
+      {/* SECTION A — KPIs */}
       <div className="mb-6 grid grid-cols-2 gap-2 lg:grid-cols-4">
-        <StatTile label="Partners"  value={profile.totals.partners.toLocaleString()} color="indigo" />
-        <StatTile label="Assigned"  value={profile.totals.assigned.toLocaleString()} color="slate" />
-        <StatTile label="Sold"      value={profile.totals.sold.toLocaleString()} color="emerald" />
-        <StatTile label="Revenue"   value={`₹${profile.totals.revenue.toLocaleString()}`} color="indigo" />
+        <StatTile label="Partners Managed"     value={profile.totals.partners.toLocaleString()} color="indigo" />
+        <StatTile label="Delivered to Partners" value={profile.totals.assigned.toLocaleString()} color="slate" />
+        <StatTile label="Collected Back"        value={profile.totals.retracted.toLocaleString()} color="amber" />
+        <StatTile label="Supplied to Stalls"    value={profile.totals.suppliedToStalls.toLocaleString()} color="green" />
       </div>
 
-      {/* Today's activity */}
+      {/* FIX 6 — partner breakdown by type */}
+      {profile.partnerTypeBreakdown.length > 0 && (
+        <section className="mb-6">
+          <h2 className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Partners by type</h2>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {profile.partnerTypeBreakdown.map((t) => (
+              <div key={t.type} className="dashboard-subpanel flex items-center justify-between rounded-[18px] px-4 py-3">
+                <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${PARTNER_TYPE_PILL[t.type] || PARTNER_TYPE_PILL.other}`}>{t.label}</span>
+                <span className="text-xs text-slate-300">
+                  <span className="font-semibold text-white">{t.partners}</span> partner{t.partners !== 1 ? 's' : ''} ·
+                  {' '}<span className="font-semibold text-indigo-200">{t.delivered}</span> delivered
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* SECTION B — Variant breakdown */}
+      <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <VariantBreakdownCard data={profile.variants.multigrain} />
+        <VariantBreakdownCard data={profile.variants.plain} />
+      </div>
+
+      {/* SECTION C — Today's activity */}
       {profile.todayActivity.length > 0 && (
         <section className="mb-6">
           <h2 className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Today's Activity</h2>
           <div className="dashboard-subpanel rounded-[22px] divide-y divide-white/[0.04]">
             {profile.todayActivity.map((ev, i) => {
-              const ai = ACTIVITY_ICON[ev.action] || ACTIVITY_ICON.other
+              const ai = ACTIVITY_ICON[ev.action] || ACTIVITY_ICON.assigned
               return (
                 <div key={i} className="flex items-center gap-3 px-4 py-2.5">
                   <span className="text-base">{ai.emoji}</span>
@@ -135,7 +366,143 @@ export default function AgentProfilePage() {
         </section>
       )}
 
-      {/* Partners under this agent */}
+      {/* SECTION D — Delivery log */}
+      <section className="mb-6">
+        <h2 className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Delivery log</h2>
+        {profile.deliveries.length === 0 ? (
+          <div className="dashboard-subpanel rounded-[20px] px-5 py-6 text-center text-sm text-slate-400">No deliveries in this period.</div>
+        ) : (
+          <>
+            <div className="hidden md:block overflow-x-auto">
+              <table className="dashboard-table min-w-full">
+                <thead>
+                  <tr><Th>Date</Th><Th>Partner</Th><Th right>MG</Th><Th right>Plain</Th><Th right>Delivered</Th><Th right>Sold</Th><Th right>Left</Th></tr>
+                </thead>
+                <tbody>
+                  {delivPaged.map((d) => (
+                    <tr key={d.id}>
+                      <td className="px-3 py-2 text-slate-300">{formatDateDDMMYY(d.date)}</td>
+                      <td className="px-3 py-2"><Link to={`/admin/partner/${d.partner_id}`} className="font-semibold text-white hover:text-emerald-200">{d.partner_name}</Link></td>
+                      <td className="px-3 py-2 text-right text-slate-300">{d.mg}</td>
+                      <td className="px-3 py-2 text-right text-slate-300">{d.plain}</td>
+                      <td className="px-3 py-2 text-right font-semibold text-indigo-200">{d.delivered}</td>
+                      <td className="px-3 py-2 text-right font-semibold text-emerald-200">{d.sold}</td>
+                      <td className="px-3 py-2 text-right text-amber-200">{d.left}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="space-y-2 md:hidden">
+              {delivPaged.map((d) => (
+                <div key={d.id} className="dashboard-subpanel rounded-[20px] px-4 py-3">
+                  <div className="flex items-center justify-between">
+                    <Link to={`/admin/partner/${d.partner_id}`} className="font-semibold text-white hover:text-emerald-200">{d.partner_name}</Link>
+                    <p className="text-xs text-slate-500">{formatDateDDMMYY(d.date)}</p>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-300">
+                    <span>Delivered: <span className="font-semibold text-indigo-200">{d.delivered}</span></span>
+                    <span>Sold: <span className="font-semibold text-emerald-300">{d.sold}</span></span>
+                    <span>Left: <span className="font-semibold text-amber-300">{d.left}</span></span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <Pagination page={delivPage} totalPages={delivTotalPages} onChange={setDelivPage} />
+          </>
+        )}
+      </section>
+
+      {/* SECTION E — Retraction / collected-back log */}
+      <section className="mb-6">
+        <h2 className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Retraction log</h2>
+        {profile.retractions.length === 0 ? (
+          <div className="dashboard-subpanel rounded-[20px] px-5 py-6 text-center text-sm text-slate-400">No retractions in this period.</div>
+        ) : (
+          <>
+            <div className="hidden md:block overflow-x-auto">
+              <table className="dashboard-table min-w-full">
+                <thead>
+                  <tr><Th>Date</Th><Th>Partner</Th><Th>Variant</Th><Th right>Units</Th><Th>Reason</Th><Th>Notes</Th></tr>
+                </thead>
+                <tbody>
+                  {retrPaged.map((r) => (
+                    <tr key={r.id}>
+                      <td className="px-3 py-2 text-slate-300">{formatDateDDMMYY(r.date)}</td>
+                      <td className="px-3 py-2 font-semibold text-white">{r.partner_name}</td>
+                      <td className="px-3 py-2"><VariantPill variant={r.variant} label={r.variant_label} /></td>
+                      <td className="px-3 py-2 text-right font-semibold text-amber-200">{r.units}</td>
+                      <td className="px-3 py-2 text-slate-300">{r.reason_label}</td>
+                      <td className="px-3 py-2 max-w-[240px] truncate text-slate-400" title={r.notes}>{r.notes || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="space-y-2 md:hidden">
+              {retrPaged.map((r) => (
+                <div key={r.id} className="dashboard-subpanel rounded-[20px] px-4 py-3">
+                  <div className="flex items-center justify-between">
+                    <p className="font-semibold text-white">{r.partner_name}</p>
+                    <p className="text-xs text-slate-500">{formatDateDDMMYY(r.date)}</p>
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <VariantPill variant={r.variant} label={r.variant_label} />
+                    <span className="text-xs font-semibold text-amber-200">{r.units} units</span>
+                    <span className="text-xs text-slate-400">{r.reason_label}</span>
+                  </div>
+                  {r.notes && <p className="mt-1 text-xs text-slate-400">{r.notes}</p>}
+                </div>
+              ))}
+            </div>
+            <Pagination page={retrPage} totalPages={retrTotalPages} onChange={setRetrPage} />
+          </>
+        )}
+      </section>
+
+      {/* SECTION F — Stall / retail supply log */}
+      {profile.stallSupplies.length > 0 && (
+        <section className="mb-6">
+          <h2 className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Stall / retail supply</h2>
+          <div className="hidden md:block overflow-x-auto">
+            <table className="dashboard-table min-w-full">
+              <thead>
+                <tr><Th>Date</Th><Th>Stall</Th><Th>Variant</Th><Th right>Units</Th><Th>Source</Th><Th>Notes</Th></tr>
+              </thead>
+              <tbody>
+                {profile.stallSupplies.map((ss) => (
+                  <tr key={ss.id}>
+                    <td className="px-3 py-2 text-slate-300">{formatDateDDMMYY(ss.date)}</td>
+                    <td className="px-3 py-2 font-semibold text-white">{ss.stall}</td>
+                    <td className="px-3 py-2"><VariantPill variant={ss.variant} label={ss.variant_label} /></td>
+                    <td className="px-3 py-2 text-right font-semibold text-emerald-200">{ss.units}</td>
+                    <td className="px-3 py-2 text-slate-300">{ss.source}</td>
+                    <td className="px-3 py-2 max-w-[240px] truncate text-slate-400" title={ss.notes}>{ss.notes || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="space-y-2 md:hidden">
+            {profile.stallSupplies.map((ss) => (
+              <div key={ss.id} className="dashboard-subpanel rounded-[20px] px-4 py-3">
+                <div className="flex items-center justify-between">
+                  <p className="font-semibold text-white">{ss.stall}</p>
+                  <p className="text-xs text-slate-500">{formatDateDDMMYY(ss.date)}</p>
+                </div>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <VariantPill variant={ss.variant} label={ss.variant_label} />
+                  <span className="text-xs font-semibold text-emerald-200">{ss.units} units</span>
+                  <span className="text-xs text-slate-400">from {ss.source}</span>
+                </div>
+                {ss.notes && <p className="mt-1 text-xs text-slate-400">{ss.notes}</p>}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* SECTION G — Partners under this agent */}
       <section className="mb-6">
         <h2 className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
           Partners · {profile.partnerPerformance.length}
@@ -147,28 +514,21 @@ export default function AgentProfilePage() {
             <div className="hidden md:block overflow-x-auto">
               <table className="dashboard-table min-w-full">
                 <thead>
-                  <tr>
-                    <th className="border-b border-white/8 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Partner</th>
-                    <th className="border-b border-white/8 px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Assigned</th>
-                    <th className="border-b border-white/8 px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Sold</th>
-                    <th className="border-b border-white/8 px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Ret.</th>
-                    <th className="border-b border-white/8 px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Revenue</th>
-                    <th className="border-b border-white/8 px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Sell-thru</th>
-                  </tr>
+                  <tr><Th>Partner</Th><Th>Type</Th><Th right>Delivered</Th><Th right>Sold</Th><Th right>Returned</Th><Th right>Sell-thru</Th></tr>
                 </thead>
                 <tbody>
                   {partnerPaged.map((p) => (
                     <tr key={p.id}>
                       <td className="px-3 py-2">
-                        <div>
-                          <Link to={`/admin/partner/${p.id}`} className="font-semibold text-white hover:text-emerald-200">{p.name}</Link>
-                          <p className="text-[11px] text-slate-500">📞 {p.phone}</p>
-                        </div>
+                        <Link to={`/admin/partner/${p.id}`} className="font-semibold text-white hover:text-emerald-200">{p.name}</Link>
+                        <p className="text-[11px] text-slate-500">📞 {p.phone}</p>
+                      </td>
+                      <td className="px-3 py-2">
+                        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${PARTNER_TYPE_PILL[p.partner_type] || PARTNER_TYPE_PILL.other}`}>{PARTNER_TYPE_LABELS[p.partner_type] || 'Other'}</span>
                       </td>
                       <td className="px-3 py-2 text-right text-white">{p.assigned}</td>
                       <td className="px-3 py-2 text-right font-semibold text-emerald-200">{p.sold}</td>
                       <td className="px-3 py-2 text-right text-amber-200">{p.retracted}</td>
-                      <td className="px-3 py-2 text-right font-mono text-indigo-200">₹{p.revenue.toLocaleString()}</td>
                       <td className="px-3 py-2 text-right text-slate-300">{p.sellThrough}%</td>
                     </tr>
                   ))}
@@ -177,20 +537,17 @@ export default function AgentProfilePage() {
             </div>
             <div className="space-y-2 md:hidden">
               {partnerPaged.map((p) => (
-                <div key={p.id} className="dashboard-subpanel rounded-[20px] px-4 py-3">
+                <Link key={p.id} to={`/admin/partner/${p.id}`} className="block dashboard-subpanel rounded-[20px] px-4 py-3">
                   <div className="flex items-center justify-between">
-                    <a href={`/dashboard/admin/partner/${p.id}`} className="font-semibold text-white hover:text-emerald-200">{p.name}</a>
-                    <span className={`text-xs font-semibold ${p.status === 'active' ? 'text-emerald-300' : 'text-amber-300'}`}>
-                      {p.status === 'active' ? 'Active' : 'Inactive'}
-                    </span>
+                    <span className="font-semibold text-white">{p.name}</span>
+                    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${PARTNER_TYPE_PILL[p.partner_type] || PARTNER_TYPE_PILL.other}`}>{PARTNER_TYPE_LABELS[p.partner_type] || 'Other'}</span>
                   </div>
                   <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs">
-                    <span className="text-slate-500">Assigned: <span className="font-semibold text-white">{p.assigned}</span></span>
+                    <span className="text-slate-500">Delivered: <span className="font-semibold text-white">{p.assigned}</span></span>
                     <span className="text-slate-500">Sold: <span className="font-semibold text-emerald-300">{p.sold}</span></span>
                     <span className="text-slate-500">Ret: <span className="font-semibold text-amber-300">{p.retracted}</span></span>
-                    <span className="text-slate-500">Rev: <span className="font-mono font-semibold text-indigo-200">₹{p.revenue.toLocaleString()}</span></span>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
             <Pagination page={partnerPage} totalPages={partnerTotalPages} onChange={setPartnerPage} />
@@ -198,78 +555,20 @@ export default function AgentProfilePage() {
         )}
       </section>
 
-      {/* Variant breakdown */}
-      <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <VariantBreakdownCard data={profile.variants.multigrain} />
-        <VariantBreakdownCard data={profile.variants.plain} />
-      </div>
-
-      {/* Diversion / retraction tracking */}
-      <section className="mb-6">
-        <h2 className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Diversion Tracking</h2>
-        {profile.diversions.length === 0 ? (
-          <div className="dashboard-subpanel rounded-[20px] px-5 py-6 text-center text-sm text-slate-400">No diversions in this period.</div>
-        ) : (
-          <>
-            <div className="hidden md:block overflow-x-auto">
-              <table className="dashboard-table min-w-full">
-                <thead>
-                  <tr>
-                    <th className="border-b border-white/8 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Date</th>
-                    <th className="border-b border-white/8 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Partner</th>
-                    <th className="border-b border-white/8 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Variant</th>
-                    <th className="border-b border-white/8 px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Units</th>
-                    <th className="border-b border-white/8 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Diverted To</th>
-                    <th className="border-b border-white/8 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Notes</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {divPaged.map((d) => (
-                    <tr key={d.id}>
-                      <td className="px-3 py-2 text-slate-300">{formatDateDDMMYY(d.date)}</td>
-                      <td className="px-3 py-2 font-semibold text-white">{d.partner_name}</td>
-                      <td className="px-3 py-2"><VariantPill variant={d.variant} label={d.variant === 'multigrain' ? 'MG' : 'Plain'} /></td>
-                      <td className="px-3 py-2 text-right font-semibold text-amber-200">{d.units}</td>
-                      <td className="px-3 py-2">
-                        <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${DIVERSION_PILL[d.diverted_to] || DIVERSION_PILL.other}`}>
-                          {DIVERSION_LABEL[d.diverted_to] || d.diverted_to}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2 max-w-[220px] truncate text-slate-400" title={d.notes}>{d.notes || '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="space-y-2 md:hidden">
-              {divPaged.map((d) => (
-                <div key={d.id} className="dashboard-subpanel rounded-[20px] px-4 py-3">
-                  <div className="flex items-center justify-between">
-                    <p className="font-semibold text-white">{d.partner_name}</p>
-                    <p className="text-xs text-slate-500">{formatDateDDMMYY(d.date)}</p>
-                  </div>
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <VariantPill variant={d.variant} label={d.variant === 'multigrain' ? 'MG' : 'Plain'} />
-                    <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${DIVERSION_PILL[d.diverted_to] || DIVERSION_PILL.other}`}>
-                      {DIVERSION_LABEL[d.diverted_to] || d.diverted_to}
-                    </span>
-                    <span className="text-xs font-semibold text-amber-200">{d.units} units</span>
-                  </div>
-                  {d.notes && <p className="mt-1 text-xs text-slate-400">{d.notes}</p>}
-                </div>
-              ))}
-            </div>
-            <Pagination page={divPage} totalPages={divTotalPages} onChange={setDivPage} />
-          </>
-        )}
-      </section>
-
-      {/* Monthly performance chart */}
+      {/* SECTION H — Monthly performance chart */}
       <section className="mb-6">
         <h2 className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Monthly performance</h2>
         <MonthlyLineChart data={profile.monthly} />
       </section>
     </FadeIn>
+  )
+}
+
+function Th({ children, right }) {
+  return (
+    <th className={`border-b border-white/8 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 ${right ? 'text-right' : 'text-left'}`}>
+      {children}
+    </th>
   )
 }
 
@@ -283,10 +582,10 @@ function VariantBreakdownCard({ data }) {
         <span className="ml-auto text-xs text-slate-500">₹{data.price}/unit</span>
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-        <Row label="Assigned"  value={data.assigned}  className="text-white" />
-        <Row label="Sold"      value={data.sold}      className="text-emerald-200" />
-        <Row label="Left"      value={Math.max(0, data.assigned - data.sold - data.retracted)} className="text-slate-200" />
-        <Row label="Retracted" value={data.retracted} className="text-rose-200" />
+        <Cell label="Delivered" value={data.assigned}  className="text-white" />
+        <Cell label="Sold"      value={data.sold}      className="text-emerald-200" />
+        <Cell label="Left"      value={Math.max(0, data.assigned - data.sold - data.retracted)} className="text-slate-200" />
+        <Cell label="Returned"  value={data.retracted} className="text-rose-200" />
       </div>
       <div className="mt-3 flex justify-between text-sm">
         <span className="text-slate-400">Sell-through</span>
@@ -300,7 +599,7 @@ function VariantBreakdownCard({ data }) {
   )
 }
 
-function Row({ label, value, className }) {
+function Cell({ label, value, className }) {
   return (
     <div className="rounded-[12px] bg-white/[0.04] px-2.5 py-1.5">
       <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">{label}</p>

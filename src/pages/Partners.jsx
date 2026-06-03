@@ -16,7 +16,7 @@ import RefreshButton from '../components/RefreshButton'
 import RefreshStatus from '../components/RefreshStatus'
 import useRefreshable from '../lib/useRefreshable'
 import { useAuth } from '../context/AuthContext'
-import DEMO_DATA, { demoBlock } from '../lib/demoData'
+import DEMO_DATA, { demoBlock, PARTNER_TYPES, PARTNER_TYPE_LABELS, PARTNER_TYPE_PILL } from '../lib/demoData'
 import { Eye, Pencil, Phone, Send } from 'lucide-react'
 
 // A partner's "display phone" is either the dedicated `phone` column or the
@@ -35,6 +35,7 @@ export default function Partners() {
   const [stats, setStats] = useState({})
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
+  const [typeFilter, setTypeFilter] = useState('all')
   const [isAddPartnerModalOpen, setIsAddPartnerModalOpen] = useState(false)
   const [creatingPartner, setCreatingPartner] = useState(false)
   const [banner, setBanner] = useState(null)
@@ -52,6 +53,7 @@ export default function Partners() {
     phone: '',
     password: '',
     full_name: '',
+    partner_type: '',
     notes: '',
   })
 
@@ -80,7 +82,7 @@ export default function Partners() {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, email, full_name, phone, phone_number, notes, status, created_at, role')
+        .select('id, email, full_name, phone, phone_number, partner_type, notes, status, created_at, role')
         .eq('role', 'partner')
         .order('created_at', { ascending: false })
 
@@ -122,15 +124,17 @@ export default function Partners() {
   }
 
   const filteredPartners = useMemo(() => {
-    if (!searchQuery.trim()) return partners
-    const query = searchQuery.toLowerCase()
+    const query = searchQuery.trim().toLowerCase()
     return partners.filter((partner) => {
+      if (typeFilter !== 'all' && (partner.partner_type || '') !== typeFilter) return false
+      if (!query) return true
       const matchesName = partner.full_name?.toLowerCase().includes(query)
       const matchesPhone = partnerPhone(partner).toLowerCase().includes(query)
       const matchesNotes = partner.notes?.toLowerCase().includes(query)
-      return matchesName || matchesPhone || matchesNotes
+      const matchesType = (PARTNER_TYPE_LABELS[partner.partner_type] || '').toLowerCase().includes(query)
+      return matchesName || matchesPhone || matchesNotes || matchesType
     })
-  }, [partners, searchQuery])
+  }, [partners, searchQuery, typeFilter])
 
   const activePartners = partners.filter((p) => (p.status || 'active') === 'active').length
   const inactivePartners = partners.filter((p) => p.status === 'inactive').length
@@ -143,6 +147,7 @@ export default function Partners() {
       phone: '',
       password: '',
       full_name: '',
+      partner_type: '',
       notes: '',
     })
   }
@@ -191,7 +196,21 @@ export default function Partners() {
         full_name: addFormData.full_name,
         role: 'partner',
         notes: addFormData.notes,
+        partner_type: addFormData.partner_type || null,
       })
+
+      // Best-effort: persist the partner type directly on the profile in case
+      // the Edge Function doesn't yet forward it. Non-fatal on failure.
+      if (addFormData.partner_type && result.userId) {
+        try {
+          await supabase
+            .from('profiles')
+            .update({ partner_type: addFormData.partner_type })
+            .eq('id', result.userId)
+        } catch {
+          /* column may not exist yet — ignore */
+        }
+      }
 
       await logAuditEvent({
         actionType: 'CREATE',
@@ -346,6 +365,17 @@ export default function Partners() {
     return <span className="inline-flex rounded-full border border-slate-700 bg-slate-800 px-2.5 py-1 text-xs text-slate-400">Deleted</span>
   }
 
+  const typeBadge = (type) => {
+    if (!type || !PARTNER_TYPE_LABELS[type]) {
+      return <span className="text-xs text-slate-600">—</span>
+    }
+    return (
+      <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs ${PARTNER_TYPE_PILL[type] || PARTNER_TYPE_PILL.other}`}>
+        {PARTNER_TYPE_LABELS[type]}
+      </span>
+    )
+  }
+
   // Reshare from the list: the plaintext password is gone, so we can only
   // reshare the phone + login URL. ShareCredentials renders the "contact
   // admin to reset" note when password is null.
@@ -441,7 +471,10 @@ export default function Partners() {
             <p className="font-semibold text-white">{partner.full_name || 'N/A'}</p>
             <p className="text-xs text-slate-500">📞 {partnerPhone(partner) || 'N/A'}</p>
           </div>
-          {statusBadge(partner.status)}
+          <div className="flex flex-col items-end gap-1">
+            {statusBadge(partner.status)}
+            {partner.partner_type && typeBadge(partner.partner_type)}
+          </div>
         </div>
         <div className="mb-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-300">
           <span><span className="text-slate-500">Assigned:</span> <span className="font-semibold text-white">{s.assigned}</span></span>
@@ -533,12 +566,22 @@ export default function Partners() {
               />
             </div>
           </div>
-          {(searchQuery) && (
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            className="px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          >
+            <option value="all">All types</option>
+            {PARTNER_TYPES.map((t) => (
+              <option key={t.value} value={t.value}>{t.label}</option>
+            ))}
+          </select>
+          {(searchQuery || typeFilter !== 'all') && (
             <button
-              onClick={() => setSearchQuery('')}
+              onClick={() => { setSearchQuery(''); setTypeFilter('all') }}
               className="px-4 py-2 text-sm text-slate-400 hover:text-white transition-colors"
             >
-              Clear search
+              Clear filters
             </button>
           )}
         </div>
@@ -566,6 +609,7 @@ export default function Partners() {
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Name</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Phone</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Type</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Status</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wider">Assigned</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wider">Sold</th>
@@ -597,6 +641,7 @@ export default function Partners() {
                     <td className="px-4 py-3">
                       <p className="text-slate-300">{partnerPhone(partner) || 'N/A'}</p>
                     </td>
+                    <td className="px-4 py-3">{typeBadge(partner.partner_type)}</td>
                     <td className="px-4 py-3">{statusBadge(partner.status)}</td>
                     <td className="px-4 py-3 text-right font-mono text-white">{s.assigned}</td>
                     <td className="px-4 py-3 text-right font-mono text-emerald-300">{s.sold}</td>
@@ -610,7 +655,7 @@ export default function Partners() {
               })}
               {filteredPartners.length === 0 && (
                 <tr>
-                  <td colSpan="8" className="px-6 py-8 text-center text-slate-500">
+                  <td colSpan="9" className="px-6 py-8 text-center text-slate-500">
                     No partner accounts found.
                   </td>
                 </tr>
@@ -665,6 +710,14 @@ export default function Partners() {
             placeholder="Partner full name"
             error={formErrors.full_name}
             required
+          />
+
+          <FormField
+            label="Partner Type"
+            type="select"
+            value={addFormData.partner_type}
+            onChange={(value) => updateField('partner_type', value)}
+            options={PARTNER_TYPES}
           />
 
           <FormField

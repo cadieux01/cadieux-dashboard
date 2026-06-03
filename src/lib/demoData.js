@@ -166,10 +166,14 @@ const DEMO_DATA = {
   // partnerVariants rows (assigned = mg+plain assigned, sold = mg+plain sold).
   // `retracted` is hand-curated for demo.
   partnersList: [
-    { id: 'p1', full_name: 'Rahul Kumar', phone: '9876543201', phone_number: '9876543201', email: 'demo-rahul@cadieux.demo', role: 'partner', status: 'active', notes: 'Top performer', created_at: '2026-01-15', assigned: 85, sold: 66, retracted: 2 },
-    { id: 'p2', full_name: 'Priya Sharma', phone: '9876543202', phone_number: '9876543202', email: 'demo-priya@cadieux.demo', role: 'partner', status: 'active', notes: 'Vizag south', created_at: '2026-02-01', assigned: 80, sold: 58, retracted: 1 },
-    { id: 'p3', full_name: 'Vikram Reddy', phone: '9876543203', phone_number: '9876543203', email: 'demo-vikram@cadieux.demo', role: 'partner', status: 'active', notes: 'MVP district', created_at: '2026-03-10', assigned: 70, sold: 52, retracted: 3 },
-    { id: 'p4', full_name: 'Anita Das', phone: '9876543204', phone_number: '9876543204', email: 'demo-anita@cadieux.demo', role: 'partner', status: 'inactive', notes: 'On leave', created_at: '2026-04-01', assigned: 63, sold: 44, retracted: 4 },
+    { id: 'p1', full_name: 'Rahul Kumar', phone: '9876543201', phone_number: '9876543201', email: 'demo-rahul@cadieux.demo', role: 'partner', status: 'active', partner_type: 'stall_owner', notes: 'Top performer', created_at: '2026-01-15', assigned: 85, sold: 66, retracted: 2 },
+    { id: 'p2', full_name: 'Priya Sharma', phone: '9876543202', phone_number: '9876543202', email: 'demo-priya@cadieux.demo', role: 'partner', status: 'active', partner_type: 'retailer', notes: 'Vizag south', created_at: '2026-02-01', assigned: 80, sold: 58, retracted: 1 },
+    { id: 'p3', full_name: 'Vikram Reddy', phone: '9876543203', phone_number: '9876543203', email: 'demo-vikram@cadieux.demo', role: 'partner', status: 'inactive', partner_type: 'gated_community', notes: 'MVP district', created_at: '2026-03-10', assigned: 70, sold: 52, retracted: 3 },
+    { id: 'p4', full_name: 'Anita Das', phone: '9876543204', phone_number: '9876543204', email: 'demo-anita@cadieux.demo', role: 'partner', status: 'active', partner_type: 'cafeteria', notes: 'Tech park canteen', created_at: '2026-04-01', assigned: 63, sold: 44, retracted: 4 },
+    { id: 'p5', full_name: 'Suresh Patel', phone: '9876543205', phone_number: '9876543205', email: 'demo-suresh@cadieux.demo', role: 'partner', status: 'active', partner_type: 'stall_owner', notes: 'Beach road stall', created_at: '2026-04-12', assigned: 40, sold: 29, retracted: 1 },
+    { id: 'p6', full_name: 'Meena Iyer', phone: '9876543206', phone_number: '9876543206', email: 'demo-meena@cadieux.demo', role: 'partner', status: 'active', partner_type: 'business_b2b', notes: 'Corporate orders', created_at: '2026-02-20', assigned: 26, sold: 18, retracted: 1 },
+    { id: 'p7', full_name: 'Arjun Mehta', phone: '9876543207', phone_number: '9876543207', email: 'demo-arjun@cadieux.demo', role: 'partner', status: 'active', partner_type: 'retailer', notes: 'Kirana chain', created_at: '2026-03-25', assigned: 23, sold: 16, retracted: 0 },
+    { id: 'p8', full_name: 'Kavita Nair', phone: '9876543208', phone_number: '9876543208', email: 'demo-kavita@cadieux.demo', role: 'partner', status: 'inactive', partner_type: 'gated_community', notes: 'Apartment association', created_at: '2026-01-30', assigned: 12, sold: 6, retracted: 0 },
   ],
 
   // Agent list (admin). partners = direct reports; assigned/closed = totals
@@ -408,22 +412,23 @@ const DEMO_TODAY = new Date('2026-06-03')
 // Larger demo partner roster used by drill-down views. Indexed by `id`.
 // Index aligns with DEMO_DATA.overview.partnerPerformance.
 const DRILLDOWN_PARTNERS = [
-  { id: 'p1',  name: 'Rahul Kumar',   phone: '9876543201', status: 'active' },
-  { id: 'p2',  name: 'Priya Sharma',  phone: '9876543202', status: 'active' },
-  { id: 'p3',  name: 'Vikram Reddy',  phone: '9876543203', status: 'inactive' },
-  { id: 'p4',  name: 'Anita Das',     phone: '9876543204', status: 'active' },
-  { id: 'p5',  name: 'Suresh Patel',  phone: '9876543205', status: 'active' },
-  { id: 'p6',  name: 'Meena Iyer',    phone: '9876543206', status: 'active' },
-  { id: 'p7',  name: 'Arjun Mehta',   phone: '9876543207', status: 'active' },
-  { id: 'p8',  name: 'Kavita Nair',   phone: '9876543208', status: 'inactive' },
-  { id: 'p9',  name: 'Naveen Pillai', phone: '9876543209', status: 'active' },
-  { id: 'p10', name: 'Sneha Hegde',   phone: '9876543219', status: 'active' },
+  { id: 'p1',  name: 'Rahul Kumar',   phone: '9876543201', status: 'active',   partner_type: 'stall_owner',     joined_at: '2026-01-15' },
+  { id: 'p2',  name: 'Priya Sharma',  phone: '9876543202', status: 'active',   partner_type: 'retailer',        joined_at: '2026-02-01' },
+  { id: 'p3',  name: 'Vikram Reddy',  phone: '9876543203', status: 'inactive', partner_type: 'gated_community', joined_at: '2026-03-10' },
+  { id: 'p4',  name: 'Anita Das',     phone: '9876543204', status: 'active',   partner_type: 'cafeteria',       joined_at: '2026-04-01' },
+  { id: 'p5',  name: 'Suresh Patel',  phone: '9876543205', status: 'active',   partner_type: 'stall_owner',     joined_at: '2026-04-12' },
+  { id: 'p6',  name: 'Meena Iyer',    phone: '9876543206', status: 'active',   partner_type: 'business_b2b',    joined_at: '2026-02-20' },
+  { id: 'p7',  name: 'Arjun Mehta',   phone: '9876543207', status: 'active',   partner_type: 'retailer',        joined_at: '2026-03-25' },
+  { id: 'p8',  name: 'Kavita Nair',   phone: '9876543208', status: 'inactive', partner_type: 'gated_community', joined_at: '2026-01-30' },
+  { id: 'p9',  name: 'Naveen Pillai', phone: '9876543209', status: 'active',   partner_type: 'cafeteria',       joined_at: '2026-05-05' },
+  { id: 'p10', name: 'Sneha Hegde',   phone: '9876543219', status: 'active',   partner_type: 'other',           joined_at: '2026-04-18' },
 ]
 
-// Agent → partner mapping used by AgentProfilePage.
+// Agent → partner mapping used by AgentProfilePage. Each agent now manages a
+// varied mix of partner types so the per-type breakdown (FIX 6) is meaningful.
 const DRILLDOWN_AGENTS = [
-  { id: 'a1', name: 'Kiran Joshi',  phone: '9876543210', status: 'active', joined_at: '2026-01-01', partner_ids: ['p1', 'p2', 'p3'] },
-  { id: 'a2', name: 'Nandini Rao', phone: '9876543211', status: 'active', joined_at: '2026-05-01', partner_ids: ['p4', 'p5'] },
+  { id: 'a1', name: 'Kiran Joshi',  phone: '9876543210', status: 'active', joined_at: '2026-01-01', partner_ids: ['p1', 'p2', 'p3', 'p6', 'p7'] },
+  { id: 'a2', name: 'Nandini Rao', phone: '9876543211', status: 'active', joined_at: '2026-05-01', partner_ids: ['p4', 'p5', 'p8', 'p9', 'p10'] },
 ]
 
 // Today's activity per agent — what their partners did today (demo).
@@ -449,6 +454,27 @@ const AGENT_DIVERSIONS = [
   { id: 'div3', agent_id: 'a1', partner_id: 'p3', partner_name: 'Vikram Reddy', variant: 'multigrain', units: 2, diverted_to: 'disposed',    notes: 'Expired — disposed per food safety SOP', date: daysAgo(7) },
   { id: 'div4', agent_id: 'a2', partner_id: 'p4', partner_name: 'Anita Das',    variant: 'plain',      units: 1, diverted_to: 'other',       notes: 'Partner kept samples for display',       date: daysAgo(2) },
   { id: 'div5', agent_id: 'a2', partner_id: 'p5', partner_name: 'Suresh Patel', variant: 'multigrain', units: 3, diverted_to: 'food_stalls', notes: 'End-of-week clearance at market',          date: daysAgo(9) },
+]
+
+// Remarks / notes left on a partner profile by admin or sales execs.
+const PARTNER_REMARKS = [
+  { id: 'rm1', partner_id: 'p1', author: 'Kiran Joshi', author_role: 'sales', text: 'Consistently the fastest seller in the north zone. Wants a higher weekly allocation.', date: daysAgo(2) },
+  { id: 'rm2', partner_id: 'p1', author: 'Demo Admin',  author_role: 'admin', text: 'Approved 20% higher Multi-Grain allocation from next cycle.', date: daysAgo(6) },
+  { id: 'rm3', partner_id: 'p2', author: 'Kiran Joshi', author_role: 'sales', text: 'Retail counter footfall is strong on weekends. Suggest weekend-heavy drops.', date: daysAgo(4) },
+  { id: 'rm4', partner_id: 'p3', author: 'Nandini Rao', author_role: 'sales', text: 'Gated community gate pass expired — deliveries paused until renewed. Marked inactive.', date: daysAgo(8) },
+  { id: 'rm5', partner_id: 'p4', author: 'Nandini Rao', author_role: 'sales', text: 'Cafeteria prefers Plain for the breakfast counter. Multi-Grain moves slower here.', date: daysAgo(5) },
+  { id: 'rm6', partner_id: 'p5', author: 'Nandini Rao', author_role: 'sales', text: 'Beach-road stall does well in evenings. Keep stock fresh, short shelf window.', date: daysAgo(3) },
+  { id: 'rm7', partner_id: 'p6', author: 'Kiran Joshi', author_role: 'sales', text: 'B2B corporate orders are bulk but infrequent. Coordinate drops with their HR calendar.', date: daysAgo(12) },
+]
+
+// Stall / retail supply log — units an agent pushed to food stalls / retail
+// outlets directly (not via a partner sale). Agent profile section F.
+const STALL_SUPPLIES = [
+  { id: 'ss1', agent_id: 'a1', stall: 'Jagadamba Junction Stall', variant: 'multigrain', units: 12, source: 'p1', notes: 'Evening rush top-up', date: daysAgo(1) },
+  { id: 'ss2', agent_id: 'a1', stall: 'RTC Complex Kiosk',        variant: 'plain',      units: 8,  source: 'p2', notes: 'Weekend clearance', date: daysAgo(4) },
+  { id: 'ss3', agent_id: 'a1', stall: 'Beach Road Cart',          variant: 'multigrain', units: 6,  source: 'buffer', notes: 'From central buffer stock', date: daysAgo(9) },
+  { id: 'ss4', agent_id: 'a2', stall: 'Gajuwaka Market Stall',    variant: 'plain',      units: 10, source: 'p5', notes: 'Near-expiry redirect', date: daysAgo(2) },
+  { id: 'ss5', agent_id: 'a2', stall: 'MVP Colony Food Court',    variant: 'multigrain', units: 7,  source: 'p4', notes: 'Cafeteria surplus moved to court', date: daysAgo(6) },
 ]
 
 // Helper — produce an ISO date string `daysAgo` days before DEMO_TODAY.
@@ -505,58 +531,58 @@ const ASSIGNMENTS = [
 // `assigned_date` enables "days to sell" computation.
 const SALES_RECORDS = [
   // Recent (last 7 days)
-  { id: 's1', partner_id: 'p1', customer: 'Mohan Rao', variant: 'multigrain', units: 3, date: daysAgo(0), assigned_date: daysAgo(2) },
-  { id: 's2', partner_id: 'p2', customer: 'Lakshmi Devi', variant: 'plain', units: 5, date: daysAgo(0), assigned_date: daysAgo(3) },
-  { id: 's3', partner_id: 'p1', customer: 'Karthik Iyer', variant: 'multigrain', units: 4, date: daysAgo(1), assigned_date: daysAgo(2) },
-  { id: 's4', partner_id: 'p3', customer: 'Ravi Teja', variant: 'multigrain', units: 2, date: daysAgo(2), assigned_date: daysAgo(5) },
-  { id: 's5', partner_id: 'p4', customer: 'Sita Ram', variant: 'plain', units: 4, date: daysAgo(3), assigned_date: daysAgo(7) },
-  { id: 's6', partner_id: 'p5', customer: 'Krishna Murthy', variant: 'multigrain', units: 6, date: daysAgo(3), assigned_date: daysAgo(12) },
-  { id: 's7', partner_id: 'p2', customer: 'Ayesha Khan', variant: 'multigrain', units: 8, date: daysAgo(4), assigned_date: daysAgo(3) },
-  { id: 's8', partner_id: 'p1', customer: 'Deepak Joshi', variant: 'plain', units: 3, date: daysAgo(5), assigned_date: daysAgo(10) },
-  { id: 's9', partner_id: 'p6', customer: 'Nisha Kapoor', variant: 'multigrain', units: 4, date: daysAgo(6), assigned_date: daysAgo(18) },
-  { id: 's10', partner_id: 'p3', customer: 'Sunita Verma', variant: 'plain', units: 5, date: daysAgo(7), assigned_date: daysAgo(5) },
+  { id: 's1', partner_id: 'p1', customer: 'Mohan Rao', contact: '9876500001', variant: 'multigrain', units: 3, date: daysAgo(0), assigned_date: daysAgo(2) },
+  { id: 's2', partner_id: 'p2', customer: 'Lakshmi Devi', contact: '9876500002', variant: 'plain', units: 5, date: daysAgo(0), assigned_date: daysAgo(3) },
+  { id: 's3', partner_id: 'p1', customer: 'Karthik Iyer', contact: '', variant: 'multigrain', units: 4, date: daysAgo(1), assigned_date: daysAgo(2) },
+  { id: 's4', partner_id: 'p3', customer: 'Ravi Teja', contact: '9876500004', variant: 'multigrain', units: 2, date: daysAgo(2), assigned_date: daysAgo(5) },
+  { id: 's5', partner_id: 'p4', customer: 'Sita Ram', contact: '', variant: 'plain', units: 4, date: daysAgo(3), assigned_date: daysAgo(7) },
+  { id: 's6', partner_id: 'p5', customer: 'Krishna Murthy', contact: '9876500006', variant: 'multigrain', units: 6, date: daysAgo(3), assigned_date: daysAgo(12) },
+  { id: 's7', partner_id: 'p2', customer: 'Ayesha Khan', contact: '9876500007', variant: 'multigrain', units: 8, date: daysAgo(4), assigned_date: daysAgo(3) },
+  { id: 's8', partner_id: 'p1', customer: 'Deepak Joshi', contact: '', variant: 'plain', units: 3, date: daysAgo(5), assigned_date: daysAgo(10) },
+  { id: 's9', partner_id: 'p6', customer: 'Nisha Kapoor', contact: '9876500009', variant: 'multigrain', units: 4, date: daysAgo(6), assigned_date: daysAgo(18) },
+  { id: 's10', partner_id: 'p3', customer: 'Sunita Verma', contact: '9876500010', variant: 'plain', units: 5, date: daysAgo(7), assigned_date: daysAgo(5) },
   // Mid range (8–30 days)
-  { id: 's11', partner_id: 'p2', customer: 'Rohit Mehra', variant: 'multigrain', units: 7, date: daysAgo(9), assigned_date: daysAgo(15) },
-  { id: 's12', partner_id: 'p7', customer: 'Asha Pillai', variant: 'multigrain', units: 3, date: daysAgo(11), assigned_date: daysAgo(25) },
-  { id: 's13', partner_id: 'p4', customer: 'Manoj Tiwari', variant: 'plain', units: 4, date: daysAgo(13), assigned_date: daysAgo(7) },
-  { id: 's14', partner_id: 'p5', customer: 'Geeta Nair', variant: 'plain', units: 3, date: daysAgo(15), assigned_date: daysAgo(12) },
-  { id: 's15', partner_id: 'p1', customer: 'Vishal Goel', variant: 'multigrain', units: 6, date: daysAgo(17), assigned_date: daysAgo(10) },
-  { id: 's16', partner_id: 'p8', customer: 'Pooja Shah', variant: 'multigrain', units: 2, date: daysAgo(19), assigned_date: daysAgo(35) },
-  { id: 's17', partner_id: 'p3', customer: 'Arvind Rao', variant: 'multigrain', units: 5, date: daysAgo(22), assigned_date: daysAgo(22) },
-  { id: 's18', partner_id: 'p2', customer: 'Divya Menon', variant: 'plain', units: 6, date: daysAgo(24), assigned_date: daysAgo(15) },
-  { id: 's19', partner_id: 'p6', customer: 'Sanjay Bhatt', variant: 'plain', units: 3, date: daysAgo(26), assigned_date: daysAgo(18) },
-  { id: 's20', partner_id: 'p4', customer: 'Rekha Yadav', variant: 'multigrain', units: 5, date: daysAgo(28), assigned_date: daysAgo(30) },
+  { id: 's11', partner_id: 'p2', customer: 'Rohit Mehra', contact: '9876500011', variant: 'multigrain', units: 7, date: daysAgo(9), assigned_date: daysAgo(15) },
+  { id: 's12', partner_id: 'p7', customer: 'Asha Pillai', contact: '', variant: 'multigrain', units: 3, date: daysAgo(11), assigned_date: daysAgo(25) },
+  { id: 's13', partner_id: 'p4', customer: 'Manoj Tiwari', contact: '9876500013', variant: 'plain', units: 4, date: daysAgo(13), assigned_date: daysAgo(7) },
+  { id: 's14', partner_id: 'p5', customer: 'Geeta Nair', contact: '', variant: 'plain', units: 3, date: daysAgo(15), assigned_date: daysAgo(12) },
+  { id: 's15', partner_id: 'p1', customer: 'Vishal Goel', contact: '9876500015', variant: 'multigrain', units: 6, date: daysAgo(17), assigned_date: daysAgo(10) },
+  { id: 's16', partner_id: 'p8', customer: 'Pooja Shah', contact: '9876500016', variant: 'multigrain', units: 2, date: daysAgo(19), assigned_date: daysAgo(35) },
+  { id: 's17', partner_id: 'p3', customer: 'Arvind Rao', contact: '', variant: 'multigrain', units: 5, date: daysAgo(22), assigned_date: daysAgo(22) },
+  { id: 's18', partner_id: 'p2', customer: 'Divya Menon', contact: '9876500018', variant: 'plain', units: 6, date: daysAgo(24), assigned_date: daysAgo(15) },
+  { id: 's19', partner_id: 'p6', customer: 'Sanjay Bhatt', contact: '9876500019', variant: 'plain', units: 3, date: daysAgo(26), assigned_date: daysAgo(18) },
+  { id: 's20', partner_id: 'p4', customer: 'Rekha Yadav', contact: '', variant: 'multigrain', units: 5, date: daysAgo(28), assigned_date: daysAgo(30) },
   // Older (31–180 days)
-  { id: 's21', partner_id: 'p1', customer: 'Tanvi Saha', variant: 'multigrain', units: 8, date: daysAgo(35), assigned_date: daysAgo(120) },
-  { id: 's22', partner_id: 'p5', customer: 'Imran Sheikh', variant: 'plain', units: 4, date: daysAgo(42), assigned_date: daysAgo(65) },
-  { id: 's23', partner_id: 'p2', customer: 'Neha Kulkarni', variant: 'multigrain', units: 6, date: daysAgo(48), assigned_date: daysAgo(160) },
-  { id: 's24', partner_id: 'p7', customer: 'Aditya Bose', variant: 'plain', units: 2, date: daysAgo(55), assigned_date: daysAgo(95) },
-  { id: 's25', partner_id: 'p3', customer: 'Shruti Pandit', variant: 'multigrain', units: 5, date: daysAgo(70), assigned_date: daysAgo(200) },
-  { id: 's26', partner_id: 'p9', customer: 'Vivek Choudhary', variant: 'multigrain', units: 3, date: daysAgo(85), assigned_date: daysAgo(42) },
-  { id: 's27', partner_id: 'p6', customer: 'Anjali Ravi', variant: 'multigrain', units: 4, date: daysAgo(105), assigned_date: daysAgo(75) },
-  { id: 's28', partner_id: 'p1', customer: 'Harish Naidu', variant: 'plain', units: 5, date: daysAgo(130), assigned_date: daysAgo(120) },
-  { id: 's29', partner_id: 'p10', customer: 'Komal Pawar', variant: 'plain', units: 3, date: daysAgo(160), assigned_date: daysAgo(50) },
-  { id: 's30', partner_id: 'p4', customer: 'Mahesh Acharya', variant: 'multigrain', units: 6, date: daysAgo(220), assigned_date: daysAgo(30) },
-  { id: 's31', partner_id: 'p2', customer: 'Reema D\'Souza', variant: 'plain', units: 4, date: daysAgo(280), assigned_date: daysAgo(160) },
-  { id: 's32', partner_id: 'p3', customer: 'Akash Sinha', variant: 'multigrain', units: 7, date: daysAgo(340), assigned_date: daysAgo(200) },
+  { id: 's21', partner_id: 'p1', customer: 'Tanvi Saha', contact: '9876500021', variant: 'multigrain', units: 8, date: daysAgo(35), assigned_date: daysAgo(120) },
+  { id: 's22', partner_id: 'p5', customer: 'Imran Sheikh', contact: '', variant: 'plain', units: 4, date: daysAgo(42), assigned_date: daysAgo(65) },
+  { id: 's23', partner_id: 'p2', customer: 'Neha Kulkarni', contact: '9876500023', variant: 'multigrain', units: 6, date: daysAgo(48), assigned_date: daysAgo(160) },
+  { id: 's24', partner_id: 'p7', customer: 'Aditya Bose', contact: '9876500024', variant: 'plain', units: 2, date: daysAgo(55), assigned_date: daysAgo(95) },
+  { id: 's25', partner_id: 'p3', customer: 'Shruti Pandit', contact: '', variant: 'multigrain', units: 5, date: daysAgo(70), assigned_date: daysAgo(200) },
+  { id: 's26', partner_id: 'p9', customer: 'Vivek Choudhary', contact: '9876500026', variant: 'multigrain', units: 3, date: daysAgo(85), assigned_date: daysAgo(42) },
+  { id: 's27', partner_id: 'p6', customer: 'Anjali Ravi', contact: '9876500027', variant: 'multigrain', units: 4, date: daysAgo(105), assigned_date: daysAgo(75) },
+  { id: 's28', partner_id: 'p1', customer: 'Harish Naidu', contact: '', variant: 'plain', units: 5, date: daysAgo(130), assigned_date: daysAgo(120) },
+  { id: 's29', partner_id: 'p10', customer: 'Komal Pawar', contact: '9876500029', variant: 'plain', units: 3, date: daysAgo(160), assigned_date: daysAgo(50) },
+  { id: 's30', partner_id: 'p4', customer: 'Mahesh Acharya', contact: '9876500030', variant: 'multigrain', units: 6, date: daysAgo(220), assigned_date: daysAgo(30) },
+  { id: 's31', partner_id: 'p2', customer: 'Reema D\'Souza', contact: '', variant: 'plain', units: 4, date: daysAgo(280), assigned_date: daysAgo(160) },
+  { id: 's32', partner_id: 'p3', customer: 'Akash Sinha', contact: '9876500032', variant: 'multigrain', units: 7, date: daysAgo(340), assigned_date: daysAgo(200) },
 ]
 
 // --- Attribution records (Attributed KPI drill-down) ------------------------
 // Each row = one return/retract event. Reason is one of:
 // 'damaged' | 'expired' | 'customer_return' | 'unsold' | 'other'.
 const ATTRIBUTIONS = [
-  { id: 'r1', partner_id: 'p1', variant: 'multigrain', units: 1, reason: 'damaged', notes: 'Package torn during transit', attributed_by: 'Kiran Joshi', date: daysAgo(1) },
-  { id: 'r2', partner_id: 'p2', variant: 'plain', units: 1, reason: 'customer_return', notes: 'Customer changed mind after delivery', attributed_by: 'Kiran Joshi', date: daysAgo(3) },
-  { id: 'r3', partner_id: 'p3', variant: 'multigrain', units: 2, reason: 'expired', notes: 'Past best-before date', attributed_by: 'Nandini Rao', date: daysAgo(6) },
-  { id: 'r4', partner_id: 'p4', variant: 'plain', units: 2, reason: 'unsold', notes: 'Did not move from partner shelf in 21 days', attributed_by: 'Kiran Joshi', date: daysAgo(10) },
-  { id: 'r5', partner_id: 'p1', variant: 'multigrain', units: 1, reason: 'damaged', notes: 'Wet during rain', attributed_by: 'Nandini Rao', date: daysAgo(14) },
-  { id: 'r6', partner_id: 'p5', variant: 'plain', units: 1, reason: 'customer_return', notes: 'Wrong variant — wanted Multi-Grain', attributed_by: 'Kiran Joshi', date: daysAgo(20) },
-  { id: 'r7', partner_id: 'p6', variant: 'multigrain', units: 1, reason: 'other', notes: 'Sample for partner training', attributed_by: 'Nandini Rao', date: daysAgo(35) },
-  { id: 'r8', partner_id: 'p2', variant: 'plain', units: 2, reason: 'unsold', notes: '', attributed_by: 'Kiran Joshi', date: daysAgo(48) },
-  { id: 'r9', partner_id: 'p3', variant: 'plain', units: 1, reason: 'expired', notes: 'Stock rotation cleanup', attributed_by: 'Nandini Rao', date: daysAgo(72) },
-  { id: 'r10', partner_id: 'p7', variant: 'multigrain', units: 1, reason: 'damaged', notes: 'Crushed in handling', attributed_by: 'Kiran Joshi', date: daysAgo(95) },
-  { id: 'r11', partner_id: 'p1', variant: 'plain', units: 1, reason: 'customer_return', notes: 'Reported off taste', attributed_by: 'Nandini Rao', date: daysAgo(140) },
-  { id: 'r12', partner_id: 'p4', variant: 'multigrain', units: 1, reason: 'unsold', notes: '', attributed_by: 'Kiran Joshi', date: daysAgo(210) },
+  { id: 'r1', partner_id: 'p1', variant: 'multigrain', units: 1, reason: 'damaged', diverted_to: 'disposed', notes: 'Package torn during transit', attributed_by: 'Kiran Joshi', date: daysAgo(1) },
+  { id: 'r2', partner_id: 'p2', variant: 'plain', units: 1, reason: 'customer_return', diverted_to: 'food_stalls', notes: 'Customer changed mind after delivery', attributed_by: 'Kiran Joshi', date: daysAgo(3) },
+  { id: 'r3', partner_id: 'p3', variant: 'multigrain', units: 2, reason: 'expired', diverted_to: 'disposed', notes: 'Past best-before date', attributed_by: 'Nandini Rao', date: daysAgo(6) },
+  { id: 'r4', partner_id: 'p4', variant: 'plain', units: 2, reason: 'unsold', diverted_to: 'b2b', notes: 'Did not move from partner shelf in 21 days', attributed_by: 'Kiran Joshi', date: daysAgo(10) },
+  { id: 'r5', partner_id: 'p1', variant: 'multigrain', units: 1, reason: 'damaged', diverted_to: 'disposed', notes: 'Wet during rain', attributed_by: 'Nandini Rao', date: daysAgo(14) },
+  { id: 'r6', partner_id: 'p5', variant: 'plain', units: 1, reason: 'customer_return', diverted_to: 'food_stalls', notes: 'Wrong variant — wanted Multi-Grain', attributed_by: 'Kiran Joshi', date: daysAgo(20) },
+  { id: 'r7', partner_id: 'p6', variant: 'multigrain', units: 1, reason: 'other', diverted_to: 'other', notes: 'Sample for partner training', attributed_by: 'Nandini Rao', date: daysAgo(35) },
+  { id: 'r8', partner_id: 'p2', variant: 'plain', units: 2, reason: 'unsold', diverted_to: 'food_stalls', notes: 'Cleared to weekend market stall', attributed_by: 'Kiran Joshi', date: daysAgo(48) },
+  { id: 'r9', partner_id: 'p3', variant: 'plain', units: 1, reason: 'expired', diverted_to: 'disposed', notes: 'Stock rotation cleanup', attributed_by: 'Nandini Rao', date: daysAgo(72) },
+  { id: 'r10', partner_id: 'p7', variant: 'multigrain', units: 1, reason: 'damaged', diverted_to: 'disposed', notes: 'Crushed in handling', attributed_by: 'Kiran Joshi', date: daysAgo(95) },
+  { id: 'r11', partner_id: 'p1', variant: 'plain', units: 1, reason: 'customer_return', diverted_to: 'b2b', notes: 'Reported off taste — moved to café', attributed_by: 'Nandini Rao', date: daysAgo(140) },
+  { id: 'r12', partner_id: 'p4', variant: 'multigrain', units: 1, reason: 'unsold', diverted_to: 'food_stalls', notes: '', attributed_by: 'Kiran Joshi', date: daysAgo(210) },
 ]
 
 const REASON_LABELS = {
@@ -593,6 +619,31 @@ export const DIVERSION_REASONS = [
   { value: 'disposed',    label: 'Disposed' },
   { value: 'other',       label: 'Other' },
 ]
+
+// --- Partner types / categories ---------------------------------------------
+// What kind of outlet a partner runs. Drives the type badge on the partner
+// profile, the type column + filter in the Partners list, and the per-type
+// breakdown on the agent profile.
+export const PARTNER_TYPES = [
+  { value: 'stall_owner',     label: 'Stall Owner' },
+  { value: 'retailer',        label: 'Retailer' },
+  { value: 'gated_community', label: 'Gated Community' },
+  { value: 'cafeteria',       label: 'Cafeteria' },
+  { value: 'business_b2b',    label: 'Business / B2B' },
+  { value: 'other',           label: 'Other' },
+]
+
+export const PARTNER_TYPE_LABELS = Object.fromEntries(PARTNER_TYPES.map((t) => [t.value, t.label]))
+
+// Tailwind pill classes per partner type (dark theme).
+export const PARTNER_TYPE_PILL = {
+  stall_owner:     'border-emerald-400/30 bg-emerald-400/10 text-emerald-200',
+  retailer:        'border-indigo-400/30 bg-indigo-400/10 text-indigo-200',
+  gated_community: 'border-violet-400/30 bg-violet-400/10 text-violet-200',
+  cafeteria:       'border-amber-400/30 bg-amber-400/10 text-amber-200',
+  business_b2b:    'border-blue-400/30 bg-blue-400/10 text-blue-200',
+  other:           'border-slate-500/30 bg-slate-500/10 text-slate-300',
+}
 
 // --- Drill-down adapters ----------------------------------------------------
 
@@ -753,6 +804,7 @@ export function demoPartnerProfile(partnerId, { range = 'all' } = {}) {
         units: s.units,
         revenue: s.units * v.price,
         customer: s.customer,
+        contact: s.contact || '',
         days_to_sell: days,
       }
     })
@@ -769,26 +821,79 @@ export function demoPartnerProfile(partnerId, { range = 'all' } = {}) {
         units: r.units,
         reason: r.reason,
         reason_label: REASON_LABELS[r.reason] || r.reason,
+        diverted_to: r.diverted_to || 'other',
         notes: r.notes,
         attributed_by: r.attributed_by,
       }
     })
     .sort((a, b) => new Date(b.date) - new Date(a.date))
 
+  // Selling speed — per-variant avg days receive→sell + fastest/slowest +
+  // distribution of how quickly stock sold (within 1 / 2 / 3+ days).
+  const speedFor = (variantKey) => {
+    const rows = salesHistory.filter((s) => s.variant === variantKey)
+    if (rows.length === 0) return { variant: variantKey, label: VARIANTS[variantKey].short, count: 0, avg: 0, fastest: 0, slowest: 0 }
+    const days = rows.map((r) => r.days_to_sell)
+    return {
+      variant: variantKey,
+      label: VARIANTS[variantKey].short,
+      count: rows.length,
+      avg: Math.round((days.reduce((a, b) => a + b, 0) / days.length) * 10) / 10,
+      fastest: Math.min(...days),
+      slowest: Math.max(...days),
+    }
+  }
+  const within = (lo, hi) => salesHistory.filter((s) => s.days_to_sell >= lo && (hi == null || s.days_to_sell < hi)).length
+  const sellingSpeed = {
+    multigrain: speedFor('multigrain'),
+    plain: speedFor('plain'),
+    distribution: {
+      total: salesHistory.length,
+      within1: within(0, 2),     // 0–1 days
+      within2: within(2, 3),     // 2 days
+      within3plus: within(3, null), // 3+ days
+    },
+  }
+
+  // Customer log — one row per sale, with unique-customer + phone-coverage counts.
+  const customers = salesHistory.map((s) => ({
+    id: s.id,
+    name: s.customer,
+    contact: s.contact,
+    variant: s.variant,
+    variant_label: s.variant_label,
+    units: s.units,
+    revenue: s.revenue,
+    date: s.date,
+  }))
+  const uniqueCustomers = new Set(customers.map((c) => c.name.toLowerCase())).size
+  const withPhone = customers.filter((c) => c.contact).length
+  const customerStats = {
+    unique: uniqueCustomers,
+    withPhone,
+    withoutPhone: customers.length - withPhone,
+  }
+
+  // Remarks — newest first. Always returned (range-independent dossier note).
+  const remarks = PARTNER_REMARKS
+    .filter((r) => r.partner_id === partnerId)
+    .sort((a, b) => new Date(b.date) - new Date(a.date))
+
   // Monthly performance buckets: last 12 months of activity.
   const monthly = buildMonthlySeries(sales)
 
-  // Join date — earliest assignment we have on file for this partner.
+  // Join date — prefer the partner's recorded join date, else earliest assignment.
   const allAssigns = ASSIGNMENTS.filter((a) => a.partner_id === partnerId)
-  const joined = allAssigns.length
+  const joined = partner.joined_at || (allAssigns.length
     ? allAssigns.map((a) => a.date).sort()[0]
-    : null
+    : null)
 
   return {
     id: partner.id,
     name: partner.name,
     phone: partner.phone,
     status: partner.status,
+    partner_type: partner.partner_type || 'other',
     joined_at: joined,
     variants: { multigrain: mg, plain: plain },
     totals: {
@@ -797,6 +902,10 @@ export function demoPartnerProfile(partnerId, { range = 'all' } = {}) {
       retracted: mg.retracted + plain.retracted,
       revenue: mg.revenue + plain.revenue,
     },
+    sellingSpeed,
+    customers,
+    customerStats,
+    remarks,
     salesHistory,
     attributionHistory,
     monthly,
@@ -1052,6 +1161,7 @@ export function demoAgentProfile(agentId, { range = 'all' } = {}) {
       name: partner.name,
       phone: partner.phone,
       status: partner.status,
+      partner_type: partner.partner_type || 'other',
       assigned,
       sold,
       retracted,
@@ -1083,6 +1193,77 @@ export function demoAgentProfile(agentId, { range = 'all' } = {}) {
     .filter((d) => d.agent_id === agentId && withinRange(d.date, range))
     .sort((a, b) => new Date(b.date) - new Date(a.date))
 
+  // Delivery log — assignments to this agent's partners (section D).
+  const deliveries = assigns
+    .map((a) => {
+      const sold = sales
+        .filter((s) => s.partner_id === a.partner_id && new Date(s.date) >= new Date(a.date))
+        .reduce((s, r) => s + r.units, 0)
+      const delivered = a.mg + a.plain
+      return {
+        id: a.id,
+        date: a.date,
+        partner_id: a.partner_id,
+        partner_name: nameById[a.partner_id]?.name || 'Unknown',
+        mg: a.mg,
+        plain: a.plain,
+        delivered,
+        sold,
+        left: Math.max(0, delivered - sold),
+      }
+    })
+    .sort((a, b) => new Date(b.date) - new Date(a.date))
+
+  // Retraction / collected-back log — attributions for this agent's partners (section E).
+  const retractions = attrs
+    .map((r) => {
+      const v = VARIANTS[r.variant] || VARIANTS.multigrain
+      return {
+        id: r.id,
+        date: r.date,
+        partner_id: r.partner_id,
+        partner_name: nameById[r.partner_id]?.name || 'Unknown',
+        variant: r.variant,
+        variant_label: v.short,
+        units: r.units,
+        reason: r.reason,
+        reason_label: REASON_LABELS[r.reason] || r.reason,
+        notes: r.notes,
+      }
+    })
+    .sort((a, b) => new Date(b.date) - new Date(a.date))
+
+  // Stall / retail supply log (section F).
+  const stallSupplies = STALL_SUPPLIES
+    .filter((ss) => ss.agent_id === agentId && withinRange(ss.date, range))
+    .map((ss) => {
+      const v = VARIANTS[ss.variant] || VARIANTS.multigrain
+      const src = ss.source === 'buffer' ? 'Central buffer' : (nameById[ss.source]?.name || ss.source)
+      return {
+        id: ss.id,
+        date: ss.date,
+        stall: ss.stall,
+        variant: ss.variant,
+        variant_label: v.short,
+        units: ss.units,
+        source: src,
+        notes: ss.notes,
+      }
+    })
+    .sort((a, b) => new Date(b.date) - new Date(a.date))
+  const suppliedToStalls = stallSupplies.reduce((s, r) => s + r.units, 0)
+
+  // Per-type partner breakdown (FIX 6): partners + units delivered per type.
+  const typeMap = {}
+  for (const p of partnerPerformance) {
+    const t = p.partner_type || 'other'
+    if (!typeMap[t]) typeMap[t] = { type: t, label: PARTNER_TYPE_LABELS[t] || t, partners: 0, delivered: 0, sold: 0 }
+    typeMap[t].partners += 1
+    typeMap[t].delivered += p.assigned
+    typeMap[t].sold += p.sold
+  }
+  const partnerTypeBreakdown = Object.values(typeMap).sort((a, b) => b.delivered - a.delivered)
+
   return {
     id: agent.id,
     name: agent.name,
@@ -1095,14 +1276,19 @@ export function demoAgentProfile(agentId, { range = 'all' } = {}) {
       sold: totalSold,
       retracted: totalRetracted,
       revenue: totalRevenue,
+      suppliedToStalls,
     },
     partnerPerformance,
+    partnerTypeBreakdown,
     variants: {
       multigrain: variantRow('multigrain'),
       plain: variantRow('plain'),
     },
     monthly: buildMonthlySeries(sales),
     todayActivity: AGENT_TODAY_ACTIVITY[agentId] || [],
+    deliveries,
+    retractions,
+    stallSupplies,
     diversions,
   }
 }

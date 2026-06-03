@@ -117,9 +117,10 @@ async function callManagePartner(payload) {
  * @param {string} params.full_name
  * @param {'sales'|'partner'} params.role
  * @param {string} [params.notes]
+ * @param {string} [params.partner_type]  one of the PARTNER_TYPES values (partners only)
  * Returns: { success, userId, email, phone, role }
  */
-export async function createUser({ phone, password, full_name, role, notes }) {
+export async function createUser({ phone, password, full_name, role, notes, partner_type }) {
   if (!isValidPhone(phone)) {
     throw new Error('Please enter a valid 10-digit Indian mobile number')
   }
@@ -140,6 +141,7 @@ export async function createUser({ phone, password, full_name, role, notes }) {
     full_name: full_name.trim(),
     role,
     notes: notes || null,
+    partner_type: partner_type || null,
   })
   return {
     success: true,

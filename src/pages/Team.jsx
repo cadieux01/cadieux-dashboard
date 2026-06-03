@@ -26,9 +26,8 @@ export default function Team() {
 
   return (
     <>
-      {/* View toggle bar */}
+      {/* Partners / Agents toggle bar */}
       <div className="sticky top-0 z-30 flex items-center gap-3 border-b border-[#1e2d3d] bg-[#0a0f14] px-4 py-2.5">
-        <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">View</span>
         <div className="flex gap-1">
           <button
             onClick={() => setView('partners')}
