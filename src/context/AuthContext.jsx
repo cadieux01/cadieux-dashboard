@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { logAuditEvent } from '../lib/audit'
+import { isDemoMode, getDemoAuth, clearDemoSession } from '../lib/demoData'
 
 const AuthContext = createContext({})
 
@@ -38,9 +39,15 @@ export function AuthProvider({ children }) {
   // END BYPASS MODE - Real authentication below
   // ============================================
 
-  const [user, setUser] = useState(null)
-  const [profile, setProfile] = useState(null)
-  const [loading, setLoading] = useState(true)
+  // Demo mode: hydrate user/profile from localStorage and skip Supabase
+  // entirely. isDemo is fixed for the lifetime of the session (demo login
+  // does a full page reload, so this is read once at init).
+  const demoAuth = getDemoAuth()
+  const isDemo = isDemoMode()
+
+  const [user, setUser] = useState(demoAuth?.user ?? null)
+  const [profile, setProfile] = useState(demoAuth?.profile ?? null)
+  const [loading, setLoading] = useState(!isDemo)
   const currentUserIdRef = useRef(null)
   const profileRef = useRef(null)
   const profileFetchInFlightRef = useRef(false)
@@ -49,8 +56,11 @@ export function AuthProvider({ children }) {
   const isRestoringSessionRef = useRef(false)
 
   useEffect(() => {
+    // Demo mode never touches Supabase — no session lookup, no listeners.
+    if (isDemo) return
+
     let isMounted = true
-    
+
     const initAuth = async () => {
       // Check if Supabase is configured
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
@@ -251,6 +261,13 @@ export function AuthProvider({ children }) {
   }
 
   const signOut = async () => {
+    // Demo logout: just clear the local flags, no Supabase call.
+    if (isDemo) {
+      clearDemoSession()
+      setUser(null)
+      setProfile(null)
+      return { error: null }
+    }
     const { error } = await supabase.auth.signOut()
     if (!error) {
       setUser(null)
@@ -274,6 +291,7 @@ export function AuthProvider({ children }) {
     isSales,
     isPartner,
     isAdminOrSales,
+    isDemo,
     signIn,
     signOut,
   }

@@ -6,11 +6,12 @@ import FormField from '../components/FormField'
 import KPICard from '../components/KPICard'
 import { logAuditEvent } from '../lib/audit'
 import { formatDateDDMMYY } from '../lib/date'
+import { demoBlock, demoPartnerSales } from '../lib/demoData'
 
 const UNIT_PRICE = 100
 
 export default function PartnerDashboard() {
-  const { profile } = useAuth()
+  const { profile, isDemo } = useAuth()
   const [loading, setLoading] = useState(true)
   const [sales, setSales] = useState([])
   const [trainerId, setTrainerId] = useState(null)
@@ -33,6 +34,12 @@ export default function PartnerDashboard() {
   }, [profile])
 
   const fetchTrainerAndSales = async () => {
+    if (isDemo) {
+      setTrainerId('demo-partner-id')
+      setSales(demoPartnerSales())
+      setLoading(false)
+      return
+    }
     try {
       setLoading(true)
       // Get current user
@@ -68,6 +75,7 @@ export default function PartnerDashboard() {
   }
 
   const handleSaveCustomer = async () => {
+    if (isDemo) return demoBlock()
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user || !profile) {
@@ -235,6 +243,7 @@ export default function PartnerDashboard() {
   }
 
   const handleDeleteSale = async () => {
+    if (isDemo) return demoBlock()
     if (!editingSaleId) return
 
     if (!confirm('Are you sure you want to delete this customer sale? This action cannot be undone.')) {

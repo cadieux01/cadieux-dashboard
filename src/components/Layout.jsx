@@ -5,6 +5,36 @@ import SessionTimeout from './SessionTimeout'
 import { displayLogin } from '../lib/phone'
 import { fetchPendingCount } from '../lib/changeRequests'
 
+// Floating "DEMO MODE" badge + transient toast. Only mounted when a demo
+// account is logged in. Listens for the `demo:blocked` event fired by
+// demoBlock() whenever a write action is attempted.
+function DemoBadge() {
+  const [toast, setToast] = useState(null)
+
+  useEffect(() => {
+    const onBlocked = (e) => {
+      setToast(e.detail || 'Not available in demo mode')
+      const t = setTimeout(() => setToast(null), 2500)
+      return () => clearTimeout(t)
+    }
+    window.addEventListener('demo:blocked', onBlocked)
+    return () => window.removeEventListener('demo:blocked', onBlocked)
+  }, [])
+
+  return (
+    <>
+      {toast && (
+        <div className="fixed bottom-16 right-4 z-[60] rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-amber-200 shadow-lg shadow-black/40 ring-1 ring-amber-400/30">
+          {toast}
+        </div>
+      )}
+      <div className="fixed bottom-4 right-4 z-[60] rounded-full bg-amber-400 px-3.5 py-1.5 text-xs font-bold text-slate-900 shadow-lg shadow-amber-500/30">
+        DEMO MODE — No real data
+      </div>
+    </>
+  )
+}
+
 // Shared icons used by more than one role's nav.
 const profileIcon = (
   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -157,7 +187,7 @@ const partnerNavigation = [
 ]
 
 export default function Layout() {
-  const { profile, role, signOut } = useAuth()
+  const { profile, role, signOut, isDemo } = useAuth()
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [pendingRequests, setPendingRequests] = useState(0)
@@ -165,13 +195,14 @@ export default function Layout() {
   // Pending change-request count for the sidebar badge. RLS scopes it:
   // admin gets the global count; sales gets only pending partner requests.
   useEffect(() => {
+    if (isDemo) return
     if (role !== 'admin' && role !== 'sales') return
     let active = true
     fetchPendingCount()
       .then((n) => { if (active) setPendingRequests(n) })
       .catch(() => {})
     return () => { active = false }
-  }, [role])
+  }, [role, isDemo])
 
   const badgeCounts = { pendingRequests }
 
@@ -351,6 +382,8 @@ export default function Layout() {
       <main className="flex-1 overflow-auto lg:ml-0">
         <Outlet />
       </main>
+
+      {isDemo && <DemoBadge />}
     </div>
   )
 }

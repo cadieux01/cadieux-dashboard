@@ -9,8 +9,11 @@ import { formatDateDDMMYY } from '../lib/date'
 import { createUser, deactivateUser, deleteUser, reactivateUser } from '../lib/adminApi'
 import { displayLogin, isValidPhone, normalizePhone } from '../lib/phone'
 import ShareCredentials from '../components/ShareCredentials'
+import { useAuth } from '../context/AuthContext'
+import DEMO_DATA, { demoBlock } from '../lib/demoData'
 
 export default function SalesExec() {
+  const { isDemo } = useAuth()
   const [execs, setExecs] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
@@ -34,6 +37,11 @@ export default function SalesExec() {
   }, [])
 
   const fetchExecs = async () => {
+    if (isDemo) {
+      setExecs(DEMO_DATA.salesExecList)
+      setLoading(false)
+      return
+    }
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -107,6 +115,7 @@ export default function SalesExec() {
 
   const handleCreateExec = async (e) => {
     e.preventDefault()
+    if (isDemo) return demoBlock()
     setBanner(null)
 
     const errors = validateForm()
@@ -178,6 +187,7 @@ export default function SalesExec() {
   }
 
   const handleDeactivate = async (exec) => {
+    if (isDemo) return demoBlock()
     const phone = exec.phone || exec.phone_number || normalizePhone(displayLogin(exec.email))
     if (!isValidPhone(phone)) {
       setBanner({ type: 'error', title: 'Cannot deactivate', message: 'No valid phone on file for this exec.' })
@@ -206,6 +216,7 @@ export default function SalesExec() {
   }
 
   const handleReactivate = async (exec) => {
+    if (isDemo) return demoBlock()
     const phone = exec.phone || exec.phone_number || normalizePhone(displayLogin(exec.email))
     if (!isValidPhone(phone)) {
       setBanner({ type: 'error', title: 'Cannot reactivate', message: 'No valid phone on file for this exec.' })
@@ -232,6 +243,7 @@ export default function SalesExec() {
   }
 
   const handleDelete = async (exec) => {
+    if (isDemo) return demoBlock()
     const phone = exec.phone || exec.phone_number || normalizePhone(displayLogin(exec.email))
     if (!isValidPhone(phone)) {
       setBanner({ type: 'error', title: 'Cannot delete', message: 'No valid phone on file for this exec.' })

@@ -7,6 +7,7 @@ import { changePassword, changePhone } from '../lib/adminApi'
 import { fetchManagedRequests, REQUEST_TYPE_LABELS } from '../lib/changeRequests'
 import Modal from '../components/Modal'
 import AlertBanner from '../components/AlertBanner'
+import DEMO_DATA, { demoBlock } from '../lib/demoData'
 
 // Approval queue for profile change requests.
 //   • Admin  → manages ALL requests (sales + partner), with a role filter.
@@ -29,7 +30,7 @@ function StatusBadge({ status }) {
 }
 
 export default function ChangeRequests() {
-  const { profile, isAdmin } = useAuth()
+  const { profile, isAdmin, isDemo } = useAuth()
 
   const [requests, setRequests] = useState([])
   const [loading, setLoading] = useState(true)
@@ -50,6 +51,11 @@ export default function ChangeRequests() {
   const title = isAdmin ? 'Change Requests' : 'Partner Requests'
 
   const load = async () => {
+    if (isDemo) {
+      setRequests(DEMO_DATA.changeRequests)
+      setLoading(false)
+      return
+    }
     try {
       setLoading(true)
       const rows = await fetchManagedRequests()
@@ -91,6 +97,7 @@ export default function ChangeRequests() {
 
   // Apply the actual profile change, then mark the request approved.
   const performApprove = async (request, newPassword) => {
+    if (isDemo) return demoBlock()
     setBusyId(request.id)
     setBanner(null)
     try {
@@ -167,6 +174,7 @@ export default function ChangeRequests() {
 
   const handleRejectSubmit = async (e) => {
     e.preventDefault()
+    if (isDemo) return demoBlock()
     const target = rejectTarget
     setBusyId(target.id)
     setBanner(null)

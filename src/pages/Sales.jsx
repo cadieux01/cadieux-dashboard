@@ -18,6 +18,8 @@ import FormField from '../components/FormField'
 import { supabase } from '../lib/supabase'
 import { logAuditEvent, createAuditDescription } from '../lib/audit'
 import { formatDateDDMMYY } from '../lib/date'
+import { useAuth } from '../context/AuthContext'
+import { demoBlock, demoTrainers, demoRankings } from '../lib/demoData'
 
 const UNIT_PRICE = 100
 const chartPalette = ['#8ee1cb', '#7f95ff', '#f2b36d', '#f28b9d', '#a7b4ff', '#8fcdf3']
@@ -62,6 +64,7 @@ function ShareTooltip({ active, payload }) {
 }
 
 export default function Sales() {
+  const { isDemo } = useAuth()
   const [trainers, setTrainers] = useState([])
   const [rankings, setRankings] = useState([])
   const [loading, setLoading] = useState(true)
@@ -80,6 +83,12 @@ export default function Sales() {
   }, [])
 
   const fetchData = async () => {
+    if (isDemo) {
+      setTrainers(demoTrainers())
+      setRankings(demoRankings())
+      setLoading(false)
+      return
+    }
     try {
       const { data: partnersData, error: trainersError } = await supabase
         .from('profiles')
@@ -174,6 +183,7 @@ export default function Sales() {
   }
 
   const handleDeleteTrainer = async (id) => {
+    if (isDemo) return demoBlock()
     if (!confirm('Are you sure you want to delete this partner? This action cannot be undone.')) {
       return
     }
@@ -221,6 +231,7 @@ export default function Sales() {
   }
 
   const handleSaveTrainer = async () => {
+    if (isDemo) return demoBlock()
     if (!trainerFormData.name.trim()) {
       alert('Please enter a partner name')
       return

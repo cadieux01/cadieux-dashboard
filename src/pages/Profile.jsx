@@ -8,6 +8,7 @@ import {
   PASSWORD_PLACEHOLDER,
   REQUEST_TYPE_LABELS,
 } from '../lib/changeRequests'
+import { demoBlock } from '../lib/demoData'
 
 // Self-service profile page for ALL roles. Name / phone / password can't
 // be edited directly — each change is filed as a request for an admin (or,
@@ -38,7 +39,7 @@ function StatusBadge({ status }) {
 }
 
 export default function Profile() {
-  const { profile } = useAuth()
+  const { profile, isDemo } = useAuth()
 
   const [requests, setRequests] = useState([])
   const [loadingRequests, setLoadingRequests] = useState(true)
@@ -55,6 +56,11 @@ export default function Profile() {
 
   const loadRequests = async () => {
     if (!profile?.id) return
+    if (isDemo) {
+      setRequests([])
+      setLoadingRequests(false)
+      return
+    }
     try {
       setLoadingRequests(true)
       const rows = await fetchMyRequests(profile.id)
@@ -87,6 +93,7 @@ export default function Profile() {
   }
 
   const submit = async (requestType, currentValue, requestedValue) => {
+    if (isDemo) return demoBlock()
     setError(null)
     setSubmitting(true)
     try {

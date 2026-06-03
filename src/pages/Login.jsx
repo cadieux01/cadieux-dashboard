@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { isValidPhone, normalizePhone, buildLoginEmail } from '../lib/phone'
+import { matchDemoAccount, setDemoSession } from '../lib/demoData'
 
 export default function Login() {
   const [identifier, setIdentifier] = useState('')
@@ -20,6 +21,20 @@ export default function Login() {
     e.preventDefault()
     setError('')
     setLoading(true)
+
+    // Demo accounts (demo-admin / demo-sales / demo-partner, password demo123)
+    // never authenticate against Supabase. We set local demo flags and do a
+    // full reload so AuthContext re-initialises from localStorage.
+    const demoAccount = matchDemoAccount(identifier, password)
+    if (demoAccount) {
+      setDemoSession(demoAccount)
+      const target =
+        demoAccount.role === 'partner'
+          ? '/dashboard/partner/dashboard'
+          : '/dashboard/admin/overview'
+      window.location.href = target
+      return
+    }
 
     try {
       // Sales execs and partners log in with a phone number; admin (and any
@@ -234,6 +249,9 @@ export default function Login() {
           <div className="mt-6 pt-6 border-t border-slate-800">
             <p className="text-xs text-slate-500 text-center">
               Admin only.
+            </p>
+            <p className="mt-2 text-xs text-amber-400/80 text-center">
+              Demo accounts available — ask admin for details.
             </p>
           </div>
         </div>

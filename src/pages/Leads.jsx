@@ -7,6 +7,8 @@ import Modal from '../components/Modal'
 import FormField from '../components/FormField'
 import { logAuditEvent, createAuditDescription } from '../lib/audit'
 import { formatDateDDMMYY } from '../lib/date'
+import { useAuth } from '../context/AuthContext'
+import { demoBlock, demoLeads, demoLeadSales, demoLeadTrainers } from '../lib/demoData'
 
 const STATUS_OPTIONS = [
   { value: 'all', label: 'All Status' },
@@ -16,6 +18,7 @@ const STATUS_OPTIONS = [
 ]
 
 export default function Leads() {
+  const { isDemo } = useAuth()
   const [leads, setLeads] = useState([])
   const [sales, setSales] = useState([])
   const [trainers, setTrainers] = useState([])
@@ -107,6 +110,13 @@ export default function Leads() {
   }, [])
 
   const fetchData = async () => {
+    if (isDemo) {
+      setLeads(demoLeads())
+      setSales(demoLeadSales())
+      setTrainers(demoLeadTrainers())
+      setLoading(false)
+      return
+    }
     try {
       // Fetch leads with trainer info
       const { data: leadsData, error: leadsError } = await supabase
@@ -210,6 +220,7 @@ export default function Leads() {
   }
 
   const handleDeleteLead = async (id) => {
+    if (isDemo) return demoBlock()
     if (!confirm('Are you sure you want to delete this lead? This action cannot be undone.')) {
       return
     }
@@ -250,6 +261,7 @@ export default function Leads() {
   }
 
   const handleSaveLead = async () => {
+    if (isDemo) return demoBlock()
     if (!leadFormData.trainer_id) {
       alert('Please select a partner')
       return
@@ -516,6 +528,7 @@ export default function Leads() {
   }
 
   const handleSaveSale = async () => {
+    if (isDemo) return demoBlock()
     if (!saleFormData.trainer_id) {
       alert('Please select a partner')
       return
@@ -674,6 +687,7 @@ export default function Leads() {
   }
 
   const handleDeleteSale = async (id) => {
+    if (isDemo) return demoBlock()
     if (!confirm('Are you sure you want to delete this sale?')) return
 
     try {
@@ -730,6 +744,7 @@ export default function Leads() {
 
   // Trainer functions
   const handleSaveTrainer = async () => {
+    if (isDemo) return demoBlock()
     if (!trainerFormData.name.trim()) {
       alert('Please enter a partner name')
       return
@@ -810,6 +825,7 @@ export default function Leads() {
   }
 
   const handleSaveSaleEntry = async () => {
+    if (isDemo) return demoBlock()
     if (!saleEntryFormData.trainer_id) {
       alert('Please select a partner')
       return
@@ -896,6 +912,7 @@ export default function Leads() {
   }
 
   const handleSaveRetractEntry = async () => {
+    if (isDemo) return demoBlock()
     if (!retractFormData.trainer_id) {
       alert('Please select a partner')
       return

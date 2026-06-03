@@ -2,8 +2,11 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import KPICard from '../components/KPICard'
 import { formatDateDDMMYY } from '../lib/date'
+import { useAuth } from '../context/AuthContext'
+import DEMO_DATA, { demoCtaPartners } from '../lib/demoData'
 
 export default function CTA() {
+  const { isDemo } = useAuth()
   const [alerts, setAlerts] = useState([])
   const [partners, setPartners] = useState([])
   const [loading, setLoading] = useState(true)
@@ -31,6 +34,12 @@ export default function CTA() {
   }
 
   const fetchData = async () => {
+    if (isDemo) {
+      setAlerts(DEMO_DATA.cta)
+      setPartners(demoCtaPartners())
+      setLoading(false)
+      return
+    }
     try {
       // Fetch sales with partner info and date_of_assignment
       const { data: salesData, error: salesError } = await supabase

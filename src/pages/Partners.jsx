@@ -9,6 +9,8 @@ import { formatDateDDMMYY } from '../lib/date'
 import { createUser, deactivateUser, deleteUser, reactivateUser } from '../lib/adminApi'
 import { displayLogin, isValidPhone, normalizePhone } from '../lib/phone'
 import ShareCredentials from '../components/ShareCredentials'
+import { useAuth } from '../context/AuthContext'
+import DEMO_DATA, { demoBlock } from '../lib/demoData'
 
 // A partner's "display phone" is either the dedicated `phone` column or the
 // digits embedded in the synthetic `<digits>@cadieux.partner` auth email.
@@ -20,6 +22,7 @@ function partnerPhone(p) {
 }
 
 export default function Partners() {
+  const { isDemo } = useAuth()
   const [partners, setPartners] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
@@ -43,6 +46,11 @@ export default function Partners() {
   }, [])
 
   const fetchPartners = async () => {
+    if (isDemo) {
+      setPartners(DEMO_DATA.partnersList)
+      setLoading(false)
+      return
+    }
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -112,6 +120,7 @@ export default function Partners() {
 
   const handleCreatePartner = async (e) => {
     e.preventDefault()
+    if (isDemo) return demoBlock()
     setBanner(null)
 
     const errors = validateForm()
@@ -183,6 +192,7 @@ export default function Partners() {
   }
 
   const handleDeactivate = async (partner) => {
+    if (isDemo) return demoBlock()
     const phone = partner.phone || partner.phone_number || normalizePhone(displayLogin(partner.email))
     if (!isValidPhone(phone)) {
       setBanner({ type: 'error', title: 'Cannot deactivate', message: 'No valid phone on file for this partner.' })
@@ -211,6 +221,7 @@ export default function Partners() {
   }
 
   const handleReactivate = async (partner) => {
+    if (isDemo) return demoBlock()
     const phone = partner.phone || partner.phone_number || normalizePhone(displayLogin(partner.email))
     if (!isValidPhone(phone)) {
       setBanner({ type: 'error', title: 'Cannot reactivate', message: 'No valid phone on file for this partner.' })
@@ -237,6 +248,7 @@ export default function Partners() {
   }
 
   const handleDelete = async (partner) => {
+    if (isDemo) return demoBlock()
     const phone = partner.phone || partner.phone_number || normalizePhone(displayLogin(partner.email))
     if (!isValidPhone(phone)) {
       setBanner({ type: 'error', title: 'Cannot delete', message: 'No valid phone on file for this partner.' })

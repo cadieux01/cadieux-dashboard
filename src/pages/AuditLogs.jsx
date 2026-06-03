@@ -3,6 +3,8 @@ import { supabase } from '../lib/supabase'
 import { formatDateDDMMYY } from '../lib/date'
 import { categoryForEntity } from '../lib/audit'
 import { displayLogin } from '../lib/phone'
+import { useAuth } from '../context/AuthContext'
+import DEMO_DATA from '../lib/demoData'
 
 // Read-only audit trail. Audit logs are IMMUTABLE: this page can only
 // read and export them — never edit or delete. Mutations to the
@@ -104,6 +106,7 @@ function csvEscape(value) {
 }
 
 export default function AuditLogs() {
+  const { isDemo } = useAuth()
   const [rows, setRows] = useState([])
   const [profilesById, setProfilesById] = useState({})
   const [loading, setLoading] = useState(true)
@@ -125,6 +128,12 @@ export default function AuditLogs() {
     const fetchLogs = async () => {
       setLoading(true)
       setError(null)
+      if (isDemo) {
+        setRows(DEMO_DATA.auditLogs)
+        setProfilesById({})
+        setLoading(false)
+        return
+      }
       try {
         let query = supabase
           .from('audit_logs')
