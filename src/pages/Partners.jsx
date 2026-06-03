@@ -9,9 +9,10 @@ import { formatDateDDMMYY } from '../lib/date'
 import { createUser, deactivateUser, deleteUser, reactivateUser } from '../lib/adminApi'
 import { displayLogin, isValidPhone, normalizePhone } from '../lib/phone'
 import ShareCredentials from '../components/ShareCredentials'
+import UserDetailModal from '../components/UserDetailModal'
 import { useAuth } from '../context/AuthContext'
 import DEMO_DATA, { demoBlock } from '../lib/demoData'
-import { Send } from 'lucide-react'
+import { Eye, Pencil, Send } from 'lucide-react'
 
 // A partner's "display phone" is either the dedicated `phone` column or the
 // digits embedded in the synthetic `<digits>@cadieux.partner` auth email.
@@ -35,6 +36,8 @@ export default function Partners() {
   const [formErrors, setFormErrors] = useState({})
   const [createError, setCreateError] = useState(null)
   const [highlightId, setHighlightId] = useState(null)
+  const [detailUser, setDetailUser] = useState(null)
+  const [detailMode, setDetailMode] = useState('view')
   const rowRefs = useRef({})
   const [addFormData, setAddFormData] = useState({
     phone: '',
@@ -311,11 +314,30 @@ export default function Partners() {
     })
   }
 
+  const openDetail = (partner, mode = 'view') => {
+    setDetailUser(partner)
+    setDetailMode(mode)
+  }
+
   const rowActions = (partner) => {
     const status = partner.status || 'active'
     const busy = busyId === partner.id
     return (
       <div className="flex items-center justify-end gap-2">
+        <button
+          onClick={() => openDetail(partner, 'view')}
+          title="View details"
+          className="inline-flex items-center justify-center rounded bg-slate-700/50 px-2 py-1.5 text-slate-300 transition-colors hover:bg-slate-700"
+        >
+          <Eye size={16} />
+        </button>
+        <button
+          onClick={() => openDetail(partner, 'edit')}
+          title="Edit details"
+          className="inline-flex items-center justify-center rounded bg-emerald-500/20 px-2 py-1.5 text-emerald-400 transition-colors hover:bg-emerald-500/30"
+        >
+          <Pencil size={16} />
+        </button>
         <button
           onClick={() => handleReshare(partner)}
           title="Share login (phone + URL, no password)"
@@ -611,6 +633,23 @@ export default function Partners() {
           </div>
         </form>
       </Modal>
+
+      {detailUser && (
+        <UserDetailModal
+          user={detailUser}
+          initialMode={detailMode}
+          roleLabel="Partner"
+          role="partner"
+          isDemo={isDemo}
+          onClose={() => setDetailUser(null)}
+          onShareLogin={(u) => handleReshare(u)}
+          onShareNewPassword={(d) => setShareData(d)}
+          onDeactivate={(u) => { setDetailUser(null); handleDeactivate(u) }}
+          onReactivate={(u) => { setDetailUser(null); handleReactivate(u) }}
+          refreshList={fetchPartners}
+          setBanner={setBanner}
+        />
+      )}
 
       {shareData && (
         <ShareCredentials
