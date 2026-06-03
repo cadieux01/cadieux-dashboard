@@ -1,3 +1,5 @@
+import { getAssignmentStatus, timeRemaining } from './shelfLife.js'
+
 // ============================================================================
 // DEMO MODE
 // ----------------------------------------------------------------------------
@@ -164,10 +166,10 @@ const DEMO_DATA = {
   // partnerVariants rows (assigned = mg+plain assigned, sold = mg+plain sold).
   // `retracted` is hand-curated for demo.
   partnersList: [
-    { id: '1', full_name: 'Rahul Kumar', phone: '9876543201', phone_number: '9876543201', email: 'demo-rahul@cadieux.demo', role: 'partner', status: 'active', notes: 'Top performer', created_at: '2026-01-15', assigned: 85, sold: 66, retracted: 2 },
-    { id: '2', full_name: 'Priya Sharma', phone: '9876543202', phone_number: '9876543202', email: 'demo-priya@cadieux.demo', role: 'partner', status: 'active', notes: 'Vizag south', created_at: '2026-02-01', assigned: 80, sold: 58, retracted: 1 },
-    { id: '3', full_name: 'Vikram Reddy', phone: '9876543203', phone_number: '9876543203', email: 'demo-vikram@cadieux.demo', role: 'partner', status: 'active', notes: 'MVP district', created_at: '2026-03-10', assigned: 70, sold: 52, retracted: 3 },
-    { id: '4', full_name: 'Anita Das', phone: '9876543204', phone_number: '9876543204', email: 'demo-anita@cadieux.demo', role: 'partner', status: 'inactive', notes: 'On leave', created_at: '2026-04-01', assigned: 63, sold: 44, retracted: 4 },
+    { id: 'p1', full_name: 'Rahul Kumar', phone: '9876543201', phone_number: '9876543201', email: 'demo-rahul@cadieux.demo', role: 'partner', status: 'active', notes: 'Top performer', created_at: '2026-01-15', assigned: 85, sold: 66, retracted: 2 },
+    { id: 'p2', full_name: 'Priya Sharma', phone: '9876543202', phone_number: '9876543202', email: 'demo-priya@cadieux.demo', role: 'partner', status: 'active', notes: 'Vizag south', created_at: '2026-02-01', assigned: 80, sold: 58, retracted: 1 },
+    { id: 'p3', full_name: 'Vikram Reddy', phone: '9876543203', phone_number: '9876543203', email: 'demo-vikram@cadieux.demo', role: 'partner', status: 'active', notes: 'MVP district', created_at: '2026-03-10', assigned: 70, sold: 52, retracted: 3 },
+    { id: 'p4', full_name: 'Anita Das', phone: '9876543204', phone_number: '9876543204', email: 'demo-anita@cadieux.demo', role: 'partner', status: 'inactive', notes: 'On leave', created_at: '2026-04-01', assigned: 63, sold: 44, retracted: 4 },
   ],
 
   // Agent list (admin). partners = direct reports; assigned/closed = totals
@@ -360,7 +362,7 @@ export function demoLeads() {
     buyer_name: l.name,
     buyer_contact: l.phone,
     status: statusMap[l.status] || 'new',
-    trainer_id: String((i % DEMO_DATA.partnersList.length) + 1),
+    trainer_id: DEMO_DATA.partnersList[i % DEMO_DATA.partnersList.length].id,
     trainers: { name: DEMO_DATA.partnersList[i % DEMO_DATA.partnersList.length].full_name, contact: l.phone },
     notes: l.notes,
     created_at: `${l.date}T10:00:00Z`,
@@ -377,7 +379,7 @@ export function demoLeadSales() {
     retracted_units: 0,
     date_of_assignment: s.date,
     created_at: `${s.date}T10:00:00Z`,
-    trainer_id: String((i % DEMO_DATA.partnersList.length) + 1),
+    trainer_id: DEMO_DATA.partnersList[i % DEMO_DATA.partnersList.length].id,
     trainers: { name: s.partner, contact: '' },
   }))
 }
@@ -887,6 +889,88 @@ export function demoVariantDetail(variantKey, { range = 'all' } = {}) {
     monthly,
     recentSales,
   }
+}
+
+// =========================================================================
+// CTA — shelf-life-aware assignment rows
+// =========================================================================
+// Each row = one (partner, variant) assignment with units remaining.
+// Dates chosen so DEMO_TODAY (Jun 3) spreads across all 4 status buckets:
+//   daysAgo(0-1) → multigrain active (48-72h left), plain active
+//   daysAgo(2)   → multigrain expiring_soon (24h left), plain active
+//   daysAgo(3)   → multigrain expired, plain active
+//   daysAgo(5)   → multigrain expired, plain expiring_soon (24h left)
+//   daysAgo(7+)  → both expired
+const CTA_ASSIGNMENTS = [
+  // Active — multigrain
+  { id: 'ca1', partner_id: 'p1', variant: 'multigrain', assigned: 10, sold: 3, date: daysAgo(0) },
+  { id: 'ca2', partner_id: 'p2', variant: 'multigrain', assigned:  8, sold: 2, date: daysAgo(1) },
+  // Active — plain
+  { id: 'ca3', partner_id: 'p3', variant: 'plain',      assigned: 12, sold: 5, date: daysAgo(1) },
+  { id: 'ca4', partner_id: 'p4', variant: 'plain',      assigned: 10, sold: 4, date: daysAgo(3) },
+  // Expiring soon — multigrain (2 days elapsed → ~24h left)
+  { id: 'ca5', partner_id: 'p5', variant: 'multigrain', assigned:  6, sold: 1, date: daysAgo(2) },
+  { id: 'ca6', partner_id: 'p6', variant: 'multigrain', assigned:  9, sold: 3, date: daysAgo(2) },
+  // Expiring soon — plain (5 days elapsed → ~24h left)
+  { id: 'ca7', partner_id: 'p1', variant: 'plain',      assigned:  8, sold: 2, date: daysAgo(5) },
+  // Expired/Unsold — multigrain (4-5 days ago)
+  { id: 'ca8', partner_id: 'p7', variant: 'multigrain', assigned:  7, sold: 1, date: daysAgo(4) },
+  { id: 'ca9', partner_id: 'p8', variant: 'multigrain', assigned:  5, sold: 0, date: daysAgo(5) },
+  // Expired/Unsold — plain (7-8 days ago)
+  { id: 'ca10', partner_id: 'p2', variant: 'plain',     assigned:  9, sold: 3, date: daysAgo(7) },
+  { id: 'ca11', partner_id: 'p9', variant: 'plain',     assigned:  6, sold: 2, date: daysAgo(8) },
+]
+
+/**
+ * Returns flat CTA rows for demo mode, with status + hours_remaining
+ * pre-computed relative to DEMO_TODAY.
+ */
+export function demoCTAData() {
+  const partnerById = Object.fromEntries(DRILLDOWN_PARTNERS.map((p) => [p.id, p]))
+  return CTA_ASSIGNMENTS.map((a) => {
+    const partner = partnerById[a.partner_id] || { name: 'Unknown', phone: '' }
+    const remaining = timeRemaining(a.variant, a.date, DEMO_TODAY)
+    const status = getAssignmentStatus(a.variant, a.date, DEMO_TODAY)
+    return {
+      id: a.id,
+      partner_id: a.partner_id,
+      partner_name: partner.name,
+      partner_phone: partner.phone,
+      variant: a.variant,
+      variant_label: VARIANTS[a.variant]?.short || a.variant,
+      assigned_date: a.date,
+      units_assigned: a.assigned,
+      units_sold: a.sold,
+      units_remaining: a.assigned - a.sold,
+      status,
+      hours_remaining: remaining,
+    }
+  })
+}
+
+/**
+ * Returns recent retraction rows (last 30 days) for CTA "Retracted" section.
+ */
+export function demoCTARetractions() {
+  const partnerById = Object.fromEntries(DRILLDOWN_PARTNERS.map((p) => [p.id, p]))
+  return ATTRIBUTIONS
+    .filter((r) => withinRange(r.date, 'month'))
+    .map((r) => {
+      const partner = partnerById[r.partner_id] || { name: 'Unknown', phone: '' }
+      return {
+        id: r.id,
+        partner_id: r.partner_id,
+        partner_name: partner.name,
+        partner_phone: partner.phone,
+        variant: r.variant,
+        variant_label: VARIANTS[r.variant]?.short || r.variant,
+        units: r.units,
+        reason: r.reason,
+        reason_label: REASON_LABELS[r.reason] || r.reason,
+        date: r.date,
+      }
+    })
+    .sort((a, b) => new Date(b.date) - new Date(a.date))
 }
 
 export default DEMO_DATA

@@ -1,8 +1,9 @@
 import { useMemo, useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
-import { demoPartnerProfile, DRILLDOWN_RANGES } from '../../lib/demoData'
+import { demoPartnerProfile, demoCTAData, DRILLDOWN_RANGES } from '../../lib/demoData'
 import { formatDateDDMMYY } from '../../lib/date'
+import { getAssignmentStatus, timeRemaining, timeLabel, SHELF_LIFE } from '../../lib/shelfLife'
 import {
   PageHeader,
   Pagination,
@@ -91,6 +92,9 @@ export default function PartnerProfile() {
         <VariantBreakdownCard data={profile.variants.multigrain} />
         <VariantBreakdownCard data={profile.variants.plain} />
       </div>
+
+      {/* Current stock — shelf life status */}
+      {isDemo && <CurrentStockSection partnerId={id} />}
 
       {/* Monthly performance chart */}
       <section className="mb-6">
@@ -211,6 +215,77 @@ export default function PartnerProfile() {
         )}
       </section>
     </FadeIn>
+  )
+}
+
+const STATUS_DOT = {
+  active:        'bg-emerald-400',
+  expiring_soon: 'bg-amber-400',
+  expired:       'bg-rose-400',
+}
+const STATUS_TEXT = {
+  active:        'text-emerald-200',
+  expiring_soon: 'text-amber-200',
+  expired:       'text-rose-200',
+}
+const STATUS_LABEL = {
+  active:        'Active',
+  expiring_soon: 'Expiring Soon',
+  expired:       'Expired',
+}
+
+function CurrentStockSection({ partnerId }) {
+  const ctaRows = useMemo(
+    () => demoCTAData().filter((r) => r.partner_id === partnerId),
+    [partnerId],
+  )
+  if (ctaRows.length === 0) return null
+  return (
+    <section className="mb-6">
+      <h2 className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Current Stock</h2>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {ctaRows.map((row) => {
+          const sl = SHELF_LIFE[row.variant]
+          const pct = Math.min(100, Math.max(0, (row.hours_remaining / (sl.days * 24)) * 100))
+          return (
+            <div key={row.id} className="dashboard-subpanel rounded-[18px] p-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className={`h-2 w-2 rounded-full ${STATUS_DOT[row.status]}`} />
+                  <span className={`text-xs font-semibold ${STATUS_TEXT[row.status]}`}>
+                    {STATUS_LABEL[row.status]}
+                  </span>
+                </div>
+                <span className="text-xs text-slate-500">{row.variant_label} · {sl.days}d life</span>
+              </div>
+              <div className="grid grid-cols-3 gap-1.5 text-center text-xs">
+                <div className="rounded-[8px] bg-white/[0.04] px-1.5 py-1">
+                  <p className="text-[10px] text-slate-500">Assigned</p>
+                  <p className="font-semibold text-white">{row.units_assigned}</p>
+                </div>
+                <div className="rounded-[8px] bg-white/[0.04] px-1.5 py-1">
+                  <p className="text-[10px] text-slate-500">Sold</p>
+                  <p className="font-semibold text-emerald-300">{row.units_sold}</p>
+                </div>
+                <div className="rounded-[8px] bg-white/[0.04] px-1.5 py-1">
+                  <p className="text-[10px] text-slate-500">Left</p>
+                  <p className={`font-semibold ${STATUS_TEXT[row.status]}`}>{row.units_remaining}</p>
+                </div>
+              </div>
+              <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-white/[0.06]">
+                <div
+                  className={`h-full rounded-full ${STATUS_DOT[row.status]}`}
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+              <p className="mt-1 text-right text-[11px] text-slate-500">
+                {timeLabel(row.hours_remaining)} · assigned {formatDateDDMMYY(row.assigned_date)}
+              </p>
+            </div>
+          )
+        })}
+      </div>
+    </section>
   )
 }
 

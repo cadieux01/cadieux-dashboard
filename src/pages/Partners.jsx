@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import KPICard from '../components/KPICard'
 import AlertBanner from '../components/AlertBanner'
@@ -16,8 +17,7 @@ import RefreshStatus from '../components/RefreshStatus'
 import useRefreshable from '../lib/useRefreshable'
 import { useAuth } from '../context/AuthContext'
 import DEMO_DATA, { demoBlock } from '../lib/demoData'
-import usePinGate from '../lib/usePinGate'
-import { Eye, Pencil, Send } from 'lucide-react'
+import { Eye, Pencil, Phone, Send } from 'lucide-react'
 
 // A partner's "display phone" is either the dedicated `phone` column or the
 // digits embedded in the synthetic `<digits>@cadieux.partner` auth email.
@@ -30,7 +30,7 @@ function partnerPhone(p) {
 
 export default function Partners() {
   const { isDemo } = useAuth()
-  const { gate, PinGateElement } = usePinGate()
+  const navigate = useNavigate()
   const [partners, setPartners] = useState([])
   const [stats, setStats] = useState({})
   const [loading, setLoading] = useState(true)
@@ -45,7 +45,6 @@ export default function Partners() {
   const [highlightId, setHighlightId] = useState(null)
   const [detailUser, setDetailUser] = useState(null)
   const [detailMode, setDetailMode] = useState('view')
-  const [statsForId, setStatsForId] = useState(null)
   const rowRefs = useRef({})
 
   const partnerStat = (p) => stats[p.id] || { assigned: 0, sold: 0, retracted: 0 }
@@ -369,6 +368,14 @@ export default function Partners() {
     const busy = busyId === partner.id
     return (
       <div className="flex items-center justify-end gap-2">
+        <a
+          href={`tel:${partnerPhone(partner)}`}
+          title="Call partner"
+          onClick={(e) => e.stopPropagation()}
+          className="inline-flex items-center justify-center rounded bg-emerald-500/10 px-2 py-1.5 text-emerald-400 transition-colors hover:bg-emerald-500/20"
+        >
+          <Phone size={16} />
+        </a>
         <button
           onClick={() => openDetail(partner, 'view')}
           title="View details (read-only)"
@@ -377,7 +384,7 @@ export default function Partners() {
           <Eye size={16} />
         </button>
         <button
-          onClick={() => gate(() => openDetail(partner, 'edit'), 'Edit partner details')}
+          onClick={() => openDetail(partner, 'edit')}
           title="Edit details"
           className="inline-flex items-center justify-center rounded bg-emerald-500/20 px-2 py-1.5 text-emerald-400 transition-colors hover:bg-emerald-500/30"
         >
@@ -392,7 +399,7 @@ export default function Partners() {
         </button>
         {status === 'inactive' ? (
           <button
-            onClick={() => gate(() => handleReactivate(partner), 'Reactivate partner')}
+            onClick={() => handleReactivate(partner)}
             disabled={busy}
             className="rounded bg-emerald-500/20 px-3 py-1 text-xs text-emerald-400 transition-colors hover:bg-emerald-500/30 disabled:opacity-50"
           >
@@ -400,7 +407,7 @@ export default function Partners() {
           </button>
         ) : status === 'active' ? (
           <button
-            onClick={() => gate(() => handleDeactivate(partner), 'Deactivate partner')}
+            onClick={() => handleDeactivate(partner)}
             disabled={busy}
             className="rounded bg-amber-500/20 px-3 py-1 text-xs text-amber-400 transition-colors hover:bg-amber-500/30 disabled:opacity-50"
           >
@@ -408,7 +415,7 @@ export default function Partners() {
           </button>
         ) : null}
         <button
-          onClick={() => gate(() => handleDelete(partner), 'Delete partner login')}
+          onClick={() => handleDelete(partner)}
           disabled={busy}
           className="rounded bg-rose-500/20 px-3 py-1 text-xs text-rose-400 transition-colors hover:bg-rose-500/30 disabled:opacity-50"
         >
@@ -424,7 +431,7 @@ export default function Partners() {
       <div
         key={partner.id}
         ref={(el) => { rowRefs.current[partner.id] = el }}
-        onClick={() => setStatsForId(partner.id)}
+        onClick={() => navigate(`/admin/partner/${partner.id}`)}
         className={`cursor-pointer rounded-xl border bg-slate-900 p-4 transition-colors duration-500 ${
           highlightId === partner.id ? 'border-emerald-500 bg-emerald-500/5' : 'border-slate-800'
         }`}
@@ -468,7 +475,7 @@ export default function Partners() {
         <div className="flex items-center gap-2">
           <RefreshButton onRefresh={refresh} loading={refreshing} />
           <button
-            onClick={() => gate(() => setIsAddPartnerModalOpen(true), 'Create new partner')}
+            onClick={() => setIsAddPartnerModalOpen(true)}
             className="dashboard-action-btn"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -574,7 +581,7 @@ export default function Partners() {
                   <tr
                     key={partner.id}
                     ref={(el) => { rowRefs.current[partner.id] = el }}
-                    onClick={() => setStatsForId(partner.id)}
+                    onClick={() => navigate(`/admin/partner/${partner.id}`)}
                     className={`cursor-pointer transition-colors duration-500 ${
                       highlightId === partner.id ? 'bg-emerald-500/10' : 'hover:bg-slate-800/30'
                     }`}
@@ -688,97 +695,6 @@ export default function Partners() {
         </form>
       </Modal>
 
-      {statsForId && (() => {
-        const partner = partners.find((p) => p.id === statsForId)
-        if (!partner) return null
-        const s = partnerStat(partner)
-        // Variant breakdown for demo mode comes from overview.partnerVariants
-        // matched by name. Live mode falls back to "—".
-        const variantRow = isDemo
-          ? DEMO_DATA.overview.partnerVariants.find((v) => v.name === partner.full_name)
-          : null
-        return (
-          <Modal isOpen={true} onClose={() => setStatsForId(null)} title={partner.full_name || 'Partner'}>
-            <div className="space-y-3 text-sm">
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="rounded-lg border border-slate-800 bg-slate-900 p-2.5">
-                  <p className="text-slate-500">Phone</p>
-                  <p className="text-slate-200">{partnerPhone(partner) || 'N/A'}</p>
-                </div>
-                <div className="rounded-lg border border-slate-800 bg-slate-900 p-2.5">
-                  <p className="text-slate-500">Status</p>
-                  <div className="mt-1">{statusBadge(partner.status)}</div>
-                </div>
-                <div className="rounded-lg border border-slate-800 bg-slate-900 p-2.5">
-                  <p className="text-slate-500">Joined</p>
-                  <p className="text-slate-200">{partner.created_at ? formatDateDDMMYY(partner.created_at) : 'N/A'}</p>
-                </div>
-                <div className="rounded-lg border border-slate-800 bg-slate-900 p-2.5">
-                  <p className="text-slate-500">Assigned · Sold · Ret.</p>
-                  <p className="font-mono text-slate-200">
-                    <span className="text-white">{s.assigned}</span>
-                    {' · '}
-                    <span className="text-emerald-300">{s.sold}</span>
-                    {' · '}
-                    <span className="text-amber-300">{s.retracted}</span>
-                  </p>
-                </div>
-              </div>
-
-              <div>
-                <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">Variant breakdown</p>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="rounded-lg border border-slate-800 bg-slate-900 p-2.5">
-                    <p className="font-semibold text-emerald-300">Multi-Grain</p>
-                    {variantRow ? (
-                      <>
-                        <p className="mt-1 text-slate-300">Assigned: <span className="font-semibold text-white">{variantRow.mg_assigned}</span></p>
-                        <p className="text-slate-300">Sold: <span className="font-semibold text-emerald-300">{variantRow.mg_sold}</span></p>
-                        <p className="text-slate-300">Left: <span className="font-semibold text-white">{Math.max(0, variantRow.mg_assigned - variantRow.mg_sold)}</span></p>
-                      </>
-                    ) : (
-                      <p className="mt-1 text-slate-500">—</p>
-                    )}
-                  </div>
-                  <div className="rounded-lg border border-slate-800 bg-slate-900 p-2.5">
-                    <p className="font-semibold text-amber-200">Plain</p>
-                    {variantRow ? (
-                      <>
-                        <p className="mt-1 text-slate-300">Assigned: <span className="font-semibold text-white">{variantRow.plain_assigned}</span></p>
-                        <p className="text-slate-300">Sold: <span className="font-semibold text-emerald-300">{variantRow.plain_sold}</span></p>
-                        <p className="text-slate-300">Left: <span className="font-semibold text-white">{Math.max(0, variantRow.plain_assigned - variantRow.plain_sold)}</span></p>
-                      </>
-                    ) : (
-                      <p className="mt-1 text-slate-500">—</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {isDemo && (
-                <div>
-                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">Recent sales</p>
-                  <div className="space-y-1 text-xs">
-                    {DEMO_DATA.overview.recentSales
-                      .filter((r) => r.partner === partner.full_name)
-                      .slice(0, 10)
-                      .map((r, i) => (
-                        <div key={i} className="flex justify-between rounded border border-slate-800 bg-slate-900 px-2.5 py-1.5">
-                          <span className="text-slate-200">{r.customer}</span>
-                          <span className="text-slate-400">{r.units}u · {formatDateDDMMYY(r.date)}</span>
-                        </div>
-                      ))}
-                    {DEMO_DATA.overview.recentSales.filter((r) => r.partner === partner.full_name).length === 0 && (
-                      <p className="text-slate-500">No recent sales.</p>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          </Modal>
-        )
-      })()}
-
       {detailUser && (
         <UserDetailModal
           user={detailUser}
@@ -789,8 +705,8 @@ export default function Partners() {
           onClose={() => setDetailUser(null)}
           onShareLogin={(u) => handleReshare(u)}
           onShareNewPassword={(d) => setShareData(d)}
-          onDeactivate={(u) => gate(() => { setDetailUser(null); handleDeactivate(u) }, 'Deactivate partner')}
-          onReactivate={(u) => gate(() => { setDetailUser(null); handleReactivate(u) }, 'Reactivate partner')}
+          onDeactivate={(u) => { setDetailUser(null); handleDeactivate(u) }}
+          onReactivate={(u) => { setDetailUser(null); handleReactivate(u) }}
           refreshList={fetchPartners}
           setBanner={setBanner}
         />
@@ -805,8 +721,6 @@ export default function Partners() {
           onClose={() => setShareData(null)}
         />
       )}
-
-      {PinGateElement}
 
       <RefreshStatus pullDistance={pullDistance} refreshing={refreshing} at={lastUpdated} onRefresh={refresh} />
     </div>
