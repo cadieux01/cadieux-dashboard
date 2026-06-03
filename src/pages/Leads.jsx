@@ -1043,6 +1043,14 @@ export default function Leads() {
       },
     },
     {
+      key: 'product_variant',
+      label: 'Product',
+      sortable: true,
+      render: (value) => (
+        <span className="text-slate-200">{value || '—'}</span>
+      ),
+    },
+    {
       key: 'retracted',
       label: 'Retracted',
       sortable: true,
@@ -1184,6 +1192,10 @@ export default function Leads() {
         <div>
           <p className="text-xs text-slate-500">Retracted</p>
           <p className="font-mono text-purple-400">{sale.retracted_units || 0}</p>
+        </div>
+        <div>
+          <p className="text-xs text-slate-500">Product</p>
+          <p className="text-sm text-slate-200">{sale.product_variant || '—'}</p>
         </div>
         <div>
           <p className="text-xs text-slate-500">Date of Asn</p>

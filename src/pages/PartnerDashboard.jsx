@@ -8,7 +8,32 @@ import { logAuditEvent } from '../lib/audit'
 import { formatDateDDMMYY } from '../lib/date'
 import { demoBlock, demoPartnerSales } from '../lib/demoData'
 
-const UNIT_PRICE = 100
+const VARIANTS = {
+  multigrain: { name: 'Multi-Grain High Protein Bread', price: 149 },
+  plain: { name: 'Plain High Protein Bread', price: 109 },
+}
+
+const VARIANT_OPTIONS = [
+  { value: 'multigrain', label: 'Multi-Grain High Protein Bread — ₹149' },
+  { value: 'plain', label: 'Plain High Protein Bread — ₹109' },
+]
+
+// Resolve a stored variant (by key or by saved name) back to its definition.
+const variantFromSale = (sale) => {
+  if (!sale) return null
+  if (sale.product_variant && VARIANTS[sale.product_variant]) return VARIANTS[sale.product_variant]
+  const byName = Object.values(VARIANTS).find((v) => v.name === sale.product_variant)
+  if (byName) return byName
+  return null
+}
+
+// Per-sale revenue: prefer the unit price stored at time of sale, fall back to
+// the variant's current price, and finally to 0 for legacy rows.
+const saleRevenue = (sale) => {
+  const units = sale.units_sold || 0
+  const price = sale.unit_price ?? variantFromSale(sale)?.price ?? 0
+  return units * price
+}
 
 export default function PartnerDashboard() {
   const { profile, isDemo } = useAuth()
@@ -22,12 +47,42 @@ export default function PartnerDashboard() {
   const [customerFormData, setCustomerFormData] = useState({
     buyer_name: '',
     buyer_contact: '',
+    product_variant: '',
     units_purchased: '',
     purchase_date: new Date().toISOString().split('T')[0],
     notes: '',
     picture_file: null,
   })
+  const [formErrors, setFormErrors] = useState({})
   const [isDateEditable, setIsDateEditable] = useState(false)
+
+  const selectedVariant = VARIANTS[customerFormData.product_variant] || null
+  const previewUnits = parseInt(customerFormData.units_purchased) || 0
+  const previewRevenue = selectedVariant ? selectedVariant.price * previewUnits : 0
+
+  const validateCustomerForm = () => {
+    const errors = {}
+    if (customerFormData.buyer_name.trim().length < 2) {
+      errors.buyer_name = 'Name must be at least 2 characters.'
+    }
+    const contact = customerFormData.buyer_contact.trim()
+    if (contact && !/^\d{10}$/.test(contact)) {
+      errors.buyer_contact = 'Enter a valid 10-digit number.'
+    }
+    if (!customerFormData.product_variant) {
+      errors.product_variant = 'Please select a product variant.'
+    }
+    if (previewUnits < 1) {
+      errors.units_purchased = 'Units must be at least 1.'
+    }
+    return errors
+  }
+
+  const isCustomerFormValid =
+    customerFormData.buyer_name.trim().length >= 2 &&
+    !!customerFormData.product_variant &&
+    previewUnits >= 1 &&
+    (!customerFormData.buyer_contact.trim() || /^\d{10}$/.test(customerFormData.buyer_contact.trim()))
 
   useEffect(() => {
     fetchTrainerAndSales()
@@ -76,6 +131,14 @@ export default function PartnerDashboard() {
 
   const handleSaveCustomer = async () => {
     if (isDemo) return demoBlock()
+
+    const errors = validateCustomerForm()
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors)
+      return
+    }
+    setFormErrors({})
+
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user || !profile) {
@@ -87,10 +150,9 @@ export default function PartnerDashboard() {
       setTrainerId(currentTrainerId)
 
       const unitsPurchased = parseInt(customerFormData.units_purchased) || 0
-      if (unitsPurchased <= 0) {
-        alert('Please enter valid units purchased')
-        return
-      }
+      const variant = VARIANTS[customerFormData.product_variant]
+      const unitPrice = variant?.price || 0
+      const revenue = unitPrice * unitsPurchased
 
       // Upload picture if provided
       let pictureUrl = null
@@ -121,6 +183,8 @@ export default function PartnerDashboard() {
         buyer_name: customerFormData.buyer_name,
         buyer_contact: customerFormData.buyer_contact,
         units_sold: unitsPurchased,
+        product_variant: variant?.name || null,
+        unit_price: unitPrice,
       }
 
       // Add optional fields if they have values
@@ -154,7 +218,7 @@ export default function PartnerDashboard() {
           actionType: 'UPDATE',
           entityType: 'sale',
           entityId: editingSaleId,
-          description: `Updated customer sale: ${customerFormData.buyer_name || 'Unknown'} | Changed to: ${unitsPurchased} units sold`,
+          description: `Updated customer sale: ${customerFormData.buyer_name || 'Unknown'} | ${variant?.name || 'N/A'} | ${unitsPurchased} units | ₹${revenue}`,
           oldValues: oldSale ? {
             buyer_name: oldSale.buyer_name,
             buyer_contact: oldSale.buyer_contact,
@@ -204,7 +268,7 @@ export default function PartnerDashboard() {
           actionType: 'CREATE',
           entityType: 'sale',
           entityId: data?.[0]?.id || null,
-          description: `Created customer sale: ${customerFormData.buyer_name || 'Unknown'} | ${unitsPurchased} units`,
+          description: `Created customer sale: ${customerFormData.buyer_name || 'Unknown'} | ${variant?.name || 'N/A'} | ${unitsPurchased} units | ₹${revenue}`,
           newValues: insertPayload,
         })
       }
@@ -213,6 +277,7 @@ export default function PartnerDashboard() {
       setCustomerFormData({
         buyer_name: '',
         buyer_contact: '',
+        product_variant: '',
         units_purchased: '',
         purchase_date: new Date().toISOString().split('T')[0],
         notes: '',
@@ -230,14 +295,20 @@ export default function PartnerDashboard() {
 
   const handleEditSale = (sale) => {
     setEditingSaleId(sale.id)
+    const variantKey =
+      sale.product_variant && VARIANTS[sale.product_variant]
+        ? sale.product_variant
+        : Object.keys(VARIANTS).find((k) => VARIANTS[k].name === sale.product_variant) || ''
     setCustomerFormData({
       buyer_name: sale.buyer_name || '',
       buyer_contact: sale.buyer_contact || '',
+      product_variant: variantKey,
       units_purchased: sale.units_sold?.toString() || '',
       purchase_date: sale.purchase_date || new Date().toISOString().split('T')[0],
       notes: sale.customer_notes || '',
       picture_file: null,
     })
+    setFormErrors({})
     setIsDateEditable(false)
     setIsCustomerModalOpen(true)
   }
@@ -283,6 +354,7 @@ export default function PartnerDashboard() {
       setCustomerFormData({
         buyer_name: '',
         buyer_contact: '',
+        product_variant: '',
         units_purchased: '',
         purchase_date: new Date().toISOString().split('T')[0],
         notes: '',
@@ -328,7 +400,7 @@ export default function PartnerDashboard() {
 
   const summary = useMemo(() => {
     const totalUnits = sales.reduce((sum, sale) => sum + (sale.units_sold || 0), 0)
-    const totalRevenue = totalUnits * UNIT_PRICE
+    const totalRevenue = sales.reduce((sum, sale) => sum + saleRevenue(sale), 0)
     const completedSales = sales.filter((sale) => isSaleComplete(sale)).length
 
     return {
@@ -390,7 +462,7 @@ export default function PartnerDashboard() {
           <KPICard
             title="Revenue"
             value={`₹${summary.totalRevenue.toLocaleString()}`}
-            subtitle="₹100/unit"
+            subtitle="By variant"
             color="purple"
             icon={
               <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -428,6 +500,9 @@ export default function PartnerDashboard() {
                     Contact
                   </th>
                   <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                    Product
+                  </th>
+                  <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
                     Units
                   </th>
                   <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
@@ -444,14 +519,15 @@ export default function PartnerDashboard() {
               <tbody className="divide-y divide-white/6">
                 {sales.length === 0 ? (
                   <tr>
-                    <td colSpan="6" className="px-4 sm:px-6 py-8 text-center text-slate-400">
+                    <td colSpan="7" className="px-4 sm:px-6 py-8 text-center text-slate-400">
                       No sales records found. Click the + button to add a customer.
                     </td>
                   </tr>
                 ) : (
                   sales.map((sale) => {
                     const complete = isSaleComplete(sale)
-                    const revenue = (sale.units_sold || 0) * UNIT_PRICE
+                    const revenue = saleRevenue(sale)
+                    const variant = variantFromSale(sale)
                     return (
                       <tr
                         key={sale.id}
@@ -465,6 +541,11 @@ export default function PartnerDashboard() {
                         <td className="px-3 py-2 whitespace-nowrap">
                           <div className="text-xs sm:text-sm text-slate-300 break-all">
                             {sale.buyer_contact || 'N/A'}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2">
+                          <div className="text-xs sm:text-sm text-slate-200">
+                            {variant?.name || '—'}
                           </div>
                         </td>
                         <td className="px-3 py-2 whitespace-nowrap">
@@ -521,11 +602,13 @@ export default function PartnerDashboard() {
             setCustomerFormData({
             buyer_name: '',
             buyer_contact: '',
+            product_variant: '',
             units_purchased: '',
             purchase_date: new Date().toISOString().split('T')[0],
             notes: '',
             picture_file: null,
           })
+            setFormErrors({})
             setIsDateEditable(false)
             setIsCustomerModalOpen(true)
           }}
@@ -546,11 +629,13 @@ export default function PartnerDashboard() {
           setCustomerFormData({
             buyer_name: '',
             buyer_contact: '',
+            product_variant: '',
             units_purchased: '',
             purchase_date: new Date().toISOString().split('T')[0],
             notes: '',
             picture_file: null,
           })
+          setFormErrors({})
           setIsDateEditable(false)
         }}
         title={editingSaleId ? 'Edit Customer Sale' : 'Add New Customer'}
@@ -568,6 +653,7 @@ export default function PartnerDashboard() {
             onChange={(value) => setCustomerFormData({ ...customerFormData, buyer_name: value })}
             placeholder="Enter customer name"
             required
+            error={formErrors.buyer_name}
           />
 
           <FormField
@@ -575,8 +661,18 @@ export default function PartnerDashboard() {
             type="tel"
             value={customerFormData.buyer_contact}
             onChange={(value) => setCustomerFormData({ ...customerFormData, buyer_contact: value })}
-            placeholder="Enter customer phone number"
+            placeholder="Enter customer phone number (optional)"
+            error={formErrors.buyer_contact}
+          />
+
+          <FormField
+            label="Product Variant"
+            type="select"
+            value={customerFormData.product_variant}
+            onChange={(value) => setCustomerFormData({ ...customerFormData, product_variant: value })}
+            options={VARIANT_OPTIONS}
             required
+            error={formErrors.product_variant}
           />
 
           <FormField
@@ -586,19 +682,26 @@ export default function PartnerDashboard() {
             onChange={(value) => setCustomerFormData({ ...customerFormData, units_purchased: value })}
             placeholder="Enter units purchased"
             required
+            minLength={1}
+            error={formErrors.units_purchased}
           />
 
           <div className="mb-4">
-            <label className="block text-sm font-medium text-slate-300 mb-2">
+            <label className="block text-sm font-semibold text-slate-300 mb-2">
               Revenue
             </label>
-            <div className="dashboard-input flex items-center text-lg font-semibold text-emerald-200">
-              ₹{((parseInt(customerFormData.units_purchased) || 0) * UNIT_PRICE).toLocaleString()}
+            <div className="dashboard-input flex items-center text-lg font-semibold text-slate-400 cursor-not-allowed opacity-70">
+              ₹{previewRevenue.toLocaleString()}
             </div>
+            <p className="mt-1.5 text-xs text-slate-500">
+              {selectedVariant
+                ? `${previewUnits || 0} × ₹${selectedVariant.price} (auto-calculated)`
+                : 'Select a variant and units to calculate revenue'}
+            </p>
           </div>
 
           <div className="mb-4">
-            <label className="block text-sm font-medium text-slate-300 mb-2">
+            <label className="block text-sm font-semibold text-slate-300 mb-2">
               Purchase Date
             </label>
             <div className="flex items-center gap-2">
@@ -608,7 +711,6 @@ export default function PartnerDashboard() {
                 onChange={(e) => setCustomerFormData({ ...customerFormData, purchase_date: e.target.value })}
                 disabled={!isDateEditable}
                 className="dashboard-input flex-1 disabled:cursor-not-allowed disabled:opacity-50"
-                required
               />
               <button
                 type="button"
@@ -673,7 +775,8 @@ export default function PartnerDashboard() {
             )}
             <button
               type="submit"
-              className={`dashboard-button dashboard-button-primary ${editingSaleId ? 'flex-1' : 'w-full'}`}
+              disabled={!isCustomerFormValid}
+              className={`dashboard-button dashboard-button-primary disabled:cursor-not-allowed disabled:opacity-50 ${editingSaleId ? 'flex-1' : 'w-full'}`}
             >
               {editingSaleId ? 'Done' : 'Save Customer'}
             </button>
