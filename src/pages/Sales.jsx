@@ -1,21 +1,4 @@
 import { useEffect, useMemo, useState } from 'react'
-import {
-  Area,
-  AreaChart,
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Legend,
-  Line,
-  LineChart,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts'
 import KPICard from '../components/KPICard'
 import Modal from '../components/Modal'
 import FormField from '../components/FormField'
@@ -33,13 +16,10 @@ import {
   demoVariantTotals,
   demoVariantByPartner,
   demoPartnerPerformance,
-  demoVariantTrend,
   VARIANTS,
 } from '../lib/demoData'
 
 const UNIT_PRICE = 100
-// Brand-led pie/series gradient: Foundation Green → Grain Cream.
-const chartPalette = ['#024628', '#035c36', '#0a7a4a', '#3f9e6e', '#8fbf9f', '#FBF3D4']
 const ACCENT_GREEN = '#024628'
 const ACCENT_CREAM = '#FBF3D4'
 
@@ -54,60 +34,6 @@ const DATE_RANGES = [
   { value: 'year', label: '1 Year' },
   { value: 'all', label: 'Overall' },
 ]
-
-function ShareTooltip({ active, payload }) {
-  if (!active || !payload?.length) return null
-
-  const row = payload[0]?.payload
-  if (!row) return null
-
-  const total = payload[0]?.payload?.__total || 0
-  const pct = total > 0 ? ((row.value / total) * 100).toFixed(1) : '0.0'
-
-  return (
-    <div className="rounded-lg border border-[#1e2d3d] bg-[#1a2332] px-4 py-3 shadow-[0_8px_24px_rgba(0,0,0,0.45)]">
-      <p className="font-semibold text-[#f1f5f9]">{row.name}</p>
-      <p className="mt-2 text-sm text-[#cbd5e1]">
-        {row.value.toLocaleString()} sold · {pct}%
-      </p>
-    </div>
-  )
-}
-
-// Pie tooltip for the variant split — units + share + revenue.
-function VariantShareTooltip({ active, payload }) {
-  if (!active || !payload?.length) return null
-  const row = payload[0]?.payload
-  if (!row) return null
-  const total = row.__total || 0
-  const pct = total > 0 ? ((row.value / total) * 100).toFixed(1) : '0.0'
-  const price = row.name === VARIANTS.plain.short ? VARIANTS.plain.price : VARIANTS.multigrain.price
-  return (
-    <div className="rounded-lg border border-[#1e2d3d] bg-[#1a2332] px-4 py-3 shadow-[0_8px_24px_rgba(0,0,0,0.45)]">
-      <p className="font-semibold text-[#f1f5f9]">{row.name}</p>
-      <p className="mt-2 text-sm text-[#cbd5e1]">{row.value.toLocaleString()} sold · {pct}%</p>
-      <p className="mt-0.5 text-sm text-[#34d399]">₹{(row.value * price).toLocaleString()}</p>
-    </div>
-  )
-}
-
-// Generic multi-series tooltip for the per-partner bar chart + trend line.
-function VariantSeriesTooltip({ active, payload, label }) {
-  if (!active || !payload?.length) return null
-  return (
-    <div className="rounded-lg border border-[#1e2d3d] bg-[#1a2332] px-4 py-3 shadow-[0_8px_24px_rgba(0,0,0,0.45)]">
-      <p className="font-semibold text-[#f1f5f9]">{label}</p>
-      <div className="mt-2 space-y-1.5 text-sm text-[#cbd5e1]">
-        {payload.map((p) => (
-          <div key={p.dataKey} className="flex items-center justify-between gap-4">
-            <span style={{ color: p.color }}>{p.name}</span>
-            <span>{(p.value || 0).toLocaleString()}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
 
 // Aggregate raw sales rows into per-variant totals + a per-partner breakdown.
 // Best-effort: handles missing variant columns on legacy rows gracefully.
@@ -322,8 +248,6 @@ export default function Sales() {
   const [dateRange, setDateRange] = useState('all')
   const [partnerPerformance, setPartnerPerformance] = useState([])
   const [variantData, setVariantData] = useState(null)
-  const [variantTrend, setVariantTrend] = useState([])
-  const [variantSort, setVariantSort] = useState({ field: 'revenue', dir: 'desc' })
   const [isAddTrainerModalOpen, setIsAddTrainerModalOpen] = useState(false)
   const [editingTrainerId, setEditingTrainerId] = useState(null)
   const [editingTrainerData, setEditingTrainerData] = useState(null)
@@ -645,23 +569,6 @@ export default function Sales() {
 
   const topRankings = useMemo(() => rankings.slice(0, 6), [rankings])
 
-  const contributionData = useMemo(() => {
-    const sold = topRankings.filter((partner) => (partner.total_units_sold || 0) > 0)
-    const total = sold.reduce((sum, p) => sum + (p.total_units_sold || 0), 0)
-    return sold.map((partner, index) => ({
-      name: partner.trainer_name,
-      value: partner.total_units_sold || 0,
-      fill: chartPalette[index % chartPalette.length],
-      __total: total,
-    }))
-  }, [topRankings])
-
-  // --- Variant analytics derived data ---------------------------------------
-  // Trend follows the date-range dropdown (demo provides synthetic series).
-  useEffect(() => {
-    setVariantTrend(isDemo ? demoVariantTrend(dateRange) : [])
-  }, [isDemo, dateRange])
-
   // Partner Performance chart data. Demo mode scales all-time numbers by the
   // selected date range; live mode derives a minimal shape from rankings
   // (no per-variant or retracted breakdown — tooltip just shows totals).
@@ -686,17 +593,6 @@ export default function Sales() {
 
   const variantTotals = variantData?.totals || null
 
-  const variantPie = useMemo(() => {
-    if (!variantTotals) return []
-    const mg = variantTotals.multigrain.sold
-    const pl = variantTotals.plain.sold
-    const total = mg + pl
-    return [
-      { name: VARIANTS.multigrain.short, value: mg, fill: ACCENT_GREEN, __total: total },
-      { name: VARIANTS.plain.short, value: pl, fill: ACCENT_CREAM, __total: total },
-    ]
-  }, [variantTotals])
-
   const variantSummary = useMemo(() => {
     if (!variantTotals) return null
     const mgThrough = variantTotals.multigrain.assigned > 0
@@ -719,28 +615,6 @@ export default function Sales() {
       plPct: totalSold > 0 ? (variantTotals.plain.sold / totalSold) * 100 : 0,
     }
   }, [variantTotals])
-
-  const variantByPartner = useMemo(() => {
-    const rows = variantData?.byPartner || []
-    const dir = variantSort.dir === 'asc' ? 1 : -1
-    return [...rows].sort((a, b) => {
-      if (variantSort.field === 'partner') return a.partner.localeCompare(b.partner) * dir
-      return ((a[variantSort.field] || 0) - (b[variantSort.field] || 0)) * dir
-    })
-  }, [variantData, variantSort])
-
-  const bestRevenue = useMemo(
-    () => Math.max(0, ...(variantData?.byPartner || []).map((r) => r.revenue || 0)),
-    [variantData],
-  )
-
-  const toggleVariantSort = (field) => {
-    setVariantSort((prev) =>
-      prev.field === field
-        ? { field, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
-        : { field, dir: 'desc' },
-    )
-  }
 
   if (loading) {
     return (
@@ -828,64 +702,7 @@ export default function Sales() {
           onDateRangeChange={setDateRange}
         />
 
-        <div className="space-y-6">
-          <section className="dashboard-panel rounded-[32px] p-5 sm:p-6">
-            <div className="mb-6 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Share</p>
-                <h2 className="mt-2 font-display text-2xl font-semibold tracking-[-0.04em] text-white">
-                  Sales share
-                </h2>
-              </div>
-              <div className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                Top 6
-              </div>
-            </div>
-
-            {contributionData.length > 0 ? (
-              <div className="grid grid-cols-1 items-center gap-4 md:grid-cols-[200px_minmax(0,1fr)]">
-                <div className="mx-auto h-[200px] w-[200px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Tooltip content={<ShareTooltip />} />
-                      <Pie
-                        data={contributionData}
-                        dataKey="value"
-                        innerRadius={54}
-                        outerRadius={82}
-                        paddingAngle={4}
-                        stroke="none"
-                        isAnimationActive={false}
-                      >
-                        {contributionData.map((entry, index) => (
-                          <Cell key={entry.name} fill={chartPalette[index % chartPalette.length]} />
-                        ))}
-                      </Pie>
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-
-                <div className="space-y-3">
-                  {contributionData.map((entry, index) => (
-                    <div key={entry.name} className="dashboard-subpanel flex items-center justify-between rounded-[22px] px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <span className="h-3 w-3 rounded-full" style={{ backgroundColor: chartPalette[index % chartPalette.length] }} />
-                        <span className="text-sm font-semibold text-slate-200">
-                          {entry.name.length > 18 ? `${entry.name.slice(0, 18)}...` : entry.name}
-                        </span>
-                      </div>
-                      <span className="text-sm text-slate-400">{entry.value.toLocaleString()}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="dashboard-subpanel rounded-[24px] px-5 py-8 text-center text-sm text-slate-400">
-                No data yet.
-              </div>
-            )}
-          </section>
-
+        <div>
           <section className="dashboard-panel rounded-[32px] p-5 sm:p-6">
             <div className="mb-5">
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Rank</p>
@@ -925,12 +742,9 @@ export default function Sales() {
         </div>
       </div>
 
-      {/* ===================== VARIANT ANALYTICS ===================== */}
       {variantTotals && (
-        <div className="mb-8 space-y-6">
-          <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(280px,0.8fr)]">
-            {/* 3A — Variant comparison card */}
-            <section className="dashboard-panel rounded-[32px] p-5 sm:p-6">
+        <div className="mb-8">
+          <section className="dashboard-panel rounded-[32px] p-5 sm:p-6">
               <div className="mb-5 flex items-center gap-2">
                 <span className="text-lg">📊</span>
                 <h2 className="font-display text-xl font-semibold tracking-[-0.03em] text-white sm:text-2xl">Variant Performance</h2>
@@ -973,241 +787,9 @@ export default function Sales() {
               )}
             </section>
 
-            {/* 3B — Sales by Variant pie */}
-            <section className="dashboard-panel rounded-[32px] p-5 sm:p-6">
-              <div className="mb-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Share</p>
-                <h2 className="mt-2 font-display text-xl font-semibold tracking-[-0.03em] text-white sm:text-2xl">Sales by Variant</h2>
-              </div>
-              <div className="h-[200px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Tooltip content={<VariantShareTooltip />} />
-                    <Pie data={variantPie} dataKey="value" nameKey="name" innerRadius={48} outerRadius={80} paddingAngle={4} stroke="none" isAnimationActive={false}>
-                      {variantPie.map((entry) => (
-                        <Cell key={entry.name} fill={entry.fill} />
-                      ))}
-                    </Pie>
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <p className="mt-2 text-center text-sm font-semibold text-slate-300">
-                <span style={{ color: ACCENT_GREEN }}>●</span> {VARIANTS.multigrain.short} {variantSummary ? variantSummary.mgPct.toFixed(0) : 0}%
-                <span className="mx-2 text-slate-600">|</span>
-                <span className="text-[#FBF3D4]">●</span> {VARIANTS.plain.short} {variantSummary ? variantSummary.plPct.toFixed(0) : 0}%
-              </p>
-            </section>
-          </div>
-
-          {/* 3C — Variant performance by partner (grouped bars) */}
-          <section className="dashboard-panel rounded-[32px] p-5 sm:p-6">
-            <div className="mb-5">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">By partner</p>
-              <h2 className="mt-2 font-display text-xl font-semibold tracking-[-0.03em] text-white sm:text-2xl">Variant Performance by Partner</h2>
-            </div>
-            <div className="-mx-1 overflow-x-auto px-1">
-              <div className="h-[220px] min-w-[480px] md:h-[280px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={variantByPartner} barGap={6} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
-                    <CartesianGrid vertical={false} stroke="#1e2d3d" />
-                    <XAxis dataKey="partner" axisLine={false} tickLine={false} stroke="#7c8a9a" fontSize={11} interval={0} tickFormatter={(value) => (value?.length > 10 ? `${value.slice(0, 10)}...` : value)} />
-                    <YAxis axisLine={false} tickLine={false} stroke="#7c8a9a" fontSize={11} allowDecimals={false} />
-                    <Tooltip content={<VariantSeriesTooltip />} cursor={{ fill: 'rgba(2,70,40,0.08)' }} />
-                    <Legend iconType="circle" wrapperStyle={{ paddingTop: 12, fontSize: 12, color: '#7c8a9a' }} />
-                    <Bar name={VARIANTS.multigrain.short} dataKey="mg_sold" radius={[6, 6, 0, 0]} fill={ACCENT_GREEN} maxBarSize={22} animationDuration={500} />
-                    <Bar name={VARIANTS.plain.short} dataKey="plain_sold" radius={[6, 6, 0, 0]} fill={ACCENT_CREAM} maxBarSize={22} animationDuration={500} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </section>
-
-          {/* 3D — Variant sales over time (trend line) */}
-          <section className="dashboard-panel rounded-[32px] p-5 sm:p-6">
-            <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Trend</p>
-                <h2 className="mt-2 font-display text-xl font-semibold tracking-[-0.03em] text-white sm:text-2xl">Variant Sales Over Time</h2>
-              </div>
-              <select
-                value={dateRange}
-                onChange={(e) => setDateRange(e.target.value)}
-                className="dashboard-select !w-auto"
-                aria-label="Trend date range"
-              >
-                {DATE_RANGES.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-            </div>
-            {variantTrend.length > 0 ? (
-              <div className="-mx-1 overflow-x-auto px-1">
-                <div className="h-[200px] min-w-[480px] md:h-[280px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={variantTrend} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
-                      <CartesianGrid vertical={false} stroke="#1e2d3d" />
-                      <XAxis dataKey="date" axisLine={false} tickLine={false} stroke="#7c8a9a" fontSize={11} />
-                      <YAxis axisLine={false} tickLine={false} stroke="#7c8a9a" fontSize={11} allowDecimals={false} />
-                      <Tooltip content={<VariantSeriesTooltip />} />
-                      <Legend iconType="circle" wrapperStyle={{ paddingTop: 12, fontSize: 12, color: '#7c8a9a' }} />
-                      <Line name={VARIANTS.multigrain.short} type="monotone" dataKey="multigrain" stroke={ACCENT_GREEN} strokeWidth={2} dot={{ r: 3, fill: ACCENT_GREEN }} animationDuration={500} />
-                      <Line name={VARIANTS.plain.short} type="monotone" dataKey="plain" stroke={ACCENT_CREAM} strokeWidth={2} dot={{ r: 3, fill: ACCENT_CREAM }} animationDuration={500} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            ) : (
-              <div className="dashboard-subpanel flex h-[200px] items-center justify-center rounded-[24px] text-sm text-slate-400">
-                No trend data yet
-              </div>
-            )}
-          </section>
-
-          {/* 3E — Detailed variant breakdown table */}
-          <section className="dashboard-panel overflow-hidden rounded-[32px]">
-            <div className="border-b border-white/8 px-5 py-5 sm:px-6">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Breakdown</p>
-              <h2 className="mt-2 font-display text-xl font-semibold tracking-[-0.03em] text-white sm:text-2xl">Variant Detail by Partner</h2>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="dashboard-table min-w-full">
-                <thead>
-                  <tr>
-                    {[
-                      { key: 'partner', label: 'Partner', align: 'left' },
-                      { key: 'mg_assigned', label: 'MG Assigned', align: 'right' },
-                      { key: 'mg_sold', label: 'MG Sold', align: 'right' },
-                      { key: 'mg_pct', label: 'MG %', align: 'right', noSort: true },
-                      { key: 'plain_assigned', label: 'Plain Assigned', align: 'right' },
-                      { key: 'plain_sold', label: 'Plain Sold', align: 'right' },
-                      { key: 'plain_pct', label: 'Plain %', align: 'right', noSort: true },
-                      { key: 'revenue', label: 'Revenue', align: 'right' },
-                    ].map((col) => (
-                      <th
-                        key={col.key}
-                        onClick={() => !col.noSort && toggleVariantSort(col.key)}
-                        className={`border-b border-white/8 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 ${col.align === 'right' ? 'text-right' : 'text-left'} ${col.noSort ? '' : 'cursor-pointer select-none hover:text-slate-300'}`}
-                      >
-                        {col.label}
-                        {variantSort.field === col.key && (variantSort.dir === 'asc' ? ' ▲' : ' ▼')}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {variantByPartner.map((row) => {
-                    const mgPct = row.mg_assigned > 0 ? ((row.mg_sold / row.mg_assigned) * 100).toFixed(0) : '0'
-                    const plPct = row.plain_assigned > 0 ? ((row.plain_sold / row.plain_assigned) * 100).toFixed(0) : '0'
-                    const isBest = bestRevenue > 0 && row.revenue === bestRevenue
-                    return (
-                      <tr key={row.partner} className={isBest ? 'bg-emerald-400/8' : ''}>
-                        <td className="px-3 py-2 font-semibold text-white">{row.partner}</td>
-                        <td className="px-3 py-2 text-right text-slate-300">{row.mg_assigned.toLocaleString()}</td>
-                        <td className="px-3 py-2 text-right font-semibold text-emerald-200">{row.mg_sold.toLocaleString()}</td>
-                        <td className="px-3 py-2 text-right text-slate-400">{mgPct}%</td>
-                        <td className="px-3 py-2 text-right text-slate-300">{row.plain_assigned.toLocaleString()}</td>
-                        <td className="px-3 py-2 text-right font-semibold text-amber-100">{row.plain_sold.toLocaleString()}</td>
-                        <td className="px-3 py-2 text-right text-slate-400">{plPct}%</td>
-                        <td className={`px-3 py-2 text-right font-mono font-semibold ${isBest ? 'text-emerald-300' : 'text-indigo-200'}`}>₹{row.revenue.toLocaleString()}</td>
-                      </tr>
-                    )
-                  })}
-                  {variantByPartner.length === 0 && (
-                    <tr>
-                      <td colSpan="8" className="px-6 py-10 text-center text-sm text-slate-500">No variant data yet.</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
         </div>
       )}
 
-      <section className="dashboard-panel mb-8 overflow-hidden rounded-[32px]">
-        <div className="flex flex-col gap-3 border-b border-white/8 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">List</p>
-            <h2 className="mt-2 font-display text-2xl font-semibold tracking-[-0.04em] text-white">Partners</h2>
-          </div>
-          <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-sm text-slate-400">
-            {trainers.length} partner{trainers.length !== 1 ? 's' : ''}
-          </span>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="dashboard-table min-w-full">
-            <thead>
-              <tr>
-                <th className="border-b border-white/8 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Partner</th>
-                <th className="border-b border-white/8 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Joined</th>
-                <th className="border-b border-white/8 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Units</th>
-                <th className="border-b border-white/8 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Revenue</th>
-                <th className="border-b border-white/8 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Notes</th>
-                <th className="border-b border-white/8 px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {trainers.map((trainer) => {
-                const stats = trainerStatsMap[trainer.id] || { totalUnits: 0, totalRevenue: 0 }
-
-                return (
-                  <tr key={trainer.id}>
-                    <td className="px-3 py-2">
-                      <div>
-                        <p className="font-semibold text-white">{trainer.name}</p>
-                        <p className="mt-1 text-xs text-slate-500">{trainer.contact || 'No contact added'}</p>
-                      </div>
-                    </td>
-                    <td className="px-3 py-2 text-sm text-slate-400">
-                      {trainer.created_at ? formatDateDDMMYY(trainer.created_at) : 'N/A'}
-                    </td>
-                    <td className="px-3 py-2 text-sm font-semibold text-emerald-100">
-                      {stats.totalUnits.toLocaleString()}
-                    </td>
-                    <td className="px-3 py-2 text-sm font-semibold text-indigo-100">
-                      ₹{stats.totalRevenue.toLocaleString()}
-                    </td>
-                    <td className="max-w-md px-3 py-2 text-sm text-slate-400">
-                      <span className="block truncate">{trainer.notes || 'No notes added'}</span>
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="flex justify-end gap-2">
-                        {trainer.contact && (
-                          <button
-                            onClick={() => handleCallTrainer(trainer.contact)}
-                            className="inline-flex items-center gap-1 rounded-full border border-emerald-300/16 bg-emerald-400/10 px-3 py-1.5 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-400/16"
-                            title={`Call ${trainer.contact}`}
-                          >
-                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                            </svg>
-                            Call
-                          </button>
-                        )}
-                        <button
-                          onClick={() => handleEditTrainer(trainer)}
-                          className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-white/[0.08]"
-                        >
-                          Edit
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
-
-              {trainers.length === 0 && (
-                <tr>
-                  <td colSpan="6" className="px-6 py-10 text-center text-sm text-slate-500">
-                    No partners yet.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
 
       <Modal
         isOpen={isAddTrainerModalOpen}
