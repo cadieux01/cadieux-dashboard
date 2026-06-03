@@ -4,6 +4,7 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  Legend,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -356,6 +357,17 @@ export default function Sales() {
 
   const topRankings = useMemo(() => rankings.slice(0, 6), [rankings])
 
+  // The bar chart is only meaningful if at least one partner has some
+  // assigned or sold units — otherwise Recharts renders an empty axis frame
+  // that looks broken.
+  const hasChartData = useMemo(
+    () =>
+      topRankings.some(
+        (row) => (row.total_units_assigned || 0) > 0 || (row.total_units_sold || 0) > 0,
+      ),
+    [topRankings],
+  )
+
   const contributionData = useMemo(
     () =>
       topRankings
@@ -465,40 +477,59 @@ export default function Sales() {
             </div>
           </div>
 
-          <div className="h-[320px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={topRankings} barGap={10} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="overviewAssigned" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#7f95ff" stopOpacity={0.95} />
-                    <stop offset="100%" stopColor="#7f95ff" stopOpacity={0.2} />
-                  </linearGradient>
-                  <linearGradient id="overviewSold" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#8ee1cb" stopOpacity={0.95} />
-                    <stop offset="100%" stopColor="#8ee1cb" stopOpacity={0.2} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid vertical={false} stroke="rgba(170, 183, 202, 0.12)" />
-                <XAxis
-                  dataKey="trainer_name"
-                  axisLine={false}
-                  tickLine={false}
-                  stroke="#7b8da8"
-                  fontSize={12}
-                  tickFormatter={(value) => (value?.length > 12 ? `${value.slice(0, 12)}...` : value)}
-                />
-                <YAxis
-                  axisLine={false}
-                  tickLine={false}
-                  stroke="#7b8da8"
-                  fontSize={12}
-                />
-                <Tooltip content={<OverviewTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
-                <Bar dataKey="total_units_assigned" radius={[12, 12, 0, 0]} fill="url(#overviewAssigned)" maxBarSize={26} />
-                <Bar dataKey="total_units_sold" radius={[12, 12, 0, 0]} fill="url(#overviewSold)" maxBarSize={26} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          {hasChartData ? (
+            // Horizontal scroll on small screens so several partners' bars and
+            // x-axis labels never clip; the inner wrapper keeps a sensible
+            // minimum width while ResponsiveContainer fills whatever it gets.
+            <div className="-mx-1 overflow-x-auto px-1">
+              <div className="h-[320px] min-w-[480px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={topRankings} barGap={10} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
+                    <CartesianGrid vertical={false} stroke="rgba(170, 183, 202, 0.12)" />
+                    <XAxis
+                      dataKey="trainer_name"
+                      axisLine={false}
+                      tickLine={false}
+                      stroke="#7b8da8"
+                      fontSize={12}
+                      interval={0}
+                      tickFormatter={(value) => (value?.length > 12 ? `${value.slice(0, 12)}...` : value)}
+                    />
+                    <YAxis
+                      axisLine={false}
+                      tickLine={false}
+                      stroke="#7b8da8"
+                      fontSize={12}
+                      allowDecimals={false}
+                    />
+                    <Tooltip content={<OverviewTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
+                    <Legend
+                      iconType="circle"
+                      wrapperStyle={{ paddingTop: 12, fontSize: 13, color: '#aab7ca' }}
+                    />
+                    <Bar
+                      name="Assigned"
+                      dataKey="total_units_assigned"
+                      radius={[8, 8, 0, 0]}
+                      fill="#94a3b8"
+                      maxBarSize={26}
+                    />
+                    <Bar
+                      name="Sold"
+                      dataKey="total_units_sold"
+                      radius={[8, 8, 0, 0]}
+                      fill="#10b981"
+                      maxBarSize={26}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          ) : (
+            <div className="dashboard-subpanel flex h-[320px] items-center justify-center rounded-[24px] px-5 text-center text-sm text-slate-400">
+              No sales data yet
+            </div>
+          )}
         </section>
 
         <div className="space-y-6">
