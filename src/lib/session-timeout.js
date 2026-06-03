@@ -74,16 +74,18 @@ export function useIdleLogout({
 
     firedRef.current = false
 
+    // Treat hook mount (i.e. a fresh login / app load) as activity. A stale
+    // or missing cdx_last_activity from a previous session must NOT log the
+    // user out immediately — start a fresh idle window instead.
     let initialDelay = timeoutMs
     try {
       const stored = Number(localStorage.getItem(LS_KEY))
-      if (Number.isFinite(stored) && stored > 0) {
-        const elapsed = Date.now() - stored
-        if (elapsed >= timeoutMs) {
-          firedRef.current = true
-          Promise.resolve(onTimeout()).catch(() => {})
-          return undefined
-        }
+      const elapsed = Number.isFinite(stored) && stored > 0 ? Date.now() - stored : Infinity
+      if (elapsed >= timeoutMs) {
+        // No valid timestamp, or it's older than the window: reset to now.
+        localStorage.setItem(LS_KEY, String(Date.now()))
+        lastWrite.current = Date.now()
+      } else {
         initialDelay = timeoutMs - elapsed
       }
     } catch {

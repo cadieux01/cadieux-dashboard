@@ -244,6 +244,15 @@ export function AuthProvider({ children }) {
       const signInPromise = supabase.auth.signInWithPassword({ email, password })
       const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('signIn timeout after 12000ms')), 12000))
       const { data, error } = await Promise.race([signInPromise, timeoutPromise])
+      // Start a fresh idle window on successful login so a stale
+      // cdx_last_activity from a previous session can't kick the user out.
+      if (!error && data?.user) {
+        try {
+          localStorage.setItem('cdx_last_activity', Date.now().toString())
+        } catch {
+          /* ignore */
+        }
+      }
       // Best-effort LOGIN audit. Never block or fail the sign-in on it.
       if (!error && data?.user) {
         void logAuditEvent({
@@ -261,6 +270,12 @@ export function AuthProvider({ children }) {
   }
 
   const signOut = async () => {
+    // Clear the idle-activity timestamp so the next login starts clean.
+    try {
+      localStorage.removeItem('cdx_last_activity')
+    } catch {
+      /* ignore */
+    }
     // Demo logout: just clear the local flags, no Supabase call.
     if (isDemo) {
       clearDemoSession()
