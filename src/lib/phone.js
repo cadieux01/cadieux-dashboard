@@ -49,3 +49,21 @@ export function extractPhone(email) {
 export function displayLogin(email) {
   return extractPhone(email) || email || null
 }
+
+/** The single hard-coded admin login that gets re-labelled as "Admin". */
+export const ADMIN_DISPLAY_EMAIL = 'sunny@gmail.com'
+
+/** True if this profile is the canonical admin login. */
+export function isAdminAccount(profile) {
+  return profile?.role === 'admin' && profile?.email === ADMIN_DISPLAY_EMAIL
+}
+
+/**
+ * Display name for the sidebar/header. Admin login is masked as "Admin".
+ * Falls back to full_name, then a derived phone/email, then null.
+ */
+export function displayName(profile) {
+  if (!profile) return null
+  if (isAdminAccount(profile)) return 'Admin'
+  return profile.full_name || displayLogin(profile.email)
+}

@@ -12,6 +12,7 @@ import {
   UserPlus,
   Home,
   LogOut,
+  Shield,
   Menu as MenuIcon,
   X,
   ChevronLeft,
@@ -20,7 +21,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import SessionTimeout from './SessionTimeout'
-import { displayLogin } from '../lib/phone'
+import { displayLogin, displayName, isAdminAccount } from '../lib/phone'
 import { fetchPendingCount } from '../lib/changeRequests'
 
 // Floating "DEMO MODE" badge + transient toast. Only mounted when a demo
@@ -246,14 +247,18 @@ export default function Layout() {
             }`}
           >
             <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[#024628] text-sm font-bold text-[#fbf3d4]">
-              {profile?.full_name?.charAt(0) || displayLogin(profile?.email)?.charAt(0) || 'A'}
+              {isAdminAccount(profile)
+                ? <Shield size={16} className="text-[#fbf3d4]" />
+                : (profile?.full_name?.charAt(0) || displayLogin(profile?.email)?.charAt(0) || 'A')}
             </div>
             {isSidebarOpen && (
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-bold text-white">
-                  {profile?.full_name || 'Admin'}
+                  {isAdminAccount(profile) ? 'Admin Dashboard' : (displayName(profile) || 'Admin')}
                 </p>
-                <p className="truncate text-xs text-slate-500">{profile?.phone || displayLogin(profile?.email)}</p>
+                <p className="truncate text-xs text-slate-500">
+                  {isAdminAccount(profile) ? 'Admin' : (profile?.phone || displayLogin(profile?.email))}
+                </p>
               </div>
             )}
           </div>

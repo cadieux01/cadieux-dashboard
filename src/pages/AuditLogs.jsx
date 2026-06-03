@@ -2,7 +2,14 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { formatDateDDMMYY } from '../lib/date'
 import { categoryForEntity } from '../lib/audit'
-import { displayLogin } from '../lib/phone'
+import { displayLogin, ADMIN_DISPLAY_EMAIL } from '../lib/phone'
+
+// Display the admin login as "Admin" while keeping the underlying email for
+// traceability. Falls back to the stored user_name for everyone else.
+function auditDisplayName(row, prof) {
+  if (prof?.email === ADMIN_DISPLAY_EMAIL) return 'Admin'
+  return row.user_name || 'Unknown'
+}
 import { useAuth } from '../context/AuthContext'
 import DEMO_DATA from '../lib/demoData'
 import RefreshButton from '../components/RefreshButton'
@@ -540,7 +547,7 @@ function RowGroup({ row, prof, idx, hasDiff, isOpen, onToggle }) {
         </td>
         <td className="px-4 py-3 align-top">
           <div className="font-sans font-medium text-white">
-            {row.user_name || 'Unknown'}
+            {auditDisplayName(row, prof)}
           </div>
           {prof?.email && (
             <div className="text-xs text-slate-500">{displayLogin(prof.email)}</div>

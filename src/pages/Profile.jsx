@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { displayLogin } from '../lib/phone'
+import { displayLogin, displayName, isAdminAccount } from '../lib/phone'
 import { formatDateDDMMYY } from '../lib/date'
 import {
   submitChangeRequest,
@@ -223,7 +223,7 @@ export default function Profile() {
               </form>
             ) : (
               <div className="mt-1 flex items-center justify-between gap-3">
-                <p className="text-base text-white">{profile.full_name || '—'}</p>
+                <p className="text-base text-white">{isAdminAccount(profile) ? 'Admin' : (displayName(profile) || '—')}</p>
                 <button
                   onClick={() => { closeEditor(); setEditing('name'); setNameValue(profile.full_name || '') }}
                   className="rounded-lg bg-indigo-500/20 px-3 py-1.5 text-xs text-indigo-300 hover:bg-indigo-500/30"
