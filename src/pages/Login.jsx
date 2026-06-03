@@ -136,12 +136,10 @@ export default function Login() {
       <div className="relative w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-amber-400 to-amber-600 rounded-2xl shadow-lg shadow-amber-500/30 mb-4">
-            <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-            </svg>
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-[#024628] rounded-2xl shadow-lg shadow-[#024628]/40 mb-4 ring-1 ring-[#FBF3D4]/20">
+            <span className="text-2xl font-extrabold text-[#FBF3D4]">C</span>
           </div>
-          <h1 className="text-3xl font-bold text-white tracking-tight">Cadieux</h1>
+          <h1 className="text-3xl font-extrabold text-[#FBF3D4] tracking-[0.18em]">CADIEUX</h1>
           <p className="text-slate-400 mt-2">Core Element — Operations</p>
         </div>
 

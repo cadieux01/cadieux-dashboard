@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
+  Area,
+  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
   Cell,
   Legend,
+  Line,
+  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -22,7 +26,26 @@ import { useAuth } from '../context/AuthContext'
 import { demoBlock, demoTrainers, demoRankings } from '../lib/demoData'
 
 const UNIT_PRICE = 100
-const chartPalette = ['#8ee1cb', '#7f95ff', '#f2b36d', '#f28b9d', '#a7b4ff', '#8fcdf3']
+// Brand-led pie/series gradient: Foundation Green → Grain Cream.
+const chartPalette = ['#024628', '#035c36', '#0a7a4a', '#3f9e6e', '#8fbf9f', '#FBF3D4']
+const ACCENT_GREEN = '#024628'
+const ACCENT_CREAM = '#FBF3D4'
+
+const CHART_TYPES = [
+  { value: 'bar', label: 'Bar' },
+  { value: 'line', label: 'Line' },
+  { value: 'area', label: 'Area' },
+  { value: 'pie', label: 'Pie' },
+]
+
+const DATE_RANGES = [
+  { value: '7d', label: 'Last 7 Days' },
+  { value: '30d', label: 'Last 30 Days' },
+  { value: 'month', label: 'This Month' },
+  { value: '3m', label: 'Last 3 Months' },
+  { value: '6m', label: 'Last 6 Months' },
+  { value: 'year', label: 'This Year' },
+]
 
 function OverviewTooltip({ active, payload }) {
   if (!active || !payload?.length) return null
@@ -31,15 +54,15 @@ function OverviewTooltip({ active, payload }) {
   if (!row) return null
 
   return (
-    <div className="rounded-3xl border border-white/10 bg-slate-950/92 px-4 py-3 shadow-[0_24px_50px_rgba(2,6,23,0.35)] backdrop-blur-xl">
-      <p className="font-semibold text-white">{row.trainer_name}</p>
-      <div className="mt-2 space-y-1.5 text-sm text-slate-300">
+    <div className="rounded-lg border border-[#1e2d3d] bg-[#1a2332] px-4 py-3 shadow-[0_8px_24px_rgba(0,0,0,0.45)]">
+      <p className="font-semibold text-[#f1f5f9]">{row.trainer_name}</p>
+      <div className="mt-2 space-y-1.5 text-sm text-[#cbd5e1]">
         <div className="flex items-center justify-between gap-4">
-          <span className="text-slate-500">Assigned</span>
+          <span className="text-[#7c8a9a]">Assigned</span>
           <span>{(row.total_units_assigned || 0).toLocaleString()} units</span>
         </div>
         <div className="flex items-center justify-between gap-4">
-          <span className="text-slate-500">Sold</span>
+          <span className="text-[#7c8a9a]">Sold</span>
           <span>{(row.total_units_sold || 0).toLocaleString()} units</span>
         </div>
       </div>
@@ -53,11 +76,14 @@ function ShareTooltip({ active, payload }) {
   const row = payload[0]?.payload
   if (!row) return null
 
+  const total = payload[0]?.payload?.__total || 0
+  const pct = total > 0 ? ((row.value / total) * 100).toFixed(1) : '0.0'
+
   return (
-    <div className="rounded-3xl border border-white/10 bg-slate-950/92 px-4 py-3 shadow-[0_24px_50px_rgba(2,6,23,0.35)] backdrop-blur-xl">
-      <p className="font-semibold text-white">{row.name}</p>
-      <p className="mt-2 text-sm text-slate-300">
-        {row.value.toLocaleString()} sold
+    <div className="rounded-lg border border-[#1e2d3d] bg-[#1a2332] px-4 py-3 shadow-[0_8px_24px_rgba(0,0,0,0.45)]">
+      <p className="font-semibold text-[#f1f5f9]">{row.name}</p>
+      <p className="mt-2 text-sm text-[#cbd5e1]">
+        {row.value.toLocaleString()} sold · {pct}%
       </p>
     </div>
   )
@@ -68,6 +94,8 @@ export default function Sales() {
   const [trainers, setTrainers] = useState([])
   const [rankings, setRankings] = useState([])
   const [loading, setLoading] = useState(true)
+  const [chartType, setChartType] = useState('bar')
+  const [dateRange, setDateRange] = useState('30d')
   const [isAddTrainerModalOpen, setIsAddTrainerModalOpen] = useState(false)
   const [editingTrainerId, setEditingTrainerId] = useState(null)
   const [editingTrainerData, setEditingTrainerData] = useState(null)
@@ -379,17 +407,16 @@ export default function Sales() {
     [topRankings],
   )
 
-  const contributionData = useMemo(
-    () =>
-      topRankings
-        .filter((partner) => (partner.total_units_sold || 0) > 0)
-        .map((partner, index) => ({
-          name: partner.trainer_name,
-          value: partner.total_units_sold || 0,
-          fill: chartPalette[index % chartPalette.length],
-        })),
-    [topRankings],
-  )
+  const contributionData = useMemo(() => {
+    const sold = topRankings.filter((partner) => (partner.total_units_sold || 0) > 0)
+    const total = sold.reduce((sum, p) => sum + (p.total_units_sold || 0), 0)
+    return sold.map((partner, index) => ({
+      name: partner.trainer_name,
+      value: partner.total_units_sold || 0,
+      fill: chartPalette[index % chartPalette.length],
+      __total: total,
+    }))
+  }, [topRankings])
 
   if (loading) {
     return (
@@ -473,10 +500,32 @@ export default function Sales() {
         <section className="dashboard-panel rounded-[32px] p-5 sm:p-6">
           <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Chart</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Sales Performance</p>
               <h2 className="mt-2 font-display text-2xl font-semibold tracking-[-0.04em] text-white">
                 Assigned vs sold
               </h2>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={chartType}
+                onChange={(e) => setChartType(e.target.value)}
+                className="dashboard-select !w-auto"
+                aria-label="Chart type"
+              >
+                {CHART_TYPES.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+              <select
+                value={dateRange}
+                onChange={(e) => setDateRange(e.target.value)}
+                className="dashboard-select !w-auto"
+                aria-label="Date range"
+              >
+                {DATE_RANGES.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
             </div>
           </div>
 
@@ -484,47 +533,68 @@ export default function Sales() {
             // Horizontal scroll on small screens so several partners' bars and
             // x-axis labels never clip; the inner wrapper keeps a sensible
             // minimum width while ResponsiveContainer fills whatever it gets.
-            <div className="-mx-1 overflow-x-auto px-1">
-              <div className="h-[320px] min-w-[480px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={topRankings} barGap={10} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
-                    <CartesianGrid vertical={false} stroke="rgba(170, 183, 202, 0.12)" />
-                    <XAxis
-                      dataKey="trainer_name"
-                      axisLine={false}
-                      tickLine={false}
-                      stroke="#7b8da8"
-                      fontSize={12}
-                      interval={0}
-                      tickFormatter={(value) => (value?.length > 12 ? `${value.slice(0, 12)}...` : value)}
-                    />
-                    <YAxis
-                      axisLine={false}
-                      tickLine={false}
-                      stroke="#7b8da8"
-                      fontSize={12}
-                      allowDecimals={false}
-                    />
-                    <Tooltip content={<OverviewTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
-                    <Legend
-                      iconType="circle"
-                      wrapperStyle={{ paddingTop: 12, fontSize: 13, color: '#aab7ca' }}
-                    />
-                    <Bar
-                      name="Assigned"
-                      dataKey="total_units_assigned"
-                      radius={[8, 8, 0, 0]}
-                      fill="#94a3b8"
-                      maxBarSize={26}
-                    />
-                    <Bar
-                      name="Sold"
-                      dataKey="total_units_sold"
-                      radius={[8, 8, 0, 0]}
-                      fill="#10b981"
-                      maxBarSize={26}
-                    />
-                  </BarChart>
+            <div className={chartType === 'pie' ? '' : '-mx-1 overflow-x-auto px-1'}>
+              <div className={chartType === 'pie' ? 'h-[320px] w-full' : 'h-[320px] min-w-[480px]'}>
+                <ResponsiveContainer key={chartType} width="100%" height="100%">
+                  {chartType === 'bar' ? (
+                    <BarChart data={topRankings} barGap={10} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
+                      <CartesianGrid vertical={false} stroke="#1e2d3d" />
+                      <XAxis
+                        dataKey="trainer_name"
+                        axisLine={false}
+                        tickLine={false}
+                        stroke="#7c8a9a"
+                        fontSize={11}
+                        interval={0}
+                        tickFormatter={(value) => (value?.length > 12 ? `${value.slice(0, 12)}...` : value)}
+                      />
+                      <YAxis axisLine={false} tickLine={false} stroke="#7c8a9a" fontSize={11} allowDecimals={false} />
+                      <Tooltip content={<OverviewTooltip />} cursor={{ fill: 'rgba(2,70,40,0.08)' }} />
+                      <Legend iconType="circle" wrapperStyle={{ paddingTop: 12, fontSize: 12, color: '#7c8a9a' }} />
+                      <Bar name="Assigned" dataKey="total_units_assigned" radius={[8, 8, 0, 0]} fill={ACCENT_CREAM} maxBarSize={26} animationDuration={500} />
+                      <Bar name="Sold" dataKey="total_units_sold" radius={[8, 8, 0, 0]} fill={ACCENT_GREEN} maxBarSize={26} animationDuration={500} />
+                    </BarChart>
+                  ) : chartType === 'line' ? (
+                    <LineChart data={topRankings} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
+                      <CartesianGrid vertical={false} stroke="#1e2d3d" />
+                      <XAxis dataKey="trainer_name" axisLine={false} tickLine={false} stroke="#7c8a9a" fontSize={11} interval={0} tickFormatter={(value) => (value?.length > 12 ? `${value.slice(0, 12)}...` : value)} />
+                      <YAxis axisLine={false} tickLine={false} stroke="#7c8a9a" fontSize={11} allowDecimals={false} />
+                      <Tooltip content={<OverviewTooltip />} />
+                      <Legend iconType="circle" wrapperStyle={{ paddingTop: 12, fontSize: 12, color: '#7c8a9a' }} />
+                      <Line name="Assigned" type="monotone" dataKey="total_units_assigned" stroke={ACCENT_CREAM} strokeWidth={2} dot={{ r: 3, fill: ACCENT_CREAM }} animationDuration={500} />
+                      <Line name="Sold" type="monotone" dataKey="total_units_sold" stroke={ACCENT_GREEN} strokeWidth={2} dot={{ r: 3, fill: ACCENT_GREEN }} animationDuration={500} />
+                    </LineChart>
+                  ) : chartType === 'area' ? (
+                    <AreaChart data={topRankings} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="areaSold" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor={ACCENT_GREEN} stopOpacity={0.5} />
+                          <stop offset="95%" stopColor={ACCENT_GREEN} stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="areaAssigned" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor={ACCENT_CREAM} stopOpacity={0.4} />
+                          <stop offset="95%" stopColor={ACCENT_CREAM} stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid vertical={false} stroke="#1e2d3d" />
+                      <XAxis dataKey="trainer_name" axisLine={false} tickLine={false} stroke="#7c8a9a" fontSize={11} interval={0} tickFormatter={(value) => (value?.length > 12 ? `${value.slice(0, 12)}...` : value)} />
+                      <YAxis axisLine={false} tickLine={false} stroke="#7c8a9a" fontSize={11} allowDecimals={false} />
+                      <Tooltip content={<OverviewTooltip />} />
+                      <Legend iconType="circle" wrapperStyle={{ paddingTop: 12, fontSize: 12, color: '#7c8a9a' }} />
+                      <Area name="Assigned" type="monotone" dataKey="total_units_assigned" stroke={ACCENT_CREAM} strokeWidth={2} fill="url(#areaAssigned)" animationDuration={500} />
+                      <Area name="Sold" type="monotone" dataKey="total_units_sold" stroke={ACCENT_GREEN} strokeWidth={2} fill="url(#areaSold)" animationDuration={500} />
+                    </AreaChart>
+                  ) : (
+                    <PieChart>
+                      <Tooltip content={<ShareTooltip />} />
+                      <Legend iconType="circle" wrapperStyle={{ paddingTop: 12, fontSize: 12, color: '#7c8a9a' }} />
+                      <Pie data={contributionData} dataKey="value" nameKey="name" outerRadius={110} paddingAngle={3} stroke="none" isAnimationActive={false}>
+                        {contributionData.map((entry, index) => (
+                          <Cell key={entry.name} fill={chartPalette[index % chartPalette.length]} />
+                        ))}
+                      </Pie>
+                    </PieChart>
+                  )}
                 </ResponsiveContainer>
               </div>
             </div>
@@ -562,6 +632,7 @@ export default function Sales() {
                         outerRadius={82}
                         paddingAngle={4}
                         stroke="none"
+                        isAnimationActive={false}
                       >
                         {contributionData.map((entry, index) => (
                           <Cell key={entry.name} fill={chartPalette[index % chartPalette.length]} />

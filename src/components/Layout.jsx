@@ -1,5 +1,23 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
+import {
+  LayoutDashboard,
+  TrendingUp,
+  Megaphone,
+  Users,
+  UserCog,
+  ClipboardCheck,
+  FileText,
+  User,
+  UserPlus,
+  Home,
+  LogOut,
+  Menu as MenuIcon,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  MoreHorizontal,
+} from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import SessionTimeout from './SessionTimeout'
 import { displayLogin } from '../lib/phone'
@@ -24,178 +42,44 @@ function DemoBadge() {
   return (
     <>
       {toast && (
-        <div className="fixed bottom-16 right-4 z-[60] rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-amber-200 shadow-lg shadow-black/40 ring-1 ring-amber-400/30">
+        <div className="fixed bottom-24 right-4 z-[60] rounded-lg bg-[#1a2332] px-4 py-2.5 text-sm font-semibold text-amber-200 shadow-lg ring-1 ring-amber-400/30 md:bottom-16">
           {toast}
         </div>
       )}
-      <div className="fixed bottom-4 right-4 z-[60] rounded-full bg-amber-400 px-3.5 py-1.5 text-xs font-bold text-slate-900 shadow-lg shadow-amber-500/30">
+      <div className="fixed bottom-20 right-4 z-[60] rounded-full bg-[#fbf3d4] px-3.5 py-1.5 text-xs font-bold text-[#024628] shadow-lg md:bottom-4">
         DEMO MODE — No real data
       </div>
     </>
   )
 }
 
-// Shared icons used by more than one role's nav.
-const profileIcon = (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-  </svg>
-)
-const changeRequestsIcon = (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7l2 2 4-4" />
-  </svg>
-)
-
-// Onboarding showcase entry — only injected into the sidebar in demo mode.
-const onboardingNavItem = {
-  name: 'Onboarding',
-  href: '/admin/onboarding',
-  icon: (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-    </svg>
-  ),
-}
-
 const adminNavigation = [
-  {
-    name: 'Overview',
-    href: '/admin/overview',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-      </svg>
-    ),
-  },
-  {
-    name: 'Sales',
-    href: '/admin/sales',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-      </svg>
-    ),
-  },
-  {
-    name: 'CTA',
-    href: '/admin/cta',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-      </svg>
-    ),
-  },
-  {
-    name: 'Partners',
-    href: '/admin/partners',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-      </svg>
-    ),
-  },
-  {
-    name: 'Sales Exec',
-    href: '/admin/sales-exec',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7zm6-5h3m-1.5-1.5v3" />
-      </svg>
-    ),
-  },
-  {
-    name: 'Change Requests',
-    href: '/admin/change-requests',
-    badge: 'pendingRequests',
-    icon: changeRequestsIcon,
-  },
-  {
-    name: 'Audit',
-    href: '/admin/audit-logs',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-      </svg>
-    ),
-  },
-  {
-    name: 'Profile',
-    href: '/admin/profile',
-    icon: profileIcon,
-  },
+  { name: 'Overview', href: '/admin/overview', Icon: LayoutDashboard },
+  { name: 'Sales', href: '/admin/sales', Icon: TrendingUp },
+  { name: 'CTA', href: '/admin/cta', Icon: Megaphone },
+  { name: 'Partners', href: '/admin/partners', Icon: Users },
+  { name: 'Sales Exec', href: '/admin/sales-exec', Icon: UserCog },
+  { name: 'Change Requests', href: '/admin/change-requests', badge: 'pendingRequests', Icon: ClipboardCheck },
+  { name: 'Audit', href: '/admin/audit-logs', Icon: FileText },
+  { name: 'Profile', href: '/admin/profile', Icon: User },
 ]
 
 const salesNavigation = [
-  {
-    name: 'Overview',
-    href: '/admin/overview',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-      </svg>
-    ),
-  },
-  {
-    name: 'Sales',
-    href: '/admin/sales',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-      </svg>
-    ),
-  },
-  {
-    name: 'CTA',
-    href: '/admin/cta',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-      </svg>
-    ),
-  },
-  {
-    name: 'Partners',
-    href: '/admin/partners',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-      </svg>
-    ),
-  },
-  {
-    name: 'Partner Requests',
-    href: '/admin/change-requests',
-    badge: 'pendingRequests',
-    icon: changeRequestsIcon,
-  },
-  {
-    name: 'Profile',
-    href: '/admin/profile',
-    icon: profileIcon,
-  },
+  { name: 'Overview', href: '/admin/overview', Icon: LayoutDashboard },
+  { name: 'Sales', href: '/admin/sales', Icon: TrendingUp },
+  { name: 'CTA', href: '/admin/cta', Icon: Megaphone },
+  { name: 'Partners', href: '/admin/partners', Icon: Users },
+  { name: 'Partner Requests', href: '/admin/change-requests', badge: 'pendingRequests', Icon: ClipboardCheck },
+  { name: 'Profile', href: '/admin/profile', Icon: User },
 ]
 
 const partnerNavigation = [
-  {
-    name: 'Home',
-    href: '/partner/dashboard',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-      </svg>
-    ),
-  },
-  {
-    name: 'Profile',
-    href: '/partner/profile',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-      </svg>
-    ),
-  },
+  { name: 'Home', href: '/partner/dashboard', Icon: Home },
+  { name: 'Profile', href: '/partner/profile', Icon: User },
 ]
+
+// Onboarding showcase entry — only injected into the sidebar in demo mode.
+const onboardingNavItem = { name: 'Onboarding', href: '/admin/onboarding', Icon: UserPlus }
 
 export default function Layout() {
   const { profile, role, signOut, isDemo } = useAuth()
@@ -221,21 +105,13 @@ export default function Layout() {
     await signOut()
   }
 
-  const toggleSidebar = () => {
-    setIsSidebarOpen(!isSidebarOpen)
-  }
-
-  const toggleMobileMenu = () => {
-    setIsMobileMenuOpen(!isMobileMenuOpen)
-  }
-
   // Get navigation based on role
   let navigation = partnerNavigation
   let appName = 'Partner'
-  
+
   if (role === 'admin') {
     navigation = adminNavigation
-    appName = 'Cadieux'
+    appName = 'Operations'
   } else if (role === 'sales') {
     navigation = salesNavigation
     appName = 'Sales'
@@ -253,32 +129,34 @@ export default function Layout() {
     ]
   }
 
+  // Mobile bottom tab bar: first 3 nav items + a Menu trigger.
+  const bottomTabs = navigation.slice(0, 3)
+
+  const navLinkClass = ({ isActive }) =>
+    `group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-all duration-150 ${
+      isActive
+        ? 'bg-[rgba(2,70,40,0.15)] text-[#fbf3d4]'
+        : 'text-slate-500 hover:bg-[rgba(2,70,40,0.08)] hover:text-slate-100'
+    }`
+
   return (
     <div className="min-h-screen bg-transparent text-slate-100 lg:flex">
-      {/* Idle auto-logout — signs out + redirects to /login after 60min
-          of inactivity, with a 5-minute warning. Mounted here so it
-          covers every authenticated screen but never the public Login. */}
       <SessionTimeout />
+
       {/* Mobile menu button */}
       <button
-        onClick={toggleMobileMenu}
-        className="lg:hidden fixed top-4 right-4 z-50 rounded-2xl border border-white/10 bg-slate-950/75 p-2.5 text-slate-300 shadow-[0_18px_30px_rgba(2,6,23,0.35)] backdrop-blur-xl transition-all hover:-translate-y-0.5 hover:text-white"
+        onClick={() => setIsMobileMenuOpen((v) => !v)}
+        className="lg:hidden fixed top-4 right-4 z-50 rounded-lg border border-[#1e2d3d] bg-[#111921] p-2 text-slate-300 shadow-lg transition-all hover:text-white"
         aria-label="Toggle menu"
       >
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          {isMobileMenuOpen ? (
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          ) : (
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-          )}
-        </svg>
+        {isMobileMenuOpen ? <X size={20} /> : <MenuIcon size={20} />}
       </button>
 
       {/* Mobile overlay */}
       {isMobileMenuOpen && (
         <div
-          className="fixed inset-0 z-40 bg-slate-950/55 backdrop-blur-sm lg:hidden"
-          onClick={toggleMobileMenu}
+          className="fixed inset-0 z-40 bg-black/55 backdrop-blur-sm lg:hidden"
+          onClick={() => setIsMobileMenuOpen(false)}
         />
       )}
 
@@ -286,100 +164,93 @@ export default function Layout() {
       <aside
         className={`
           fixed lg:static inset-y-0 left-0 z-40
-          flex flex-col border-r border-white/8 bg-slate-950/70 backdrop-blur-2xl
-          shadow-[0_36px_70px_rgba(2,6,23,0.35)] transition-all duration-300 ease-in-out
-          ${isSidebarOpen ? 'w-[18rem]' : 'w-[5.75rem]'}
+          flex flex-col border-r border-[#1e2d3d] bg-[#0a0f14]
+          transition-all duration-300 ease-in-out
+          ${isSidebarOpen ? 'w-[16rem]' : 'w-[4.75rem]'}
           ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}
       >
-        {/* Logo */}
-        <div className="flex min-h-[88px] items-center border-b border-white/8 px-4 sm:px-5">
+        {/* Brand */}
+        <div className="flex min-h-[72px] items-center border-b border-[#1e2d3d] px-4">
           <div className="flex min-w-0 flex-1 items-center gap-3">
-            <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl border border-white/12 bg-white/[0.06] shadow-[inset_0_1px_0_rgba(255,255,255,0.07)]">
-              <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-              </svg>
+            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-[#024628] text-[#fbf3d4] shadow-[0_4px_12px_rgba(2,70,40,0.4)]">
+              <span className="font-display text-lg font-extrabold leading-none">C</span>
             </div>
             {isSidebarOpen && (
               <div className="min-w-0">
-                <p className="truncate font-display text-lg font-semibold tracking-tight text-white">
-                  {appName}
+                <p className="truncate font-display text-base font-extrabold tracking-[0.06em] text-[#fbf3d4]">
+                  CADIEUX
                 </p>
-                <p className="truncate text-xs uppercase tracking-[0.22em] text-slate-500">
-                  Panel
+                <p className="truncate text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                  {appName}
                 </p>
               </div>
             )}
           </div>
-          {/* Desktop collapse button */}
           <button
-            onClick={toggleSidebar}
-            className="hidden h-9 w-9 flex-shrink-0 items-center justify-center rounded-2xl border border-white/8 text-slate-400 transition-all hover:border-white/14 hover:bg-white/[0.04] hover:text-white lg:flex"
+            onClick={() => setIsSidebarOpen((v) => !v)}
+            className="hidden h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-[#1e2d3d] text-slate-400 transition-all hover:border-[#28394b] hover:text-white lg:flex"
             aria-label="Toggle sidebar"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              {isSidebarOpen ? (
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-              ) : (
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
-              )}
-            </svg>
+            {isSidebarOpen ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
           </button>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 space-y-1.5 overflow-y-auto px-3 py-5 sm:px-4">
-          {navigation.map((item) => (
-            <NavLink
-              key={item.name}
-              to={item.href}
-              onClick={() => setIsMobileMenuOpen(false)}
-              className={({ isActive }) =>
-                `group flex items-center gap-3 rounded-2xl border px-3.5 py-3 text-sm font-semibold transition-all duration-200 ${
-                  isActive
-                    ? 'border-white/10 bg-white/[0.08] text-white shadow-[0_14px_32px_rgba(2,6,23,0.26)]'
-                    : 'border-transparent text-slate-400 hover:border-white/8 hover:bg-white/[0.04] hover:text-white'
-                }`
-              }
-              title={!isSidebarOpen ? item.name : undefined}
-            >
-              <span className="relative flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-white/[0.05] text-slate-300 transition-colors group-hover:text-white">
-                {item.icon}
-                {item.badge && badgeCounts[item.badge] > 0 && !isSidebarOpen && (
-                  <span className="absolute -right-1 -top-1 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white">
-                    {badgeCounts[item.badge]}
-                  </span>
-                )}
-              </span>
-              {isSidebarOpen && (
-                <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
-                  <span className="block truncate">{item.name}</span>
-                  {item.badge && badgeCounts[item.badge] > 0 && (
-                    <span className="flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-rose-500 px-1.5 text-[10px] font-bold text-white">
-                      {badgeCounts[item.badge]}
+        <nav className="flex-1 space-y-1 overflow-y-auto px-2.5 py-4">
+          {navigation.map((item) => {
+            const Icon = item.Icon
+            return (
+              <NavLink
+                key={item.name}
+                to={item.href}
+                onClick={() => setIsMobileMenuOpen(false)}
+                className={navLinkClass}
+                title={!isSidebarOpen ? item.name : undefined}
+              >
+                {({ isActive }) => (
+                  <>
+                    {isActive && (
+                      <span className="absolute left-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-r-full bg-[#024628]" />
+                    )}
+                    <span className="relative flex flex-shrink-0 items-center justify-center">
+                      <Icon size={18} className={isActive ? 'text-[#fbf3d4]' : 'text-slate-500 group-hover:text-slate-100'} />
+                      {item.badge && badgeCounts[item.badge] > 0 && !isSidebarOpen && (
+                        <span className="absolute -right-2 -top-2 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-bold text-white">
+                          {badgeCounts[item.badge]}
+                        </span>
+                      )}
                     </span>
-                  )}
-                </div>
-              )}
-            </NavLink>
-          ))}
+                    {isSidebarOpen && (
+                      <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
+                        <span className="block truncate">{item.name}</span>
+                        {item.badge && badgeCounts[item.badge] > 0 && (
+                          <span className="flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-rose-500 px-1.5 text-[9px] font-bold text-white">
+                            {badgeCounts[item.badge]}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+              </NavLink>
+            )
+          })}
         </nav>
 
         {/* User section */}
-        <div className="border-t border-white/8 p-3.5 sm:p-4">
+        <div className="border-t border-[#1e2d3d] p-3">
           <div
-            className={`mb-3 flex items-center gap-3 rounded-2xl border border-white/8 bg-white/[0.04] p-3 ${
+            className={`mb-2.5 flex items-center gap-3 rounded-lg border border-[#1e2d3d] bg-[#111921] p-2.5 ${
               !isSidebarOpen ? 'justify-center' : ''
             }`}
           >
-            <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500/80 to-emerald-500/70">
-              <span className="text-white text-sm font-semibold">
-                {profile?.full_name?.charAt(0) || displayLogin(profile?.email)?.charAt(0) || 'A'}
-              </span>
+            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[#024628] text-sm font-bold text-[#fbf3d4]">
+              {profile?.full_name?.charAt(0) || displayLogin(profile?.email)?.charAt(0) || 'A'}
             </div>
             {isSidebarOpen && (
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-white">
+                <p className="truncate text-sm font-bold text-white">
                   {profile?.full_name || 'Admin'}
                 </p>
                 <p className="truncate text-xs text-slate-500">{profile?.phone || displayLogin(profile?.email)}</p>
@@ -388,14 +259,12 @@ export default function Layout() {
           </div>
           <button
             onClick={handleSignOut}
-            className={`flex w-full items-center justify-center gap-2 rounded-2xl border border-white/8 px-3 py-2.5 text-sm font-semibold text-slate-300 transition-all hover:border-white/12 hover:bg-white/[0.05] hover:text-white ${
+            className={`flex w-full items-center justify-center gap-2 rounded-lg border border-[#1e2d3d] px-3 py-2 text-sm font-semibold text-slate-400 transition-all hover:border-rose-500/40 hover:bg-rose-500/10 hover:text-rose-400 ${
               !isSidebarOpen ? 'px-2' : ''
             }`}
             title={!isSidebarOpen ? 'Sign Out' : undefined}
           >
-            <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-            </svg>
+            <LogOut size={16} className="flex-shrink-0" />
             {isSidebarOpen && <span>Sign Out</span>}
           </button>
         </div>
@@ -405,6 +274,39 @@ export default function Layout() {
       <main className="flex-1 overflow-auto lg:ml-0">
         <Outlet />
       </main>
+
+      {/* Mobile bottom tab bar (< lg) */}
+      <nav className="fixed bottom-0 left-0 right-0 z-40 flex items-stretch border-t border-[#1e2d3d] bg-[#0a0f14]/95 backdrop-blur-md lg:hidden">
+        {bottomTabs.map((item) => {
+          const Icon = item.Icon
+          return (
+            <NavLink
+              key={item.name}
+              to={item.href}
+              className={({ isActive }) =>
+                `relative flex flex-1 flex-col items-center justify-center gap-0.5 py-2.5 text-[10px] font-semibold transition-colors ${
+                  isActive ? 'text-[#fbf3d4]' : 'text-slate-500'
+                }`
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  {isActive && <span className="absolute top-0 h-[2px] w-10 rounded-full bg-[#024628]" />}
+                  <Icon size={20} />
+                  <span className="truncate">{item.name}</span>
+                </>
+              )}
+            </NavLink>
+          )
+        })}
+        <button
+          onClick={() => setIsMobileMenuOpen(true)}
+          className="flex flex-1 flex-col items-center justify-center gap-0.5 py-2.5 text-[10px] font-semibold text-slate-500"
+        >
+          <MoreHorizontal size={20} />
+          <span>Menu</span>
+        </button>
+      </nav>
 
       {isDemo && <DemoBadge />}
     </div>

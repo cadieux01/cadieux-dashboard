@@ -11,6 +11,7 @@ import { displayLogin, isValidPhone, normalizePhone } from '../lib/phone'
 import ShareCredentials from '../components/ShareCredentials'
 import { useAuth } from '../context/AuthContext'
 import DEMO_DATA, { demoBlock } from '../lib/demoData'
+import { Send } from 'lucide-react'
 
 export default function SalesExec() {
   const { isDemo } = useAuth()
@@ -307,9 +308,9 @@ export default function SalesExec() {
         <button
           onClick={() => handleReshare(exec)}
           title="Share login (phone + URL, no password)"
-          className="rounded bg-indigo-500/20 px-2 py-1 text-xs text-indigo-400 transition-colors hover:bg-indigo-500/30"
+          className="inline-flex items-center justify-center rounded bg-indigo-500/20 px-2 py-1.5 text-indigo-400 transition-colors hover:bg-indigo-500/30"
         >
-          📤
+          <Send size={16} />
         </button>
         {status === 'inactive' ? (
           <button
