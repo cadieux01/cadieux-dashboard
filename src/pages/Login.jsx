@@ -141,8 +141,8 @@ export default function Login() {
               <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
             </svg>
           </div>
-          <h1 className="text-3xl font-bold text-white tracking-tight">Sunny</h1>
-          <p className="text-slate-400 mt-2">Dashboard</p>
+          <h1 className="text-3xl font-bold text-white tracking-tight">Cadieux</h1>
+          <p className="text-slate-400 mt-2">Core Element — Operations</p>
         </div>
 
         {/* Login Card */}
@@ -248,14 +248,14 @@ export default function Login() {
 
           <div className="mt-6 pt-6 border-t border-slate-800">
             <p className="text-xs text-slate-500 text-center">
-              Admin only.
+              Authorized personnel only
             </p>
           </div>
         </div>
 
         {/* Footer */}
         <p className="text-center text-slate-600 text-sm mt-8">
-          © {new Date().getFullYear()} Sunny
+          © {new Date().getFullYear()} Core Element
         </p>
       </div>
     </div>

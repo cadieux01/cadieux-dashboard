@@ -235,7 +235,7 @@ export default function Layout() {
   
   if (role === 'admin') {
     navigation = adminNavigation
-    appName = 'Sunny'
+    appName = 'Cadieux'
   } else if (role === 'sales') {
     navigation = salesNavigation
     appName = 'Sales'
