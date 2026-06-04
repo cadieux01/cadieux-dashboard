@@ -96,7 +96,7 @@ function actionBadgeClass(value) {
     case 'DELETE':
       return 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
     case 'LOGIN':
-      return 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+      return 'bg-cyan-500/20 text-cyan-700 border border-cyan-500/30'
     case 'FEEDBACK_REPLY':
       return 'bg-violet-500/20 text-violet-400 border border-violet-500/30'
     default:

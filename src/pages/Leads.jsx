@@ -9,10 +9,84 @@ import RefreshButton from '../components/RefreshButton'
 import RefreshStatus from '../components/RefreshStatus'
 import useRefreshable from '../lib/useRefreshable'
 import { logAuditEvent, createAuditDescription } from '../lib/audit'
-import { formatDateDDMMYY } from '../lib/date'
+import { formatDateDDMMYY, formatDateTimeDDMMYY } from '../lib/date'
 import { useAuth } from '../context/AuthContext'
 import { demoBlock, demoLeads, demoLeadSales, demoLeadTrainers, VARIANTS } from '../lib/demoData'
-import usePinGate from '../lib/usePinGate'
+
+function currentTimeHHMM() {
+  const d = new Date()
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+function extractTimeHHMM(value) {
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return currentTimeHHMM()
+  const d = value ? new Date(value) : null
+  if (!d || Number.isNaN(d.getTime())) return currentTimeHHMM()
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+function extractDateYMD(value) {
+  if (!value) return new Date().toISOString().split('T')[0]
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) return value.split('T')[0]
+  const d = new Date(value)
+  return Number.isNaN(d.getTime()) ? new Date().toISOString().split('T')[0] : d.toISOString().split('T')[0]
+}
+
+// Combine a YYYY-MM-DD date and an HH:MM time into a full ISO timestamp so
+// shelf-life can be counted from the exact assignment moment.
+function combineDateTime(dateStr, timeStr) {
+  const date = dateStr || new Date().toISOString().split('T')[0]
+  const time = /^\d{2}:\d{2}$/.test(timeStr || '') ? timeStr : '00:00'
+  const dt = new Date(`${date}T${time}`)
+  return Number.isNaN(dt.getTime()) ? new Date().toISOString() : dt.toISOString()
+}
+
+// Unit entry stepper — no native arrows, never negative, capped at max.
+function NumberStepper({ label, hint, value, onChange, min = 0, max = 100 }) {
+  const num = parseInt(value) || 0
+  const clamp = (n) => Math.max(min, Math.min(max, n))
+  return (
+    <div className="rounded-lg border border-[#E8E0D4] bg-[#F0EBE3] p-3">
+      {label && <p className="mb-2 text-center text-xs font-semibold text-[#3C4A40]">{label}</p>}
+      <div className="flex items-center justify-center gap-4">
+        <button
+          type="button"
+          onClick={() => onChange(clamp(num - 1))}
+          disabled={num <= min}
+          aria-label="Decrease"
+          className="flex h-11 w-11 items-center justify-center rounded-full bg-[#024628] text-2xl font-bold leading-none text-[#FBF3D4] transition hover:bg-[#035c36] disabled:opacity-40"
+        >
+          −
+        </button>
+        <span className="min-w-[2.5rem] text-center font-display text-[28px] font-bold leading-none text-[#1A2B1F]">{num}</span>
+        <button
+          type="button"
+          onClick={() => onChange(clamp(num + 1))}
+          disabled={num >= max}
+          aria-label="Increase"
+          className="flex h-11 w-11 items-center justify-center rounded-full bg-[#024628] text-2xl font-bold leading-none text-[#FBF3D4] transition hover:bg-[#035c36] disabled:opacity-40"
+        >
+          +
+        </button>
+      </div>
+      <div className="mt-2 flex items-center justify-center gap-2">
+        <span className="text-xs text-[#5C6D62]">or type:</span>
+        <input
+          type="text"
+          inputMode="numeric"
+          value={value === '' || value == null ? '' : String(num)}
+          onChange={(e) => {
+            const digits = e.target.value.replace(/[^0-9]/g, '')
+            if (digits === '') { onChange(''); return }
+            onChange(clamp(parseInt(digits, 10)))
+          }}
+          className="w-16 rounded-lg border border-[#E8E0D4] bg-white px-2 py-1 text-center text-sm font-semibold text-[#1A2B1F] focus:outline-none focus:ring-2 focus:ring-[#024628]"
+        />
+      </div>
+      {hint && <p className="mt-1.5 text-center text-xs text-[#5C6D62]">{hint}</p>}
+    </div>
+  )
+}
 
 const STATUS_OPTIONS = [
   { value: 'all', label: 'All Status' },
@@ -23,7 +97,6 @@ const STATUS_OPTIONS = [
 
 export default function Leads() {
   const { isDemo, user } = useAuth()
-  const { gate, PinGateElement } = usePinGate()
   const [leads, setLeads] = useState([])
   const [sales, setSales] = useState([])
   const [trainers, setTrainers] = useState([])
@@ -77,6 +150,7 @@ export default function Leads() {
     plain_assigned: '',
     units_sold: '',
     date_of_assignment: new Date().toISOString().split('T')[0],
+    time_of_assignment: currentTimeHHMM(),
     retracted_units: '',
   })
   const [isDateEditable, setIsDateEditable] = useState(false)
@@ -565,8 +639,9 @@ export default function Leads() {
 
     try {
 
-      // Ensure date is in YYYY-MM-DD format for Supabase DATE column
-      const assignmentDate = saleFormData.date_of_assignment || new Date().toISOString().split('T')[0]
+      // Combine the chosen date + time into a full ISO timestamp so shelf-life
+      // is counted from the exact assignment moment, not midnight.
+      const assignmentDate = combineDateTime(saleFormData.date_of_assignment, saleFormData.time_of_assignment)
 
       const insertPayload = {
         trainer_id: saleFormData.trainer_id,
@@ -692,6 +767,7 @@ export default function Leads() {
         plain_assigned: '',
         units_sold: '',
         date_of_assignment: new Date().toISOString().split('T')[0],
+        time_of_assignment: currentTimeHHMM(),
         retracted_units: '',
       })
       setIsDateEditable(false)
@@ -722,7 +798,8 @@ export default function Leads() {
       multigrain_assigned: multigrain,
       plain_assigned: plain,
       units_sold: sale.units_sold || 0,
-      date_of_assignment: sale.date_of_assignment || sale.created_at?.split('T')[0] || new Date().toISOString().split('T')[0],
+      date_of_assignment: extractDateYMD(sale.date_of_assignment || sale.created_at),
+      time_of_assignment: extractTimeHHMM(sale.date_of_assignment || sale.created_at),
       retracted_units: sale.retracted_units || 0,
     })
     setIsDateEditable(false)
@@ -784,6 +861,7 @@ export default function Leads() {
       plain_assigned: '',
       units_sold: '',
       date_of_assignment: new Date().toISOString().split('T')[0],
+      time_of_assignment: currentTimeHHMM(),
       retracted_units: '',
     })
   }
@@ -1129,8 +1207,8 @@ export default function Leads() {
           : 0
         return retractedUnits > 0 ? (
           <div className="flex items-center gap-2">
-            <span className="font-mono font-semibold text-purple-400">{retractedUnits}</span>
-            <span className="text-xs text-purple-400">({percentage}%)</span>
+            <span className="font-mono font-semibold text-[#7e22ce]">{retractedUnits}</span>
+            <span className="text-xs text-[#7e22ce]">({percentage}%)</span>
           </div>
         ) : (
           <span className="font-mono text-slate-500">0</span>
@@ -1145,7 +1223,7 @@ export default function Leads() {
         if (!value) return <span className="text-slate-500">N/A</span>
         
         const daysSince = getDaysSinceAssignment(value)
-        const displayDate = formatDateDDMMYY(value)
+        const displayDate = formatDateTimeDDMMYY(value)
         
         if (daysSince === null) {
           return <span>{displayDate}</span>
@@ -1259,7 +1337,7 @@ export default function Leads() {
         </div>
         <div>
           <p className="text-xs text-slate-500">Retracted</p>
-          <p className="font-mono text-purple-400">{sale.retracted_units || 0}</p>
+          <p className="font-mono text-[#7e22ce]">{sale.retracted_units || 0}</p>
         </div>
         <div>
           <p className="text-xs text-slate-500">Product</p>
@@ -1268,7 +1346,7 @@ export default function Leads() {
         <div>
           <p className="text-xs text-slate-500">Date of Asn</p>
           <p className="text-sm text-slate-300">
-            {sale.date_of_assignment ? formatDateDDMMYY(sale.date_of_assignment) : 'N/A'}
+            {sale.date_of_assignment ? formatDateTimeDDMMYY(sale.date_of_assignment) : 'N/A'}
           </p>
         </div>
       </div>
@@ -1348,7 +1426,7 @@ export default function Leads() {
           </div>
           <div className="grid grid-cols-3 gap-2 w-full lg:w-auto">
             <button
-              onClick={() => gate(() => setIsAddSaleModalOpen(true), 'Assign stock')}
+              onClick={() => setIsAddSaleModalOpen(true)}
               className="flex h-8 items-center justify-center gap-1.5 px-3 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-[#fbf3d4] text-xs font-medium rounded-lg shadow-lg transition-all"
             >
               <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1357,7 +1435,7 @@ export default function Leads() {
               <span className="hidden sm:inline">Assign Unit</span>
             </button>
             <button
-              onClick={() => gate(() => setIsAddSaleEntryModalOpen(true), 'Record a sale')}
+              onClick={() => setIsAddSaleEntryModalOpen(true)}
               className="flex h-8 items-center justify-center gap-1.5 px-3 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-[#fbf3d4] text-xs font-medium rounded-lg shadow-lg transition-all"
             >
               <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1366,7 +1444,7 @@ export default function Leads() {
               <span className="hidden sm:inline">Add Sale</span>
             </button>
             <button
-              onClick={() => gate(() => setIsAddRetractModalOpen(true), 'Retract stock')}
+              onClick={() => setIsAddRetractModalOpen(true)}
               className="flex h-8 items-center justify-center gap-1.5 px-3 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 text-[#fbf3d4] text-xs font-medium rounded-lg shadow-lg transition-all"
             >
               <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1762,22 +1840,18 @@ export default function Leads() {
           />
           
           {/* Per-variant assignment — either can be 0, at least one must be > 0 */}
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <FormField
+          <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <NumberStepper
               label={`Multi-Grain (₹${VARIANTS.multigrain.price})`}
-              type="number"
               value={saleFormData.multigrain_assigned}
               onChange={(value) => setSaleFormData({ ...saleFormData, multigrain_assigned: value })}
-              placeholder="0"
-              min="0"
+              max={100}
             />
-            <FormField
+            <NumberStepper
               label={`Plain (₹${VARIANTS.plain.price})`}
-              type="number"
               value={saleFormData.plain_assigned}
               onChange={(value) => setSaleFormData({ ...saleFormData, plain_assigned: value })}
-              placeholder="0"
-              min="0"
+              max={100}
             />
           </div>
 
@@ -1804,67 +1878,49 @@ export default function Leads() {
           })()}
 
           {/* Units Sold (only show when editing) */}
-          {editingSaleId && (
-            <FormField
-              label="Units Sold"
-              type="number"
-              value={saleFormData.units_sold}
-              onChange={(value) => setSaleFormData({ ...saleFormData, units_sold: value })}
-              placeholder="0"
-              min="0"
-              max={(() => {
-                const unitsAssigned =
-                  (parseInt(saleFormData.multigrain_assigned) || 0) +
-                  (parseInt(saleFormData.plain_assigned) || 0)
-                const retractedUnits = parseInt(saleFormData.retracted_units) || 0
-                return Math.max(0, unitsAssigned - retractedUnits)
-              })()}
-            />
-          )}
+          {editingSaleId && (() => {
+            const unitsAssigned =
+              (parseInt(saleFormData.multigrain_assigned) || 0) +
+              (parseInt(saleFormData.plain_assigned) || 0)
+            const retractedUnits = parseInt(saleFormData.retracted_units) || 0
+            const maxSold = Math.max(0, unitsAssigned - retractedUnits)
+            return (
+              <div className="mb-3">
+                <NumberStepper
+                  label="Units Sold"
+                  hint={`Max: ${maxSold}`}
+                  value={saleFormData.units_sold}
+                  onChange={(value) => setSaleFormData({ ...saleFormData, units_sold: value })}
+                  max={maxSold}
+                />
+              </div>
+            )
+          })()}
 
-          {/* Date of Assignment with Edit Button */}
+          {/* Date & Time of Assignment — shelf life is counted from this exact moment */}
           <div className="mb-4">
             <label className="block text-sm font-medium text-slate-300 mb-2">
-              Date of Assignment
+              Date &amp; Time of Assignment
             </label>
-            <div className="flex items-center gap-2">
-              {isDateEditable ? (
-                <>
-                  <input
-                    type="date"
-                    value={saleFormData.date_of_assignment}
-                    onChange={(e) => setSaleFormData({ ...saleFormData, date_of_assignment: e.target.value })}
-                    className="flex-1 px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setIsDateEditable(false)}
-                    className="w-full sm:w-auto px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-100 rounded-lg transition-colors"
-                    title="Save date"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                  </button>
-                </>
-              ) : (
-                <>
-                  <div className="flex-1 px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-300">
-                    {saleFormData.date_of_assignment ? formatDateDDMMYY(saleFormData.date_of_assignment) : 'N/A'}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setIsDateEditable(true)}
-                    className="w-full sm:w-auto px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-[#fbf3d4] rounded-lg transition-colors"
-                    title="Edit date"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                  </button>
-                </>
-              )}
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <input
+                type="date"
+                value={saleFormData.date_of_assignment}
+                onChange={(e) => setSaleFormData({ ...saleFormData, date_of_assignment: e.target.value })}
+                className="dashboard-input"
+                aria-label="Date of assignment"
+              />
+              <input
+                type="time"
+                value={saleFormData.time_of_assignment}
+                onChange={(e) => setSaleFormData({ ...saleFormData, time_of_assignment: e.target.value })}
+                className="dashboard-input"
+                aria-label="Time of assignment"
+              />
             </div>
+            <p className="mt-1.5 text-xs text-slate-500">
+              {formatDateTimeDDMMYY(combineDateTime(saleFormData.date_of_assignment, saleFormData.time_of_assignment))}
+            </p>
           </div>
 
           {/* Retracted Units (only show when editing) */}
@@ -1876,29 +1932,18 @@ export default function Leads() {
             <div className="mb-4">
               <label className="block text-sm font-medium text-slate-300 mb-2">
                 Retracted Units
-                <span className="ml-2 text-xs text-purple-400">(units returned to company)</span>
+                <span className="ml-2 text-xs text-[#7e22ce]">(units returned to company)</span>
               </label>
-              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                <input
-                  type="number"
-                  value={saleFormData.retracted_units}
-                  onChange={(e) => {
-                    const value = e.target.value === '' ? '' : parseInt(e.target.value) || 0
-                    setSaleFormData({ ...saleFormData, retracted_units: value })
-                  }}
-                  min="0"
-                  max={totalAssigned}
-                  className="flex-1 px-4 py-2 bg-slate-800 border border-purple-700 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  placeholder="0"
-                />
-                <div className="w-full sm:w-auto px-3 py-2 bg-purple-900/30 border border-purple-700 rounded-lg text-purple-300 text-sm">
-                  Max: {totalAssigned}
-                </div>
-              </div>
-              {saleFormData.retracted_units > 0 && (
+              <NumberStepper
+                hint={`Max: ${totalAssigned}`}
+                value={saleFormData.retracted_units}
+                onChange={(value) => setSaleFormData({ ...saleFormData, retracted_units: value })}
+                max={totalAssigned}
+              />
+              {(parseInt(saleFormData.retracted_units) || 0) > 0 && (
                 <div className="mt-2 p-2 bg-purple-500/10 border border-purple-500/30 rounded-lg">
-                  <p className="text-xs text-purple-400">
-                    Retracted: {saleFormData.retracted_units} units ({totalAssigned > 0 ? ((saleFormData.retracted_units / totalAssigned) * 100).toFixed(0) : 0}% of assigned)
+                  <p className="text-xs text-[#7e22ce]">
+                    Retracted: {saleFormData.retracted_units} units ({totalAssigned > 0 ? (((parseInt(saleFormData.retracted_units) || 0) / totalAssigned) * 100).toFixed(0) : 0}% of assigned)
                   </p>
                 </div>
               )}
@@ -1930,7 +1975,8 @@ export default function Leads() {
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-[#fbf3d4] rounded-lg transition-colors font-medium"
+              disabled={((parseInt(saleFormData.multigrain_assigned) || 0) + (parseInt(saleFormData.plain_assigned) || 0)) <= 0}
+              className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-[#fbf3d4] rounded-lg transition-colors font-medium disabled:cursor-not-allowed disabled:opacity-50"
             >
               {editingSaleId ? 'Update Assignment' : 'Assign Unit'}
             </button>
@@ -2052,25 +2098,27 @@ export default function Leads() {
                 <p className="text-sm text-slate-400 mb-1">Active Sale Details:</p>
                 <p className="text-sm text-slate-100">Units Assigned: {selectedSale?.units_assigned || 0}</p>
                 <p className="text-sm text-slate-100">Units Sold: {selectedSale?.units_sold || 0}</p>
-                <p className="text-sm text-purple-400">Already Retracted: {retractedUnits}</p>
+                <p className="text-sm text-[#7e22ce]">Already Retracted: {retractedUnits}</p>
                 <p className="text-sm text-emerald-400">Remaining Unsold: {remainingUnsold}</p>
               </div>
             )
           })()}
 
-          <FormField
-            label="Units Sold"
-            type="number"
-            value={saleEntryFormData.units}
-            onChange={(value) => setSaleEntryFormData({ ...saleEntryFormData, units: value })}
-            placeholder="Enter units"
-            required
-            min="1"
-            max={saleEntryFormData.sale_id ? (() => {
-              const selectedSale = sales.find(s => s.id === saleEntryFormData.sale_id)
-              return getRemainingUnsoldUnits(selectedSale)
-            })() : undefined}
-          />
+          {(() => {
+            const selectedSale = saleEntryFormData.sale_id ? sales.find(s => s.id === saleEntryFormData.sale_id) : null
+            const maxUnits = selectedSale ? getRemainingUnsoldUnits(selectedSale) : 100
+            return (
+              <div className="mb-3">
+                <NumberStepper
+                  label="Units Sold"
+                  hint={selectedSale ? `Max: ${maxUnits}` : undefined}
+                  value={saleEntryFormData.units}
+                  onChange={(value) => setSaleEntryFormData({ ...saleEntryFormData, units: value })}
+                  max={maxUnits}
+                />
+              </div>
+            )
+          })()}
 
           <div className="flex flex-col sm:flex-row gap-3 mt-6">
             <button
@@ -2147,7 +2195,7 @@ export default function Leads() {
                 <p className="text-sm text-slate-400 mb-1">Active Shipment Details:</p>
                 <p className="text-sm text-slate-100">Units Assigned: {selectedSale?.units_assigned || 0}</p>
                 <p className="text-sm text-slate-100">Units Sold: {selectedSale?.units_sold || 0}</p>
-                <p className="text-sm text-purple-400">Already Retracted: {retractedUnits}</p>
+                <p className="text-sm text-[#7e22ce]">Already Retracted: {retractedUnits}</p>
                 <p className="text-sm text-emerald-400">Remaining Unsold: {remainingUnsold}</p>
               </div>
             )
@@ -2165,19 +2213,21 @@ export default function Leads() {
             required
           />
 
-          <FormField
-            label="Retracted Units"
-            type="number"
-            value={retractFormData.units}
-            onChange={(value) => setRetractFormData({ ...retractFormData, units: value })}
-            placeholder="Enter units"
-            required
-            min="1"
-            max={retractFormData.sale_id ? (() => {
-              const selectedSale = sales.find(s => s.id === retractFormData.sale_id)
-              return getRemainingUnsoldUnits(selectedSale)
-            })() : undefined}
-          />
+          {(() => {
+            const selectedSale = retractFormData.sale_id ? sales.find(s => s.id === retractFormData.sale_id) : null
+            const maxUnits = selectedSale ? getRemainingUnsoldUnits(selectedSale) : 100
+            return (
+              <div className="mb-3">
+                <NumberStepper
+                  label="Retracted Units"
+                  hint={selectedSale ? `Max: ${maxUnits}` : undefined}
+                  value={retractFormData.units}
+                  onChange={(value) => setRetractFormData({ ...retractFormData, units: value })}
+                  max={maxUnits}
+                />
+              </div>
+            )
+          })()}
 
           <FormField
             label="Reason"
@@ -2220,7 +2270,6 @@ export default function Leads() {
         </form>
       </Modal>
 
-      {PinGateElement}
 
       <RefreshStatus pullDistance={pullDistance} refreshing={refreshing} at={lastUpdated} onRefresh={refresh} />
     </div>

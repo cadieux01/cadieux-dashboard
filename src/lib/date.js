@@ -32,3 +32,20 @@ export function formatDateDDMMYY(value, fallback = 'N/A') {
   if (!date) return fallback
   return DATE_FORMATTER.format(date)
 }
+
+const TIME_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  hour: 'numeric',
+  minute: '2-digit',
+  hour12: true,
+})
+
+// Like formatDateDDMMYY but also shows the time (e.g. "04/06/26 10:30 AM").
+// Pure date-only strings (no time component) fall back to date-only output.
+export function formatDateTimeDDMMYY(value, fallback = 'N/A') {
+  const date = toValidDate(value)
+  if (!date) return fallback
+  if (typeof value === 'string' && DATE_ONLY_RE.test(value)) {
+    return DATE_FORMATTER.format(date)
+  }
+  return `${DATE_FORMATTER.format(date)} ${TIME_FORMATTER.format(date)}`
+}

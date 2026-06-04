@@ -641,7 +641,7 @@ export const PARTNER_TYPE_PILL = {
   retailer:        'border-indigo-400/30 bg-indigo-400/10 text-indigo-200',
   gated_community: 'border-violet-400/30 bg-violet-400/10 text-violet-700',
   cafeteria:       'border-amber-400/30 bg-amber-400/10 text-amber-200',
-  business_b2b:    'border-blue-400/30 bg-blue-400/10 text-blue-200',
+  business_b2b:    'border-blue-400/30 bg-blue-400/10 text-[#1e40af]',
   other:           'border-slate-500/30 bg-slate-500/10 text-slate-300',
 }
 

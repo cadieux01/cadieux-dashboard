@@ -67,10 +67,10 @@ export function VariantPill({ variant, label }) {
 // REASON_PILL — color + style mapping for attribution reasons.
 export const REASON_PILL = {
   damaged:         'bg-rose-500/15 text-rose-200 border-rose-400/30',
-  expired:         'bg-orange-500/15 text-orange-200 border-orange-400/30',
-  customer_return: 'bg-yellow-500/15 text-yellow-200 border-yellow-400/30',
+  expired:         'bg-orange-500/15 text-[#9a3412] border-orange-400/30',
+  customer_return: 'bg-yellow-500/15 text-[#854d0e] border-yellow-400/30',
   unsold:          'bg-slate-500/15 text-slate-200 border-slate-400/30',
-  other:           'bg-sky-500/15 text-sky-200 border-sky-400/30',
+  other:           'bg-sky-500/15 text-[#075985] border-sky-400/30',
 }
 
 export const REASON_FILL = {
