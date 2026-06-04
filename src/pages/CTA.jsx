@@ -28,7 +28,7 @@ const MAX_SHELF_DAYS = Math.max(...Object.values(SHELF_LIFE).map((s) => s.days))
 
 const VARIANT_PILL = {
   multigrain: 'bg-[#024628]/40 text-[#7fe0b7] border border-[#024628]/60',
-  plain:      'bg-[#FBF3D4]/10 text-[#FBF3D4] border border-[#FBF3D4]/20',
+  plain:      'bg-[#FBF3D4]/40 text-[#8A6D1F] border border-[#8A6D1F]/20',
 }
 
 const STATUS_CONFIG = {

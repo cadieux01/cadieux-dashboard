@@ -26,7 +26,7 @@ export default function KPICard({ title, value, subtitle, icon, trend, trendUp, 
     },
     purple: {
       glow: 'from-violet-300/18 via-violet-200/6 to-transparent',
-      icon: 'bg-violet-300/14 text-violet-100',
+      icon: 'bg-violet-300/14 text-violet-700',
       badge: 'bg-violet-300/12 text-violet-100',
       border: 'border-violet-200/12',
     },

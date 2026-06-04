@@ -857,7 +857,7 @@ export default function PartnerDashboard() {
                             {sale.qr_code_url && (
                               <button
                                 onClick={() => handleShowQR(sale)}
-                                className="inline-flex items-center justify-center rounded-full border border-indigo-300/18 bg-indigo-400/12 px-3 py-1.5 text-xs font-semibold text-indigo-100 transition hover:bg-indigo-400/18 sm:text-sm"
+                                className="inline-flex items-center justify-center rounded-full border border-indigo-300/18 bg-indigo-400/12 px-3 py-1.5 text-xs font-semibold text-indigo-200 transition hover:bg-indigo-400/18 sm:text-sm"
                               >
                                 QR
                               </button>
@@ -1056,7 +1056,7 @@ export default function PartnerDashboard() {
               type="file"
               accept="image/*"
               onChange={handleFileChange}
-              className="dashboard-input w-full text-sm file:mr-4 file:rounded-full file:border-0 file:bg-indigo-400/14 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-indigo-100"
+              className="dashboard-input w-full text-sm file:mr-4 file:rounded-full file:border-0 file:bg-indigo-400/14 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-indigo-200"
             />
             {customerFormData.picture_file && (
               <p className="mt-2 text-xs text-slate-400">

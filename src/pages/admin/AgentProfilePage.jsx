@@ -350,7 +350,7 @@ export default function AgentProfilePage() {
           {active ? '🟢 Active' : '🟡 Inactive'}
         </span>
         <a href={`tel:${profile.phone}`} className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1.5 text-sm font-semibold text-emerald-100 transition hover:bg-emerald-400/20">📞 Call</a>
-        <a href={`sms:${profile.phone}`} className="rounded-full border border-indigo-300/20 bg-indigo-400/10 px-3 py-1.5 text-sm font-semibold text-indigo-100 transition hover:bg-indigo-400/20">💬 SMS</a>
+        <a href={`sms:${profile.phone}`} className="rounded-full border border-indigo-300/20 bg-indigo-400/10 px-3 py-1.5 text-sm font-semibold text-indigo-200 transition hover:bg-indigo-400/20">💬 SMS</a>
       </div>
 
       {/* TIME RANGE — affects every section below */}
