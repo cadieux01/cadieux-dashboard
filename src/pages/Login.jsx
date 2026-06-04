@@ -51,41 +51,38 @@ export default function Login() {
         const phone = normalizePhone(trimmed)
         candidateEmails = [buildLoginEmail(phone, 'sales'), buildLoginEmail(phone, 'partner')]
       } else if (trimmed.length >= 2) {
-        // Name lookup: case-insensitive match against profiles.full_name.
-        // We then derive the synthetic login email from the matched phone +
-        // role. Admin (with a real @gmail.com email) is matched on the email.
-        const { data: matches, error: lookupErr } = await supabase
-          .from('profiles')
-          .select('id, full_name, email, phone, phone_number, role')
-          .ilike('full_name', trimmed)
+        // Name lookup. Unauthenticated users can't read profiles directly (RLS
+        // blocks the anon role), so we call a SECURITY DEFINER RPC that resolves
+        // the name to a phone + role without exposing the rest of the row.
+        const { data: matches, error: lookupErr } = await supabase.rpc(
+          'lookup_phone_by_name',
+          { search_name: trimmed },
+        )
+        console.log('[login] name lookup', { search_name: trimmed, matches, lookupErr })
         if (lookupErr) {
           setError('Could not look up that name. Try phone or email instead.')
           setLoading(false)
           return
         }
         if (!matches || matches.length === 0) {
-          setError('No user found with that name')
+          setError('No account found for that name')
           setLoading(false)
           return
         }
         if (matches.length > 1) {
-          setError('Multiple users with that name. Use phone number instead.')
+          setError('Multiple matches — use phone number instead')
           setLoading(false)
           return
         }
         const match = matches[0]
-        if (match.role === 'admin' && match.email) {
-          candidateEmails = [match.email.toLowerCase()]
-        } else {
-          const phone = normalizePhone(match.phone || match.phone_number || '')
-          if (!isValidPhone(phone)) {
-            setError('That user has no phone on file. Use email instead.')
-            setLoading(false)
-            return
-          }
-          const role = match.role === 'sales' ? 'sales' : 'partner'
-          candidateEmails = [buildLoginEmail(phone, role)]
+        const phone = normalizePhone(match.phone || '')
+        if (!isValidPhone(phone)) {
+          setError('That account has no phone on file. Use email instead.')
+          setLoading(false)
+          return
         }
+        const role = match.role === 'sales' ? 'sales' : 'partner'
+        candidateEmails = [buildLoginEmail(phone, role)]
       } else {
         setError('Enter your name, a 10-digit phone number, or an email.')
         setLoading(false)
