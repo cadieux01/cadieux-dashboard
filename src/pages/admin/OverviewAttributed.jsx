@@ -89,7 +89,7 @@ export default function OverviewAttributed() {
             type="button"
             onClick={exportCsv}
             disabled={rows.length === 0}
-            className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-white/[0.08] disabled:opacity-50"
+            className="rounded-full border border-[#E8E0D4] bg-[#F0EBE3] px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-[#ECE5DA] disabled:opacity-50"
           >
             Export CSV
           </button>
@@ -144,15 +144,15 @@ export default function OverviewAttributed() {
         <>
           <div className="hidden md:block overflow-x-auto">
             <table className="dashboard-table min-w-full">
-              <thead className="sticky top-0 bg-[#0a0f14]">
+              <thead className="sticky top-0 bg-[#F0EBE3]">
                 <tr>
-                  <th className="border-b border-white/8 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Date</th>
-                  <th className="border-b border-white/8 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Partner</th>
-                  <th className="border-b border-white/8 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Variant</th>
-                  <th className="border-b border-white/8 px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Units</th>
-                  <th className="border-b border-white/8 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Reason</th>
-                  <th className="border-b border-white/8 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Notes</th>
-                  <th className="border-b border-white/8 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">By</th>
+                  <th className="border-b border-[#E8E0D4] px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Date</th>
+                  <th className="border-b border-[#E8E0D4] px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Partner</th>
+                  <th className="border-b border-[#E8E0D4] px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Variant</th>
+                  <th className="border-b border-[#E8E0D4] px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Units</th>
+                  <th className="border-b border-[#E8E0D4] px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Reason</th>
+                  <th className="border-b border-[#E8E0D4] px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Notes</th>
+                  <th className="border-b border-[#E8E0D4] px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">By</th>
                 </tr>
               </thead>
               <tbody>
@@ -161,7 +161,7 @@ export default function OverviewAttributed() {
                   return (
                     <tr key={r.id}>
                       <td className="px-3 py-2 text-slate-300">{formatDateDDMMYY(r.date)}</td>
-                      <td className="px-3 py-2 font-semibold text-white">
+                      <td className="px-3 py-2 font-semibold text-slate-100">
                         <Link to={`/admin/partner/${r.partner_id}`} className="hover:text-emerald-200">{r.partner_name}</Link>
                       </td>
                       <td className="px-3 py-2"><VariantPill variant={r.variant} label={r.variant_label} /></td>
@@ -195,7 +195,7 @@ export default function OverviewAttributed() {
             {paged.map((r) => (
               <div key={r.id} className="dashboard-subpanel rounded-[20px] px-4 py-3">
                 <div className="flex items-center justify-between">
-                  <Link to={`/admin/partner/${r.partner_id}`} className="font-semibold text-white hover:text-emerald-200">{r.partner_name}</Link>
+                  <Link to={`/admin/partner/${r.partner_id}`} className="font-semibold text-slate-100 hover:text-emerald-200">{r.partner_name}</Link>
                   <p className="text-xs text-slate-500">{formatDateDDMMYY(r.date)}</p>
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-2">

@@ -40,7 +40,7 @@ export default class RouteErrorBoundary extends Component {
     if (this.state.error) {
       return (
         <div className="dashboard-page flex min-h-[50vh] w-full flex-col items-center justify-center gap-4 text-center">
-          <h2 className="font-display text-xl font-semibold text-white">
+          <h2 className="font-display text-xl font-semibold text-slate-100">
             Couldn’t load this page
           </h2>
           <p className="max-w-sm text-sm text-slate-400">

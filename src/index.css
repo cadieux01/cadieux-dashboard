@@ -13,82 +13,89 @@
   --font-body: "Nunito", system-ui, sans-serif;
   --font-sans: "Nunito", system-ui, sans-serif;
 
-  /* Neutrals — backgrounds, surfaces, borders, text */
-  --color-slate-950: #0a0f14; /* app background */
-  --color-slate-900: #111921; /* card surface */
-  --color-slate-800: #18222e; /* inner surface / hover */
-  --color-slate-700: #1e2d3d; /* borders */
-  --color-slate-600: #4a5568; /* text muted */
-  --color-slate-500: #7c8a9a; /* text secondary */
-  --color-slate-400: #94a3b3;
-  --color-slate-300: #cbd5e1;
-  --color-slate-200: #e2e8f0;
-  --color-slate-100: #f1f5f9; /* text primary */
+  /* Neutrals — LIGHT theme. Surfaces use the high shades (700–950), text uses
+     the low shades (100–500). Backgrounds are warm bread-crust off-white,
+     cards clean white, text a dark green-black. */
+  --color-slate-950: #F2ECE2; /* deep warm bg corner */
+  --color-slate-900: #FFFFFF; /* card surface */
+  --color-slate-800: #F0EBE3; /* inner surface / hover / table head */
+  --color-slate-700: #E8E0D4; /* borders */
+  --color-slate-600: #A8B4AC; /* faint icon / disabled text */
+  --color-slate-500: #8A9890; /* muted helper text */
+  --color-slate-400: #5C6D62; /* secondary text */
+  --color-slate-300: #3C4A40; /* strong secondary text */
+  --color-slate-200: #25342A; /* near-primary text */
+  --color-slate-100: #1A2B1F; /* primary text (replaces text-white) */
 
-  /* Foundation Green family (primary brand + success) */
+  /* Foundation Green family (primary brand + success). Mid/dark greens so the
+     shades used as text stay readable on white. */
   --color-emerald-700: #013a21;
-  --color-emerald-600: #024628; /* Foundation Green */
-  --color-emerald-500: #10b981; /* success */
-  --color-emerald-400: #34d399;
-  --color-emerald-300: #6ee7b7;
-  --color-emerald-200: #a7f3d0;
-  --color-emerald-100: #d1fae5;
+  --color-emerald-600: #024628; /* Foundation Green — solid button fill */
+  --color-emerald-500: #047857; /* success text/fill */
+  --color-emerald-400: #059669; /* success text on light */
+  --color-emerald-300: #10b981; /* success accent */
+  --color-emerald-200: #15803d; /* readable green when used as text */
+  --color-emerald-100: #047857; /* readable green (used as text, not bg) */
 
   /* Indigo remapped to brand green (accents, focus, primary gradients) */
   --color-indigo-700: #013a21;
   --color-indigo-600: #024628;
   --color-indigo-500: #035c36;
   --color-indigo-400: #0a7a4a;
-  --color-indigo-300: #6ee7b7;
-  --color-indigo-200: #b7e4c7;
-  --color-indigo-100: #fbf3d4; /* cream highlight */
+  --color-indigo-300: #0f7a48;
+  --color-indigo-200: #15803d;
+  --color-indigo-100: #d9efe2; /* pale green highlight */
 
-  /* Grain Cream family (secondary accent / highlights) */
-  --color-violet-600: #b8a96a;
-  --color-violet-500: #d8c98f;
-  --color-violet-400: #ecdfae;
-  --color-violet-300: #fbf3d4; /* Grain Cream */
-  --color-violet-200: #fbf3d4;
-  --color-violet-100: #fdf8e6;
+  /* Grain Cream family (secondary accent). Text shades are a readable gold;
+     the high shades stay cream for highlight backgrounds. */
+  --color-violet-700: #8a6d1f;
+  --color-violet-600: #a07d22;
+  --color-violet-500: #b8860b;
+  --color-violet-400: #caa84a;
+  --color-violet-300: #d8b85a;
+  --color-violet-200: #FBF3D4; /* Grain Cream — bg highlight */
+  --color-violet-100: #FDF8E6;
 
   /* Warning (amber) */
-  --color-amber-600: #d97706;
-  --color-amber-500: #f59e0b;
-  --color-amber-400: #fbbf24;
-  --color-amber-300: #fcd34d;
-  --color-amber-200: #fde68a;
-  --color-amber-100: #fef3c7;
+  --color-amber-700: #92400e;
+  --color-amber-600: #b45309;
+  --color-amber-500: #d97706;
+  --color-amber-400: #c2700a; /* readable on white */
+  --color-amber-300: #d97706;
+  --color-amber-200: #b45309; /* readable warning (used as text, not bg) */
+  --color-amber-100: #92400e; /* readable warning (used as text, not bg) */
 
   /* Danger (rose) */
-  --color-rose-600: #dc2626;
-  --color-rose-500: #ef4444;
-  --color-rose-400: #f87171;
-  --color-rose-300: #fca5a5;
-  --color-rose-200: #fecaca;
-  --color-rose-100: #fee2e2;
+  --color-rose-700: #991b1b;
+  --color-rose-600: #b91c1c; /* solid danger fill */
+  --color-rose-500: #dc2626;
+  --color-rose-400: #dc2626; /* readable on white */
+  --color-rose-300: #e11d48;
+  --color-rose-200: #b91c1c; /* readable danger (used as text, not bg) */
+  --color-rose-100: #991b1b; /* readable danger (used as text, not bg) */
 }
 
 :root {
-  --app-bg: #0a0f14;
-  --app-bg-secondary: #0c1117;
-  --app-surface: #111921;
-  --app-surface-strong: #131d27;
-  --app-surface-soft: #18222e;
-  --app-border: #1e2d3d;
-  --app-border-strong: #28394b;
-  --app-text: #f1f5f9;
-  --app-text-muted: #7c8a9a;
-  --app-text-soft: #4a5568;
+  --app-bg: #F7F3ED;
+  --app-bg-secondary: #F2ECE2;
+  --app-surface: #FFFFFF;
+  --app-surface-strong: #FFFFFF;
+  --app-surface-soft: #F0EBE3;
+  --app-border: #E8E0D4;
+  --app-border-strong: #D1C9BC;
+  --app-text: #1A2B1F;
+  --app-text-muted: #5C6D62;
+  --app-text-soft: #8A9890;
   --app-accent: #024628;
   --app-accent-hover: #035c36;
-  --app-accent-text: #fbf3d4;
-  --app-cream: #fbf3d4;
-  --app-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
-  --app-shadow-lift: 0 4px 16px rgba(2, 70, 40, 0.15);
+  --app-accent-text: #FBF3D4;
+  --app-cream: #FBF3D4;
+  --app-shadow: 0 1px 3px rgba(2, 70, 40, 0.08);
+  --app-shadow-lift: 0 4px 16px rgba(2, 70, 40, 0.12);
 }
 
 html {
-  color-scheme: dark;
+  color-scheme: light;
   background: var(--app-bg);
   -webkit-text-size-adjust: 100%;
 }
@@ -102,8 +109,8 @@ body {
 body {
   min-height: 100vh;
   background:
-    radial-gradient(circle at 12% -6%, rgba(2, 70, 40, 0.14), transparent 26%),
-    radial-gradient(circle at 92% 6%, rgba(251, 243, 212, 0.04), transparent 22%),
+    radial-gradient(circle at 12% -6%, rgba(2, 70, 40, 0.05), transparent 26%),
+    radial-gradient(circle at 92% 6%, rgba(232, 217, 168, 0.18), transparent 24%),
     var(--app-bg);
   color: var(--app-text);
   font-family: var(--font-body);
@@ -113,8 +120,8 @@ body {
 }
 
 ::selection {
-  background: rgba(2, 70, 40, 0.55);
-  color: var(--app-cream);
+  background: rgba(2, 70, 40, 0.18);
+  color: #024628;
 }
 
 #root {
@@ -123,7 +130,7 @@ body {
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(124, 138, 154, 0.3) transparent;
+  scrollbar-color: rgba(2, 70, 40, 0.25) transparent;
 }
 
 ::-webkit-scrollbar {
@@ -132,7 +139,7 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(124, 138, 154, 0.22);
+  background: rgba(2, 70, 40, 0.2);
   border-radius: 999px;
   border: 2px solid transparent;
   background-clip: padding-box;
@@ -209,7 +216,7 @@ button {
   gap: 12px;
   margin: -12px -12px 12px;
   padding: 10px 12px;
-  background: rgba(10, 15, 20, 0.88);
+  background: rgba(247, 243, 237, 0.9);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--app-border);
 }
@@ -287,8 +294,8 @@ button {
 .dashboard-select,
 .dashboard-textarea {
   width: 100%;
-  border: 1px solid var(--app-border);
-  background: var(--app-surface-soft);
+  border: 1px solid var(--app-border-strong);
+  background: #FFFFFF;
   color: var(--app-text);
   border-radius: 8px;
   font-size: 13px;
@@ -317,8 +324,8 @@ button {
 .dashboard-textarea:focus {
   outline: none;
   border-color: rgba(2, 70, 40, 0.9);
-  box-shadow: 0 0 0 3px rgba(2, 70, 40, 0.3);
-  background: #131d27;
+  box-shadow: 0 0 0 3px rgba(2, 70, 40, 0.12);
+  background: #FFFFFF;
 }
 
 /* ---------------------------------------------------------------------------
@@ -466,7 +473,7 @@ button {
 }
 
 .dashboard-table tbody tr:hover {
-  background: rgba(2, 70, 40, 0.08);
+  background: rgba(2, 70, 40, 0.05);
 }
 
 /* ---------------------------------------------------------------------------
@@ -544,11 +551,11 @@ button {
    Recharts theming
    --------------------------------------------------------------------------- */
 .recharts-cartesian-grid line {
-  stroke: #1e2d3d;
+  stroke: #E8E0D4;
 }
 
 .recharts-text {
-  fill: #7c8a9a;
+  fill: #5C6D62;
   font-size: 10px;
   font-family: var(--font-body);
 }
@@ -605,9 +612,9 @@ button {
 .skeleton {
   background: linear-gradient(
     90deg,
-    rgba(255, 255, 255, 0.03) 25%,
-    rgba(255, 255, 255, 0.07) 37%,
-    rgba(255, 255, 255, 0.03) 63%
+    rgba(2, 70, 40, 0.05) 25%,
+    rgba(2, 70, 40, 0.1) 37%,
+    rgba(2, 70, 40, 0.05) 63%
   );
   background-size: 960px 100%;
   animation: dashboard-shimmer 1.4s ease-in-out infinite;

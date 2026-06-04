@@ -87,7 +87,7 @@ export default function Onboarding() {
         <div className="grid gap-6 lg:grid-cols-2">
           {/* Static, pre-filled form */}
           <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
-            <h2 className="text-lg font-semibold text-white mb-4">Onboard New User</h2>
+            <h2 className="text-lg font-semibold text-slate-100 mb-4">Onboard New User</h2>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">User Role</label>
@@ -124,7 +124,7 @@ export default function Onboarding() {
                   type="button"
                   disabled
                   title="Disabled in demo mode"
-                  className="flex-1 px-4 py-2 bg-emerald-600 text-white font-medium rounded-lg cursor-not-allowed opacity-60"
+                  className="flex-1 px-4 py-2 bg-emerald-600 text-[#fbf3d4] font-medium rounded-lg cursor-not-allowed opacity-60"
                 >
                   Create Partner
                 </button>
@@ -134,7 +134,7 @@ export default function Onboarding() {
 
           {/* Visual walkthrough */}
           <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
-            <h2 className="text-lg font-semibold text-white mb-4">How onboarding works</h2>
+            <h2 className="text-lg font-semibold text-slate-100 mb-4">How onboarding works</h2>
             <ol className="space-y-5">
               {steps.map((step, i) => (
                 <li key={i} className="flex gap-4">
@@ -144,7 +144,7 @@ export default function Onboarding() {
                     </svg>
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-white">
+                    <p className="text-sm font-semibold text-slate-100">
                       Step {i + 1}: {step.title}
                     </p>
                     <p className="mt-0.5 text-sm text-slate-400">{step.desc}</p>
@@ -163,7 +163,7 @@ export default function Onboarding() {
     return (
       <div className="p-8 flex items-center justify-center min-h-screen">
         <div className="bg-slate-900 border border-rose-500/30 rounded-xl p-8 max-w-md text-center">
-          <h2 className="text-xl font-semibold text-white mb-2">Access Denied</h2>
+          <h2 className="text-xl font-semibold text-slate-100 mb-2">Access Denied</h2>
           <p className="text-slate-400">Only admin or sales can access this page.</p>
         </div>
       </div>
@@ -268,7 +268,7 @@ export default function Onboarding() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setIsModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-medium rounded-lg shadow-lg transition-all"
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-[#fbf3d4] font-medium rounded-lg shadow-lg transition-all"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -300,7 +300,7 @@ export default function Onboarding() {
               <select
                 value={formData.role}
                 onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-cyan-500 transition-colors"
+                className="w-full px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:border-cyan-500 transition-colors"
                 required
               >
                 <option value="partner">Partner</option>
@@ -361,14 +361,14 @@ export default function Onboarding() {
                 setSuccess('')
                 resetForm()
               }}
-              className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg transition-colors"
+              className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-100 rounded-lg transition-colors"
               disabled={loading}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-[#fbf3d4] rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={loading}
             >
               {loading ? 'Creating...' : (formData.role === 'sales' ? 'Create Agent' : 'Create Partner')}
@@ -406,7 +406,7 @@ export default function Onboarding() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </div>
-          <h3 className="text-lg font-semibold text-white mb-2">Failed to Create User</h3>
+          <h3 className="text-lg font-semibold text-slate-100 mb-2">Failed to Create User</h3>
           <p className="text-slate-400 mb-4">
             {error}
           </p>
@@ -415,7 +415,7 @@ export default function Onboarding() {
               setIsErrorModalOpen(false)
               setError('')
             }}
-            className="w-full px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg transition-colors font-medium"
+            className="w-full px-4 py-2 bg-rose-600 hover:bg-rose-500 text-[#fbf3d4] rounded-lg transition-colors font-medium"
           >
             OK
           </button>

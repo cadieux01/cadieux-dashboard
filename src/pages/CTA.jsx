@@ -21,7 +21,7 @@ const STATUS_CONFIG = {
     dot: 'bg-emerald-400',
     text: 'text-emerald-200',
     badge: 'bg-emerald-400/10 border border-emerald-400/20 text-emerald-300',
-    card: 'border-emerald-800/40 bg-[linear-gradient(135deg,rgba(16,78,50,0.3),rgba(5,20,15,0.7))]',
+    card: 'border-[#10b981]/30 bg-[#10b981]/8',
   },
   expiring_soon: {
     label: 'About to Expire',
@@ -29,7 +29,7 @@ const STATUS_CONFIG = {
     dot: 'bg-amber-400',
     text: 'text-amber-200',
     badge: 'bg-amber-400/10 border border-amber-400/20 text-amber-300',
-    card: 'border-amber-800/40 bg-[linear-gradient(135deg,rgba(90,60,10,0.3),rgba(20,12,2,0.7))]',
+    card: 'border-[#D97706]/30 bg-[#D97706]/8',
   },
   expired: {
     label: 'Unsold / Expired',
@@ -37,15 +37,15 @@ const STATUS_CONFIG = {
     dot: 'bg-rose-400',
     text: 'text-rose-200',
     badge: 'bg-rose-400/10 border border-rose-400/20 text-rose-300',
-    card: 'border-rose-800/40 bg-[linear-gradient(135deg,rgba(90,20,20,0.3),rgba(20,5,5,0.7))]',
+    card: 'border-[#DC2626]/30 bg-[#DC2626]/8',
   },
 }
 
 const KPI_COLORS = {
-  emerald: 'border-emerald-800/40 bg-emerald-400/5 text-emerald-300',
-  amber:   'border-amber-800/40  bg-amber-400/5  text-amber-300',
-  rose:    'border-rose-800/40   bg-rose-400/5   text-rose-300',
-  slate:   'border-slate-700/40  bg-slate-400/5  text-slate-300',
+  emerald: 'border-[#10b981]/30 bg-[#10b981]/8 text-[#047857]',
+  amber:   'border-[#D97706]/30 bg-[#D97706]/8 text-[#b45309]',
+  rose:    'border-[#DC2626]/30 bg-[#DC2626]/8 text-[#b91c1c]',
+  slate:   'border-[#E8E0D4]    bg-[#F0EBE3]    text-slate-400',
 }
 
 export default function CTA() {
@@ -213,7 +213,7 @@ export default function CTA() {
         {(partnerFilter !== 'all' || variantFilter !== 'all') && (
           <button
             onClick={() => { setPartnerFilter('all'); setVariantFilter('all') }}
-            className="text-xs text-slate-400 hover:text-white transition-colors"
+            className="text-xs text-slate-400 hover:text-slate-100 transition-colors"
           >
             Clear
           </button>
@@ -256,7 +256,7 @@ export default function CTA() {
               <div
                 key={r.id}
                 onClick={() => navigate(`/admin/partner/${r.partner_id}`)}
-                className="cursor-pointer rounded-[20px] border border-slate-700/40 bg-slate-800/30 p-4 backdrop-blur-xl transition hover:-translate-y-0.5"
+                className="cursor-pointer rounded-[20px] border border-[#E8E0D4] bg-[#F0EBE3] p-4 transition hover:-translate-y-0.5"
               >
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
@@ -267,7 +267,7 @@ export default function CTA() {
                   </div>
                   <span className="text-xs text-slate-500">{formatDateDDMMYY(r.date)}</span>
                 </div>
-                <p className="font-semibold text-white">{r.partner_name}</p>
+                <p className="font-semibold text-slate-100">{r.partner_name}</p>
                 <p className="text-xs text-slate-400">{r.partner_phone}</p>
                 <p className="mt-1 text-sm font-semibold text-slate-300">{r.units} unit{r.units !== 1 ? 's' : ''} retracted</p>
               </div>
@@ -308,7 +308,7 @@ function AssignmentCard({ row, cfg, onNavigate }) {
       </div>
 
       {/* Partner */}
-      <p className="font-semibold text-white">{row.partner_name}</p>
+      <p className="font-semibold text-slate-100">{row.partner_name}</p>
       <div className="mt-0.5 flex items-center gap-2">
         <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${VARIANT_PILL[row.variant]}`}>
           {row.variant_label}
@@ -318,15 +318,15 @@ function AssignmentCard({ row, cfg, onNavigate }) {
 
       {/* Stats */}
       <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-        <div className="rounded-[10px] bg-white/[0.04] px-2 py-1.5">
+        <div className="rounded-[10px] bg-[#F0EBE3] px-2 py-1.5">
           <p className="text-[10px] uppercase tracking-[0.14em] text-slate-500">Assigned</p>
-          <p className="font-semibold text-white">{row.units_assigned}</p>
+          <p className="font-semibold text-slate-100">{row.units_assigned}</p>
         </div>
-        <div className="rounded-[10px] bg-white/[0.04] px-2 py-1.5">
+        <div className="rounded-[10px] bg-[#F0EBE3] px-2 py-1.5">
           <p className="text-[10px] uppercase tracking-[0.14em] text-slate-500">Sold</p>
           <p className="font-semibold text-emerald-300">{row.units_sold}</p>
         </div>
-        <div className="rounded-[10px] bg-white/[0.04] px-2 py-1.5">
+        <div className="rounded-[10px] bg-[#F0EBE3] px-2 py-1.5">
           <p className="text-[10px] uppercase tracking-[0.14em] text-slate-500">Left</p>
           <p className={`font-semibold ${cfg.text}`}>{row.units_remaining}</p>
         </div>
@@ -334,7 +334,7 @@ function AssignmentCard({ row, cfg, onNavigate }) {
 
       {/* Shelf life bar */}
       <div className="mt-3">
-        <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/[0.06]">
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#F0EBE3]">
           <div
             className={`h-full rounded-full transition-all ${
               row.status === 'active' ? 'bg-emerald-400' :
@@ -353,7 +353,7 @@ function AssignmentCard({ row, cfg, onNavigate }) {
         <a
           href={`tel:${row.partner_phone}`}
           onClick={(e) => e.stopPropagation()}
-          className="rounded-full bg-white/[0.06] px-2.5 py-1 text-xs text-slate-300 transition hover:bg-white/[0.10]"
+          className="rounded-full bg-[#F0EBE3] px-2.5 py-1 text-xs text-slate-300 transition hover:bg-[#ECE5DA]"
         >
           📞 Call
         </a>

@@ -43,7 +43,7 @@ function DemoBadge() {
   return (
     <>
       {toast && (
-        <div className="fixed bottom-24 right-4 z-[60] rounded-lg bg-[#1a2332] px-4 py-2.5 text-sm font-semibold text-amber-200 shadow-lg ring-1 ring-amber-400/30 md:bottom-16">
+        <div className="fixed bottom-24 right-4 z-[60] rounded-lg bg-[#024628] px-4 py-2.5 text-sm font-semibold text-[#fbf3d4] shadow-lg ring-1 ring-[rgba(251,243,212,0.3)] md:bottom-16">
           {toast}
         </div>
       )}
@@ -135,8 +135,8 @@ export default function Layout() {
   const navLinkClass = ({ isActive }) =>
     `group relative flex h-9 items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-semibold transition-all duration-150 ${
       isActive
-        ? 'bg-[rgba(2,70,40,0.15)] text-[#fbf3d4]'
-        : 'text-slate-500 hover:bg-[rgba(2,70,40,0.08)] hover:text-slate-100'
+        ? 'bg-[rgba(251,243,212,0.15)] text-[#fbf3d4]'
+        : 'text-[rgba(251,243,212,0.72)] hover:bg-[rgba(251,243,212,0.08)] hover:text-[#fbf3d4]'
     }`
 
   return (
@@ -146,7 +146,7 @@ export default function Layout() {
       {/* Mobile menu button */}
       <button
         onClick={() => setIsMobileMenuOpen((v) => !v)}
-        className="lg:hidden fixed top-4 right-4 z-50 rounded-lg border border-[#1e2d3d] bg-[#111921] p-2 text-slate-300 shadow-lg transition-all hover:text-white"
+        className="lg:hidden fixed top-4 right-4 z-50 rounded-lg border border-[#E8E0D4] bg-white p-2 text-[#024628] shadow-lg transition-all hover:text-[#035c36]"
         aria-label="Toggle menu"
       >
         {isMobileMenuOpen ? <X size={20} /> : <MenuIcon size={20} />}
@@ -155,7 +155,7 @@ export default function Layout() {
       {/* Mobile overlay */}
       {isMobileMenuOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/55 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-40 bg-[rgba(2,70,40,0.4)] backdrop-blur-sm lg:hidden"
           onClick={() => setIsMobileMenuOpen(false)}
         />
       )}
@@ -165,16 +165,16 @@ export default function Layout() {
       <aside
         className={`
           fixed top-0 bottom-[52px] lg:static lg:inset-y-0 left-0 z-40
-          flex flex-col border-r border-[#1e2d3d] bg-[#0a0f14]
+          flex flex-col border-r border-[#013a21] bg-[#024628]
           transition-all duration-300 ease-in-out
           ${isSidebarOpen ? 'w-[13.75rem]' : 'w-[4.25rem]'}
           ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}
       >
         {/* Brand */}
-        <div className="flex min-h-[52px] items-center border-b border-[#1e2d3d] px-3">
+        <div className="flex min-h-[52px] items-center border-b border-[rgba(251,243,212,0.15)] px-3">
           <div className="flex min-w-0 flex-1 items-center gap-2.5">
-            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-[#024628] text-[#fbf3d4] shadow-[0_4px_12px_rgba(2,70,40,0.4)]">
+            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-[#fbf3d4] text-[#024628] shadow-[0_4px_12px_rgba(0,0,0,0.2)]">
               <span className="font-display text-base font-extrabold leading-none">C</span>
             </div>
             {isSidebarOpen && (
@@ -182,7 +182,7 @@ export default function Layout() {
                 <p className="truncate font-display text-base font-extrabold tracking-[0.06em] text-[#fbf3d4]">
                   CADIEUX
                 </p>
-                <p className="truncate text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                <p className="truncate text-[10px] font-semibold uppercase tracking-[0.22em] text-[rgba(251,243,212,0.6)]">
                   {appName}
                 </p>
               </div>
@@ -190,7 +190,7 @@ export default function Layout() {
           </div>
           <button
             onClick={() => setIsSidebarOpen((v) => !v)}
-            className="hidden h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-[#1e2d3d] text-slate-400 transition-all hover:border-[#28394b] hover:text-white lg:flex"
+            className="hidden h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-[rgba(251,243,212,0.2)] text-[rgba(251,243,212,0.7)] transition-all hover:border-[rgba(251,243,212,0.4)] hover:text-[#fbf3d4] lg:flex"
             aria-label="Toggle sidebar"
           >
             {isSidebarOpen ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
@@ -212,10 +212,10 @@ export default function Layout() {
                 {({ isActive }) => (
                   <>
                     {isActive && (
-                      <span className="absolute left-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-r-full bg-[#024628]" />
+                      <span className="absolute left-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-r-full bg-[#fbf3d4]" />
                     )}
                     <span className="relative flex flex-shrink-0 items-center justify-center">
-                      <Icon size={16} className={isActive ? 'text-[#fbf3d4]' : 'text-slate-500 group-hover:text-slate-100'} />
+                      <Icon size={16} className={isActive ? 'text-[#fbf3d4]' : 'text-[rgba(251,243,212,0.7)] group-hover:text-[#fbf3d4]'} />
                       {item.badge && badgeCounts[item.badge] > 0 && !isSidebarOpen && (
                         <span className="absolute -right-2 -top-2 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-bold text-white">
                           {badgeCounts[item.badge]}
@@ -242,40 +242,40 @@ export default function Layout() {
         {/* User section — pinned to the bottom of the sidebar (sibling of the
             scrollable nav, not inside it), so it never scrolls away. The card
             itself is a Link to the role-specific profile page. */}
-        <div className="flex-shrink-0 border-t border-[#1e2d3d] p-3">
+        <div className="flex-shrink-0 border-t border-[rgba(251,243,212,0.15)] p-3">
           <Link
             to={role === 'partner' ? '/partner/profile' : '/admin/profile'}
             onClick={() => setIsMobileMenuOpen(false)}
             title={!isSidebarOpen ? 'My profile' : undefined}
-            className={`group mb-2.5 flex cursor-pointer items-center gap-3 rounded-lg border border-[#1e2d3d] bg-[#111921] p-2.5 transition-colors hover:bg-[#162133] ${
+            className={`group mb-2.5 flex cursor-pointer items-center gap-3 rounded-lg border border-[rgba(251,243,212,0.15)] bg-[rgba(251,243,212,0.06)] p-2.5 transition-colors hover:bg-[rgba(251,243,212,0.12)] ${
               !isSidebarOpen ? 'justify-center' : ''
             }`}
           >
-            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[#024628] text-sm font-bold text-[#fbf3d4]">
+            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[#fbf3d4] text-sm font-bold text-[#024628]">
               {role === 'admin'
-                ? <Shield size={16} className="text-[#fbf3d4]" />
+                ? <Shield size={16} className="text-[#024628]" />
                 : (profile?.full_name?.charAt(0) || displayLogin(profile?.email)?.charAt(0) || 'A')}
             </div>
             {isSidebarOpen && (
               <>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-bold text-white">
+                  <p className="truncate text-sm font-bold text-[#fbf3d4]">
                     {role === 'admin' ? 'Admin' : (displayName(profile) || 'Admin')}
                   </p>
-                  <p className="truncate text-xs text-slate-500">
+                  <p className="truncate text-xs text-[rgba(251,243,212,0.6)]">
                     {role === 'admin' ? 'Administrator' : (profile?.phone || displayLogin(profile?.email))}
                   </p>
                 </div>
                 <ChevronRightIcon
                   size={16}
-                  className="flex-shrink-0 text-slate-500 transition-transform group-hover:translate-x-0.5 group-hover:text-slate-300"
+                  className="flex-shrink-0 text-[rgba(251,243,212,0.6)] transition-transform group-hover:translate-x-0.5 group-hover:text-[#fbf3d4]"
                 />
               </>
             )}
           </Link>
           <button
             onClick={handleSignOut}
-            className={`flex w-full items-center justify-center gap-2 rounded-lg border border-[#1e2d3d] px-3 py-2 text-sm font-semibold text-slate-400 transition-all hover:border-rose-500/40 hover:bg-rose-500/10 hover:text-rose-400 ${
+            className={`flex w-full items-center justify-center gap-2 rounded-lg border border-[rgba(251,243,212,0.2)] px-3 py-2 text-sm font-semibold text-[rgba(251,243,212,0.8)] transition-all hover:border-rose-300/50 hover:bg-rose-500/15 hover:text-rose-100 ${
               !isSidebarOpen ? 'px-2' : ''
             }`}
             title={!isSidebarOpen ? 'Sign Out' : undefined}
@@ -292,7 +292,7 @@ export default function Layout() {
       </main>
 
       {/* Mobile bottom tab bar (< lg) — 52px tall, 4 evenly-spaced tabs */}
-      <nav className="fixed bottom-0 left-0 right-0 z-50 flex h-[52px] items-stretch border-t border-[#1e2d3d] bg-[#0a0f14] lg:hidden">
+      <nav className="fixed bottom-0 left-0 right-0 z-50 flex h-[52px] items-stretch border-t border-[#013a21] bg-[#024628] lg:hidden">
         {bottomTabs.map((item) => {
           const Icon = item.Icon
           return (
@@ -301,13 +301,13 @@ export default function Layout() {
               to={item.href}
               className={({ isActive }) =>
                 `relative flex flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-semibold transition-colors ${
-                  isActive ? 'text-[#fbf3d4]' : 'text-slate-500'
+                  isActive ? 'text-[#fbf3d4]' : 'text-[rgba(251,243,212,0.7)]'
                 }`
               }
             >
               {({ isActive }) => (
                 <>
-                  {isActive && <span className="absolute top-0 h-[2px] w-10 rounded-full bg-[#024628]" />}
+                  {isActive && <span className="absolute top-0 h-[2px] w-10 rounded-full bg-[#fbf3d4]" />}
                   <Icon size={20} />
                   <span className="truncate">{item.name}</span>
                 </>
@@ -317,7 +317,7 @@ export default function Layout() {
         })}
         <button
           onClick={() => setIsMobileMenuOpen(true)}
-          className="flex flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-semibold text-slate-500"
+          className="flex flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-semibold text-[rgba(251,243,212,0.7)]"
         >
           <MoreHorizontal size={20} />
           <span>Menu</span>

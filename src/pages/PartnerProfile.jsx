@@ -132,29 +132,29 @@ export default function PartnerProfile() {
 
       {/* Profile Information */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 sm:p-6">
-        <h2 className="text-lg sm:text-xl font-semibold text-white mb-4 sm:mb-6">Profile Information</h2>
+        <h2 className="text-lg sm:text-xl font-semibold text-slate-100 mb-4 sm:mb-6">Profile Information</h2>
         <div className="space-y-3 sm:space-y-4">
           <div>
             <label className="text-xs sm:text-sm font-medium text-slate-400">Full Name</label>
-            <p className="text-sm sm:text-base md:text-lg text-white mt-1">{profile?.full_name || 'N/A'}</p>
+            <p className="text-sm sm:text-base md:text-lg text-slate-100 mt-1">{profile?.full_name || 'N/A'}</p>
           </div>
           <div>
             <label className="text-xs sm:text-sm font-medium text-slate-400">Login</label>
-            <p className="text-sm sm:text-base md:text-lg text-white mt-1 break-words">{displayLogin(profile?.email) || 'N/A'}</p>
+            <p className="text-sm sm:text-base md:text-lg text-slate-100 mt-1 break-words">{displayLogin(profile?.email) || 'N/A'}</p>
           </div>
           <div>
             <label className="text-xs sm:text-sm font-medium text-slate-400">Phone Number</label>
-            <p className="text-sm sm:text-base md:text-lg text-white mt-1">
+            <p className="text-sm sm:text-base md:text-lg text-slate-100 mt-1">
               {profile?.phone || extractPhone(profile?.email) || profile?.phone_number || 'N/A'}
             </p>
           </div>
           <div>
             <label className="text-xs sm:text-sm font-medium text-slate-400">Role</label>
-            <p className="text-sm sm:text-base md:text-lg text-white mt-1 capitalize">{profile?.role || 'N/A'}</p>
+            <p className="text-sm sm:text-base md:text-lg text-slate-100 mt-1 capitalize">{profile?.role || 'N/A'}</p>
           </div>
           <div>
             <label className="text-xs sm:text-sm font-medium text-slate-400">Member Since</label>
-            <p className="text-sm sm:text-base md:text-lg text-white mt-1">
+            <p className="text-sm sm:text-base md:text-lg text-slate-100 mt-1">
               {profile?.created_at 
                 ? formatDateDDMMYY(profile.created_at)
                 : 'N/A'}

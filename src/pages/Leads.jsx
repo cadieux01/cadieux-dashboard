@@ -1080,7 +1080,7 @@ export default function Leads() {
         const partnerContact = getPartnerContact(row)
         return (
           <div>
-            <p className="font-medium text-white">{partnerName}</p>
+            <p className="font-medium text-slate-100">{partnerName}</p>
             <p className="text-xs text-slate-500">{partnerContact || 'No contact'}</p>
           </div>
         )
@@ -1191,7 +1191,7 @@ export default function Leads() {
       label: 'Partner',
       render: (_, row) => (
         <div>
-          <p className="font-medium text-white">{getPartnerName(row)}</p>
+          <p className="font-medium text-slate-100">{getPartnerName(row)}</p>
         </div>
       ),
     },
@@ -1200,7 +1200,7 @@ export default function Leads() {
       label: 'Buyer',
       render: (value, row) => (
         <div>
-          <p className="font-medium text-white">{value || 'N/A'}</p>
+          <p className="font-medium text-slate-100">{value || 'N/A'}</p>
           <p className="text-xs text-slate-500">{row.buyer_contact}</p>
         </div>
       ),
@@ -1245,13 +1245,13 @@ export default function Leads() {
   const renderSalesCard = (sale) => (
     <div key={sale.id} className={`rounded-xl border border-slate-800 bg-slate-900 p-4 ${getSalesRowClassName(sale)}`}>
       <div className="mb-3">
-        <p className="font-semibold text-white">{getPartnerName(sale)}</p>
+        <p className="font-semibold text-slate-100">{getPartnerName(sale)}</p>
         <p className="text-xs text-slate-500">{getPartnerContact(sale) || 'No contact'}</p>
       </div>
       <div className="grid grid-cols-2 gap-3 mb-3">
         <div>
           <p className="text-xs text-slate-500">Assigned</p>
-          <p className="font-mono text-white">{sale.units_assigned || 0}</p>
+          <p className="font-mono text-slate-100">{sale.units_assigned || 0}</p>
         </div>
         <div>
           <p className="text-xs text-slate-500">Sold</p>
@@ -1294,7 +1294,7 @@ export default function Leads() {
   const renderCustomerCard = (lead) => (
     <div key={lead.id} className="rounded-xl border border-slate-800 bg-slate-900 p-4">
       <div className="mb-2">
-        <p className="font-semibold text-white">{lead.buyer_name || 'N/A'}</p>
+        <p className="font-semibold text-slate-100">{lead.buyer_name || 'N/A'}</p>
         <p className="text-xs text-slate-500">{lead.buyer_contact || 'No contact'}</p>
       </div>
       <div className="mb-3">
@@ -1349,7 +1349,7 @@ export default function Leads() {
           <div className="grid grid-cols-3 gap-2 w-full lg:w-auto">
             <button
               onClick={() => gate(() => setIsAddSaleModalOpen(true), 'Assign stock')}
-              className="flex h-8 items-center justify-center gap-1.5 px-3 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white text-xs font-medium rounded-lg shadow-lg transition-all"
+              className="flex h-8 items-center justify-center gap-1.5 px-3 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-[#fbf3d4] text-xs font-medium rounded-lg shadow-lg transition-all"
             >
               <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -1358,7 +1358,7 @@ export default function Leads() {
             </button>
             <button
               onClick={() => gate(() => setIsAddSaleEntryModalOpen(true), 'Record a sale')}
-              className="flex h-8 items-center justify-center gap-1.5 px-3 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white text-xs font-medium rounded-lg shadow-lg transition-all"
+              className="flex h-8 items-center justify-center gap-1.5 px-3 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-[#fbf3d4] text-xs font-medium rounded-lg shadow-lg transition-all"
             >
               <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -1367,7 +1367,7 @@ export default function Leads() {
             </button>
             <button
               onClick={() => gate(() => setIsAddRetractModalOpen(true), 'Retract stock')}
-              className="flex h-8 items-center justify-center gap-1.5 px-3 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 text-white text-xs font-medium rounded-lg shadow-lg transition-all"
+              className="flex h-8 items-center justify-center gap-1.5 px-3 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 text-[#fbf3d4] text-xs font-medium rounded-lg shadow-lg transition-all"
             >
               <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
@@ -1407,7 +1407,7 @@ export default function Leads() {
                   placeholder="Search by partner or contact..."
                   value={salesSearchQuery}
                   onChange={(e) => setSalesSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  className="w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 />
               </div>
       </div>
@@ -1416,7 +1416,7 @@ export default function Leads() {
             <select
               value={salesTrainerFilter}
               onChange={(e) => setSalesTrainerFilter(e.target.value)}
-              className="w-full sm:w-auto px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full sm:w-auto px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               <option value="all">All Partners</option>
               {trainers.map((trainer) => (
@@ -1429,7 +1429,7 @@ export default function Leads() {
             <select
               value={salesStateFilter}
               onChange={(e) => setSalesStateFilter(e.target.value)}
-              className="w-full sm:w-auto px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full sm:w-auto px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               <option value="all">All Sales</option>
               <option value="active">Active Sales</option>
@@ -1444,7 +1444,7 @@ export default function Leads() {
                   setSalesTrainerFilter('all')
                   setSalesStateFilter('all')
                 }}
-                className="w-full sm:w-auto px-4 py-2 text-sm text-slate-400 hover:text-white transition-colors"
+                className="w-full sm:w-auto px-4 py-2 text-sm text-slate-400 hover:text-slate-100 transition-colors"
               >
                 Clear filters
               </button>
@@ -1455,14 +1455,14 @@ export default function Leads() {
         {/* Sales Table */}
         <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
           <div className="px-4 sm:px-6 py-4 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <h3 className="text-lg font-semibold text-white">Sales Records</h3>
+            <h3 className="text-lg font-semibold text-slate-100">Sales Records</h3>
             <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
               <div className="flex items-center gap-2">
                 <span className="text-sm text-slate-400">Items per page:</span>
                 <select
                   value={salesItemsPerPage}
                   onChange={(e) => setSalesItemsPerPage(Number(e.target.value))}
-                  className="px-2 py-1 bg-slate-800 border border-slate-700 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="px-2 py-1 bg-slate-800 border border-slate-700 rounded text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
                   <option value={10}>10</option>
                   <option value={20}>20</option>
@@ -1497,7 +1497,7 @@ export default function Leads() {
                 <button
                   onClick={() => setSalesPage(Math.max(1, salesPage - 1))}
                   disabled={salesPage === 1}
-                  className="px-3 py-1 bg-slate-800 border border-slate-700 rounded text-white text-sm hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="px-3 py-1 bg-slate-800 border border-slate-700 rounded text-slate-100 text-sm hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   Previous
                 </button>
@@ -1507,7 +1507,7 @@ export default function Leads() {
                 <button
                   onClick={() => setSalesPage(Math.min(salesTotalPages, salesPage + 1))}
                   disabled={salesPage === salesTotalPages}
-                  className="px-3 py-1 bg-slate-800 border border-slate-700 rounded text-white text-sm hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="px-3 py-1 bg-slate-800 border border-slate-700 rounded text-slate-100 text-sm hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   Next
                 </button>
@@ -1536,7 +1536,7 @@ export default function Leads() {
                 placeholder="Search by trainer, buyer, or contact..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               />
             </div>
           </div>
@@ -1545,7 +1545,7 @@ export default function Leads() {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="w-full sm:w-auto px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="w-full sm:w-auto px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
           >
             {STATUS_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
@@ -1558,7 +1558,7 @@ export default function Leads() {
           <select
             value={trainerFilter}
             onChange={(e) => setTrainerFilter(e.target.value)}
-            className="w-full sm:w-auto px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="w-full sm:w-auto px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
           >
             <option value="all">All Partners</option>
             {trainers.map((trainer) => (
@@ -1576,7 +1576,7 @@ export default function Leads() {
                 setStatusFilter('all')
                 setTrainerFilter('all')
               }}
-              className="w-full sm:w-auto px-4 py-2 text-sm text-slate-400 hover:text-white transition-colors"
+              className="w-full sm:w-auto px-4 py-2 text-sm text-slate-400 hover:text-slate-100 transition-colors"
             >
               Clear filters
             </button>
@@ -1587,11 +1587,11 @@ export default function Leads() {
       {/* Customers Table */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden mb-8">
         <div className="px-4 sm:px-6 py-4 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <h3 className="text-lg font-semibold text-white">Customers</h3>
+          <h3 className="text-lg font-semibold text-slate-100">Customers</h3>
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
             <button
               onClick={() => setIsAddModalOpen(true)}
-              className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-medium rounded-lg shadow-lg transition-all"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-[#fbf3d4] font-medium rounded-lg shadow-lg transition-all"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -1603,7 +1603,7 @@ export default function Leads() {
               <select
                 value={customersItemsPerPage}
                 onChange={(e) => setCustomersItemsPerPage(Number(e.target.value))}
-                className="px-2 py-1 bg-slate-800 border border-slate-700 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="px-2 py-1 bg-slate-800 border border-slate-700 rounded text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 <option value={10}>10</option>
                 <option value={20}>20</option>
@@ -1631,7 +1631,7 @@ export default function Leads() {
               <button
                 onClick={() => setCustomersPage(Math.max(1, customersPage - 1))}
                 disabled={customersPage === 1}
-                className="px-3 py-1 bg-slate-800 border border-slate-700 rounded text-white text-sm hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="px-3 py-1 bg-slate-800 border border-slate-700 rounded text-slate-100 text-sm hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Previous
               </button>
@@ -1641,7 +1641,7 @@ export default function Leads() {
               <button
                 onClick={() => setCustomersPage(Math.min(customersTotalPages, customersPage + 1))}
                 disabled={customersPage === customersTotalPages}
-                className="px-3 py-1 bg-slate-800 border border-slate-700 rounded text-white text-sm hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="px-3 py-1 bg-slate-800 border border-slate-700 rounded text-slate-100 text-sm hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Next
               </button>
@@ -1718,7 +1718,7 @@ export default function Leads() {
                     handleCloseModal()
                   }
                 }}
-                className="w-full sm:w-auto px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg transition-colors font-medium"
+                className="w-full sm:w-auto px-4 py-2 bg-rose-600 hover:bg-rose-500 text-[#fbf3d4] rounded-lg transition-colors font-medium"
               >
                 Delete
               </button>
@@ -1726,13 +1726,13 @@ export default function Leads() {
             <button
               type="button"
               onClick={handleCloseModal}
-              className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg transition-colors"
+              className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-100 rounded-lg transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors font-medium"
+              className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-[#fbf3d4] rounded-lg transition-colors font-medium"
             >
               {editingLeadId ? 'Update' : 'Add'} Lead
             </button>
@@ -1791,7 +1791,7 @@ export default function Leads() {
               <div className="mb-4 rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2.5">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-slate-300">Total Units</span>
-                  <span className="font-semibold text-white">
+                  <span className="font-semibold text-slate-100">
                     {totalUnits} <span className="text-xs font-normal text-slate-400">({mg} Multi-Grain + {pl} Plain)</span>
                   </span>
                 </div>
@@ -1834,12 +1834,12 @@ export default function Leads() {
                     type="date"
                     value={saleFormData.date_of_assignment}
                     onChange={(e) => setSaleFormData({ ...saleFormData, date_of_assignment: e.target.value })}
-                    className="flex-1 px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="flex-1 px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                   <button
                     type="button"
                     onClick={() => setIsDateEditable(false)}
-                    className="w-full sm:w-auto px-3 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+                    className="w-full sm:w-auto px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-100 rounded-lg transition-colors"
                     title="Save date"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1855,7 +1855,7 @@ export default function Leads() {
                   <button
                     type="button"
                     onClick={() => setIsDateEditable(true)}
-                    className="w-full sm:w-auto px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors"
+                    className="w-full sm:w-auto px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-[#fbf3d4] rounded-lg transition-colors"
                     title="Edit date"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1888,7 +1888,7 @@ export default function Leads() {
                   }}
                   min="0"
                   max={totalAssigned}
-                  className="flex-1 px-4 py-2 bg-slate-800 border border-purple-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  className="flex-1 px-4 py-2 bg-slate-800 border border-purple-700 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-purple-500"
                   placeholder="0"
                 />
                 <div className="w-full sm:w-auto px-3 py-2 bg-purple-900/30 border border-purple-700 rounded-lg text-purple-300 text-sm">
@@ -1916,7 +1916,7 @@ export default function Leads() {
                     handleCloseSaleModal()
                   }
                 }}
-                className="w-full sm:w-auto px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg transition-colors font-medium"
+                className="w-full sm:w-auto px-4 py-2 bg-rose-600 hover:bg-rose-500 text-[#fbf3d4] rounded-lg transition-colors font-medium"
               >
                 Delete
               </button>
@@ -1924,13 +1924,13 @@ export default function Leads() {
             <button
               type="button"
               onClick={handleCloseSaleModal}
-              className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg transition-colors"
+              className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-100 rounded-lg transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors font-medium"
+              className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-[#fbf3d4] rounded-lg transition-colors font-medium"
             >
               {editingSaleId ? 'Update Assignment' : 'Assign Unit'}
             </button>
@@ -1981,13 +1981,13 @@ export default function Leads() {
             <button
               type="button"
               onClick={handleCloseTrainerModal}
-              className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg transition-colors"
+              className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-100 rounded-lg transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-colors font-medium"
+              className="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-[#fbf3d4] rounded-lg transition-colors font-medium"
             >
               {editingTrainerId ? 'Update' : 'Add'} Partner
             </button>
@@ -2050,8 +2050,8 @@ export default function Leads() {
             return (
               <div className="mb-4 p-3 bg-slate-800 rounded-lg">
                 <p className="text-sm text-slate-400 mb-1">Active Sale Details:</p>
-                <p className="text-sm text-white">Units Assigned: {selectedSale?.units_assigned || 0}</p>
-                <p className="text-sm text-white">Units Sold: {selectedSale?.units_sold || 0}</p>
+                <p className="text-sm text-slate-100">Units Assigned: {selectedSale?.units_assigned || 0}</p>
+                <p className="text-sm text-slate-100">Units Sold: {selectedSale?.units_sold || 0}</p>
                 <p className="text-sm text-purple-400">Already Retracted: {retractedUnits}</p>
                 <p className="text-sm text-emerald-400">Remaining Unsold: {remainingUnsold}</p>
               </div>
@@ -2076,13 +2076,13 @@ export default function Leads() {
             <button
               type="button"
               onClick={handleCloseSaleEntryModal}
-              className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg transition-colors"
+              className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-100 rounded-lg transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors font-medium"
+              className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-[#fbf3d4] rounded-lg transition-colors font-medium"
             >
               Add Sale
             </button>
@@ -2145,8 +2145,8 @@ export default function Leads() {
             return (
               <div className="mb-4 p-3 bg-slate-800 rounded-lg">
                 <p className="text-sm text-slate-400 mb-1">Active Shipment Details:</p>
-                <p className="text-sm text-white">Units Assigned: {selectedSale?.units_assigned || 0}</p>
-                <p className="text-sm text-white">Units Sold: {selectedSale?.units_sold || 0}</p>
+                <p className="text-sm text-slate-100">Units Assigned: {selectedSale?.units_assigned || 0}</p>
+                <p className="text-sm text-slate-100">Units Sold: {selectedSale?.units_sold || 0}</p>
                 <p className="text-sm text-purple-400">Already Retracted: {retractedUnits}</p>
                 <p className="text-sm text-emerald-400">Remaining Unsold: {remainingUnsold}</p>
               </div>
@@ -2206,13 +2206,13 @@ export default function Leads() {
             <button
               type="button"
               onClick={handleCloseRetractModal}
-              className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg transition-colors"
+              className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-100 rounded-lg transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition-colors font-medium"
+              className="flex-1 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-[#fbf3d4] rounded-lg transition-colors font-medium"
             >
               Add Retract
             </button>

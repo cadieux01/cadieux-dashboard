@@ -41,7 +41,7 @@ export default function RefreshStatus({ pullDistance = 0, refreshing = false, at
           className="pointer-events-none fixed left-1/2 top-3 z-50 -translate-x-1/2"
           style={{ opacity: refreshing ? 1 : Math.min(1, pullDistance / 60) }}
         >
-          <div className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-[#0a0f14] shadow-lg">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full border border-[#E8E0D4] bg-white shadow-lg">
             <RotateCw
               size={16}
               className={`text-slate-200 ${refreshing ? 'animate-spin' : ''}`}

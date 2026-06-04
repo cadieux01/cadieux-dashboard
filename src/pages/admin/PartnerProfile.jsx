@@ -339,7 +339,7 @@ export default function PartnerProfile() {
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Customer log</h2>
           <p className="text-xs text-slate-400">
-            <span className="font-semibold text-white">{profile.customerStats.unique}</span> customers ·
+            <span className="font-semibold text-slate-100">{profile.customerStats.unique}</span> customers ·
             {' '}<span className="text-emerald-300">{profile.customerStats.withPhone} with phone</span> ·
             {' '}<span className="text-slate-400">{profile.customerStats.withoutPhone} without</span>
           </p>
@@ -358,7 +358,7 @@ export default function PartnerProfile() {
                 <tbody>
                   {custPaged.map((c) => (
                     <tr key={c.id}>
-                      <td className="px-3 py-2 font-medium text-white">{c.name}</td>
+                      <td className="px-3 py-2 font-medium text-slate-100">{c.name}</td>
                       <td className="px-3 py-2 text-slate-300">{c.contact || <span className="text-slate-600">—</span>}</td>
                       <td className="px-3 py-2"><VariantPill variant={c.variant} label={c.variant_label} /></td>
                       <td className="px-3 py-2 text-right font-semibold text-emerald-200">{c.units}</td>
@@ -373,7 +373,7 @@ export default function PartnerProfile() {
               {custPaged.map((c) => (
                 <div key={c.id} className="dashboard-subpanel rounded-[20px] px-4 py-3">
                   <div className="flex items-center justify-between">
-                    <p className="font-semibold text-white">{c.name}</p>
+                    <p className="font-semibold text-slate-100">{c.name}</p>
                     <p className="text-xs text-slate-500">{formatDateDDMMYY(c.date)}</p>
                   </div>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -430,7 +430,7 @@ export default function PartnerProfile() {
               {salesPaged.map((s) => (
                 <div key={s.id} className="dashboard-subpanel rounded-[20px] px-4 py-3">
                   <div className="flex items-center justify-between">
-                    <p className="font-semibold text-white">{s.customer}</p>
+                    <p className="font-semibold text-slate-100">{s.customer}</p>
                     <p className="text-xs text-slate-500">{formatDateDDMMYY(s.date)}</p>
                   </div>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -514,7 +514,7 @@ const DIVERTED_LABEL = {
 
 function Th({ children, right }) {
   return (
-    <th className={`border-b border-white/8 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 ${right ? 'text-right' : 'text-left'}`}>
+    <th className={`border-b border-[#E8E0D4] px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 ${right ? 'text-right' : 'text-left'}`}>
       {children}
     </th>
   )
@@ -531,19 +531,19 @@ function SellingSpeedSection({ speed }) {
           <div key={s.variant} className="dashboard-subpanel rounded-[20px] p-4">
             <div className="flex items-center gap-2">
               <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: s.variant === 'plain' ? '#FBF3D4' : '#024628' }} />
-              <p className="font-semibold text-white">{s.label}</p>
+              <p className="font-semibold text-slate-100">{s.label}</p>
               <span className="ml-auto text-xs text-slate-500">{s.count} sales</span>
             </div>
             <div className="mt-3 grid grid-cols-3 gap-2 text-center text-sm">
-              <div className="rounded-[12px] bg-white/[0.04] px-2 py-1.5">
+              <div className="rounded-[12px] bg-[#F0EBE3] px-2 py-1.5">
                 <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Avg</p>
-                <p className="mt-0.5 font-semibold text-white">{s.avg}d</p>
+                <p className="mt-0.5 font-semibold text-slate-100">{s.avg}d</p>
               </div>
-              <div className="rounded-[12px] bg-white/[0.04] px-2 py-1.5">
+              <div className="rounded-[12px] bg-[#F0EBE3] px-2 py-1.5">
                 <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Fastest</p>
                 <p className="mt-0.5 font-semibold text-emerald-200">{s.fastest}d</p>
               </div>
-              <div className="rounded-[12px] bg-white/[0.04] px-2 py-1.5">
+              <div className="rounded-[12px] bg-[#F0EBE3] px-2 py-1.5">
                 <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Slowest</p>
                 <p className="mt-0.5 font-semibold text-amber-200">{s.slowest}d</p>
               </div>
@@ -565,10 +565,10 @@ function SellingSpeedSection({ speed }) {
 
 function SpeedBucket({ label, value, pct, color }) {
   return (
-    <div className="rounded-[12px] bg-white/[0.04] px-2 py-2">
+    <div className="rounded-[12px] bg-[#F0EBE3] px-2 py-2">
       <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">{label}</p>
-      <p className="mt-0.5 text-lg font-semibold text-white">{value}</p>
-      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-white/[0.06]">
+      <p className="mt-0.5 text-lg font-semibold text-slate-100">{value}</p>
+      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-[#F0EBE3]">
         <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
       </div>
       <p className="mt-1 text-[11px] text-slate-500">{pct}%</p>
@@ -619,7 +619,7 @@ function RemarksSection({ partnerId, remarks, canAdd, isDemo, authorName, onAdde
             <button
               onClick={submit}
               disabled={saving || !text.trim()}
-              className="rounded-full bg-emerald-600 px-4 py-1.5 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-40"
+              className="rounded-full bg-emerald-600 px-4 py-1.5 text-sm font-semibold text-[#fbf3d4] transition hover:bg-emerald-500 disabled:opacity-40"
             >
               {saving ? 'Saving…' : 'Add remark'}
             </button>
@@ -633,7 +633,7 @@ function RemarksSection({ partnerId, remarks, canAdd, isDemo, authorName, onAdde
           {remarks.map((r) => (
             <div key={r.id} className="dashboard-subpanel rounded-[20px] px-4 py-3">
               <div className="flex items-center justify-between">
-                <p className="text-sm font-semibold text-white">
+                <p className="text-sm font-semibold text-slate-100">
                   {r.author}
                   {r.author_role && <span className="ml-2 text-[11px] font-medium uppercase tracking-[0.12em] text-slate-500">{r.author_role}</span>}
                 </p>
@@ -675,20 +675,20 @@ function CurrentStockSection({ partnerId }) {
                 <span className="text-xs text-slate-500">{row.variant_label} · {sl.days}d life</span>
               </div>
               <div className="grid grid-cols-3 gap-1.5 text-center text-xs">
-                <div className="rounded-[8px] bg-white/[0.04] px-1.5 py-1">
+                <div className="rounded-[8px] bg-[#F0EBE3] px-1.5 py-1">
                   <p className="text-[10px] text-slate-500">Received</p>
-                  <p className="font-semibold text-white">{row.units_assigned}</p>
+                  <p className="font-semibold text-slate-100">{row.units_assigned}</p>
                 </div>
-                <div className="rounded-[8px] bg-white/[0.04] px-1.5 py-1">
+                <div className="rounded-[8px] bg-[#F0EBE3] px-1.5 py-1">
                   <p className="text-[10px] text-slate-500">Sold</p>
                   <p className="font-semibold text-emerald-300">{row.units_sold}</p>
                 </div>
-                <div className="rounded-[8px] bg-white/[0.04] px-1.5 py-1">
+                <div className="rounded-[8px] bg-[#F0EBE3] px-1.5 py-1">
                   <p className="text-[10px] text-slate-500">Left</p>
                   <p className={`font-semibold ${STATUS_TEXT[row.status]}`}>{row.units_remaining}</p>
                 </div>
               </div>
-              <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-white/[0.06]">
+              <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[#F0EBE3]">
                 <div className={`h-full rounded-full ${STATUS_DOT[row.status]}`} style={{ width: `${pct}%` }} />
               </div>
             </div>
@@ -705,18 +705,18 @@ function VariantBreakdownCard({ data, speed }) {
     <div className="dashboard-subpanel rounded-[20px] p-4">
       <div className="flex items-center gap-2">
         <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: isPlain ? '#FBF3D4' : '#024628' }} />
-        <p className="font-semibold text-white">{data.label}</p>
+        <p className="font-semibold text-slate-100">{data.label}</p>
         <span className="ml-auto text-xs text-slate-500">₹{data.price}/unit</span>
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-        <Cell label="Received"  value={data.assigned}  className="text-white" />
+        <Cell label="Received"  value={data.assigned}  className="text-slate-100" />
         <Cell label="Sold"      value={data.sold}      className="text-emerald-200" />
         <Cell label="Left"      value={data.left}      className="text-slate-200" />
         <Cell label="Returned"  value={data.retracted} className="text-rose-200" />
       </div>
       <div className="mt-3 flex justify-between text-sm">
         <span className="text-slate-400">Sell-through</span>
-        <span className="font-semibold text-white">{data.sellThrough.toFixed(0)}%</span>
+        <span className="font-semibold text-slate-100">{data.sellThrough.toFixed(0)}%</span>
       </div>
       <div className="flex justify-between text-sm">
         <span className="text-slate-400">Revenue</span>
@@ -725,7 +725,7 @@ function VariantBreakdownCard({ data, speed }) {
       {speed && speed.count > 0 && (
         <div className="mt-2 flex justify-between text-sm">
           <span className="text-slate-400">Avg sell time</span>
-          <span className="font-semibold text-white">{speed.avg}d</span>
+          <span className="font-semibold text-slate-100">{speed.avg}d</span>
         </div>
       )}
     </div>
@@ -734,7 +734,7 @@ function VariantBreakdownCard({ data, speed }) {
 
 function Cell({ label, value, className }) {
   return (
-    <div className="rounded-[12px] bg-white/[0.04] px-2.5 py-1.5">
+    <div className="rounded-[12px] bg-[#F0EBE3] px-2.5 py-1.5">
       <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">{label}</p>
       <p className={`mt-0.5 font-semibold ${className}`}>{value.toLocaleString()}</p>
     </div>

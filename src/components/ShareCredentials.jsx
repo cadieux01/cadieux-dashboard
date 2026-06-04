@@ -66,7 +66,7 @@ export default function ShareCredentials({ name, phone, password, role, onClose 
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(2,70,40,0.4)] p-4"
       onClick={onClose}
     >
       <div
@@ -77,19 +77,19 @@ export default function ShareCredentials({ name, phone, password, role, onClose 
         <div className="bg-gradient-to-br from-amber-500/15 via-slate-900 to-slate-900 p-6">
           <div className="mb-5 flex items-center gap-2">
             <span className="text-xl">🔐</span>
-            <h3 className="text-lg font-semibold text-white">Cadieux Dashboard Login</h3>
+            <h3 className="text-lg font-semibold text-slate-100">Cadieux Dashboard Login</h3>
           </div>
 
           <div className="space-y-3 rounded-xl border border-slate-700 bg-slate-800/60 p-4">
             {name && (
               <div className="flex items-center justify-between gap-3">
                 <span className="text-xs uppercase tracking-wider text-slate-500">Name</span>
-                <span className="text-sm font-medium text-white">{name}</span>
+                <span className="text-sm font-medium text-slate-100">{name}</span>
               </div>
             )}
             <div className="flex items-center justify-between gap-3">
               <span className="text-xs uppercase tracking-wider text-slate-500">Phone</span>
-              <span className="text-sm font-medium text-white">{phone || 'N/A'}</span>
+              <span className="text-sm font-medium text-slate-100">{phone || 'N/A'}</span>
             </div>
             <div className="flex items-center justify-between gap-3">
               <span className="text-xs uppercase tracking-wider text-slate-500">Password</span>
@@ -105,7 +105,7 @@ export default function ShareCredentials({ name, phone, password, role, onClose 
             </div>
             <div className="flex items-center justify-between gap-3">
               <span className="text-xs uppercase tracking-wider text-slate-500">Role</span>
-              <span className="text-sm font-medium text-white">{roleLabel(role)}</span>
+              <span className="text-sm font-medium text-slate-100">{roleLabel(role)}</span>
             </div>
           </div>
 
@@ -132,7 +132,7 @@ export default function ShareCredentials({ name, phone, password, role, onClose 
             href={whatsappHref}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center justify-center gap-1.5 rounded-lg px-3 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90"
+            className="flex items-center justify-center gap-1.5 rounded-lg px-3 py-2.5 text-sm font-medium text-[#fbf3d4] transition-opacity hover:opacity-90"
             style={{ backgroundColor: '#25D366' }}
           >
             <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
@@ -142,7 +142,7 @@ export default function ShareCredentials({ name, phone, password, role, onClose 
           </a>
           <a
             href={smsHref}
-            className="flex items-center justify-center gap-1.5 rounded-lg px-3 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90"
+            className="flex items-center justify-center gap-1.5 rounded-lg px-3 py-2.5 text-sm font-medium text-[#fbf3d4] transition-opacity hover:opacity-90"
             style={{ backgroundColor: '#007AFF' }}
           >
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -153,7 +153,7 @@ export default function ShareCredentials({ name, phone, password, role, onClose 
           <button
             type="button"
             onClick={handleCopy}
-            className="flex items-center justify-center gap-1.5 rounded-lg bg-slate-700 px-3 py-2.5 text-sm font-medium text-white transition-colors hover:bg-slate-600"
+            className="flex items-center justify-center gap-1.5 rounded-lg bg-slate-700 px-3 py-2.5 text-sm font-medium text-slate-100 transition-colors hover:bg-slate-600"
           >
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -170,7 +170,7 @@ export default function ShareCredentials({ name, phone, password, role, onClose 
         </div>
 
         {copied && (
-          <div className="pointer-events-none absolute bottom-20 left-1/2 -translate-x-1/2 rounded-full bg-emerald-600 px-4 py-1.5 text-sm font-medium text-white shadow-lg">
+          <div className="pointer-events-none absolute bottom-20 left-1/2 -translate-x-1/2 rounded-full bg-emerald-600 px-4 py-1.5 text-sm font-medium text-[#fbf3d4] shadow-lg">
             Copied!
           </div>
         )}

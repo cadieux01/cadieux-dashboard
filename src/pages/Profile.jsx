@@ -202,7 +202,7 @@ export default function Profile() {
 
       {/* Current details */}
       <div className={`${CARD} mb-6`}>
-        <h2 className="text-lg font-semibold text-white mb-4">Current Details</h2>
+        <h2 className="text-lg font-semibold text-slate-100 mb-4">Current Details</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
           {/* Name */}
           <div>
@@ -221,7 +221,7 @@ export default function Profile() {
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
+                    className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-[#fbf3d4] hover:bg-emerald-500 disabled:opacity-50"
                   >
                     {submitting ? '...' : 'Submit Request'}
                   </button>
@@ -236,7 +236,7 @@ export default function Profile() {
               </form>
             ) : (
               <div className="mt-1 flex items-center justify-between gap-3">
-                <p className="text-base text-white">{isAdminAccount(profile) ? 'Admin' : (displayName(profile) || '—')}</p>
+                <p className="text-base text-slate-100">{isAdminAccount(profile) ? 'Admin' : (displayName(profile) || '—')}</p>
                 <button
                   onClick={() => { closeEditor(); setEditing('name'); setNameValue(profile.full_name || '') }}
                   className="rounded-lg bg-indigo-500/20 px-3 py-1.5 text-xs text-indigo-300 hover:bg-indigo-500/30"
@@ -264,7 +264,7 @@ export default function Profile() {
                   <button
                     type="submit"
                     disabled={submitting}
-                    className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
+                    className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-[#fbf3d4] hover:bg-emerald-500 disabled:opacity-50"
                   >
                     {submitting ? '...' : 'Submit Request'}
                   </button>
@@ -279,7 +279,7 @@ export default function Profile() {
               </form>
             ) : (
               <div className="mt-1 flex items-center justify-between gap-3">
-                <p className="text-base text-white">{profilePhone(profile) || '—'}</p>
+                <p className="text-base text-slate-100">{profilePhone(profile) || '—'}</p>
                 <button
                   onClick={() => { closeEditor(); setEditing('phone'); setPhoneValue(profilePhone(profile)) }}
                   className="rounded-lg bg-indigo-500/20 px-3 py-1.5 text-xs text-indigo-300 hover:bg-indigo-500/30"
@@ -309,7 +309,7 @@ export default function Profile() {
                     <button
                       type="submit"
                       disabled={submitting}
-                      className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
+                      className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-[#fbf3d4] hover:bg-emerald-500 disabled:opacity-50"
                     >
                       {submitting ? '...' : 'Submit Request'}
                     </button>
@@ -324,7 +324,7 @@ export default function Profile() {
                 </form>
               ) : (
                 <div className="mt-1 flex items-center justify-between gap-3">
-                  <p className="break-all text-base text-white">{profile.email || '—'}</p>
+                  <p className="break-all text-base text-slate-100">{profile.email || '—'}</p>
                   <button
                     onClick={() => { closeEditor(); setEditing('email'); setEmailValue(profile.email || '') }}
                     className="flex-shrink-0 rounded-lg bg-indigo-500/20 px-3 py-1.5 text-xs text-indigo-300 hover:bg-indigo-500/30"
@@ -342,7 +342,7 @@ export default function Profile() {
           {/* Role (read-only) */}
           <div>
             <label className="text-xs sm:text-sm font-medium text-slate-400">Role</label>
-            <p className="mt-1 text-base capitalize text-white">{profile.role || '—'}</p>
+            <p className="mt-1 text-base capitalize text-slate-100">{profile.role || '—'}</p>
           </div>
 
           {/* Status (read-only) */}
@@ -359,7 +359,7 @@ export default function Profile() {
       <div className={`${CARD} mb-6`}>
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold text-white">Password</h2>
+            <h2 className="text-lg font-semibold text-slate-100">Password</h2>
             <p className="text-sm text-slate-400">
               Request a password change. For security, your new password is
               applied only after an approver confirms the request.
@@ -404,7 +404,7 @@ export default function Profile() {
               <button
                 type="submit"
                 disabled={submitting}
-                className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
+                className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-[#fbf3d4] hover:bg-emerald-500 disabled:opacity-50"
               >
                 {submitting ? '...' : 'Submit Request'}
               </button>
@@ -427,7 +427,7 @@ export default function Profile() {
 
       {/* Pending / past requests */}
       <div className={CARD}>
-        <h2 className="text-lg font-semibold text-white mb-4">My Requests</h2>
+        <h2 className="text-lg font-semibold text-slate-100 mb-4">My Requests</h2>
         {loadingRequests ? (
           <p className="text-sm text-slate-400">Loading…</p>
         ) : requests.length === 0 ? (
@@ -440,7 +440,7 @@ export default function Profile() {
                 className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-950/40 px-4 py-3"
               >
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-white">
+                  <p className="text-sm font-medium text-slate-100">
                     {REQUEST_TYPE_LABELS[r.request_type] || r.request_type}
                   </p>
                   <p className="text-xs text-slate-500">
@@ -565,7 +565,7 @@ function DashboardPinSection({ onToast }) {
     <div className="rounded-xl border border-slate-800 bg-slate-900 p-4 sm:p-6 mb-6">
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-white">
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-100">
             <span aria-hidden>🔐</span>
             <span>Dashboard Security PIN</span>
           </h2>
@@ -608,7 +608,7 @@ function DashboardPinSection({ onToast }) {
             <button
               type="button"
               onClick={() => { reset(); setMode('setting') }}
-              className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-emerald-500"
+              className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-[#fbf3d4] hover:bg-emerald-500"
             >
               Set PIN
             </button>
@@ -672,7 +672,7 @@ function DashboardPinSection({ onToast }) {
             <button
               type="submit"
               disabled={busy}
-              className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
+              className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-[#fbf3d4] hover:bg-emerald-500 disabled:opacity-50"
             >
               {busy ? '...' : mode === 'removing' ? 'Remove PIN' : 'Save PIN'}
             </button>

@@ -162,27 +162,27 @@ export default function Login() {
     !import.meta.env.VITE_SUPABASE_URL.includes('placeholder')
 
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[#024628] flex items-center justify-center p-4">
       {/* Background Pattern */}
       <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -top-1/2 -right-1/2 w-full h-full bg-gradient-to-bl from-indigo-500/10 via-transparent to-transparent rounded-full blur-3xl"></div>
-        <div className="absolute -bottom-1/2 -left-1/2 w-full h-full bg-gradient-to-tr from-amber-500/10 via-transparent to-transparent rounded-full blur-3xl"></div>
+        <div className="absolute -top-1/2 -right-1/2 w-full h-full bg-gradient-to-bl from-[#FBF3D4]/10 via-transparent to-transparent rounded-full blur-3xl"></div>
+        <div className="absolute -bottom-1/2 -left-1/2 w-full h-full bg-gradient-to-tr from-[#035c36]/40 via-transparent to-transparent rounded-full blur-3xl"></div>
       </div>
 
       <div className="relative w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-[#024628] rounded-2xl shadow-lg shadow-[#024628]/40 mb-4 ring-1 ring-[#FBF3D4]/20">
-            <span className="text-2xl font-extrabold text-[#FBF3D4]">C</span>
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-[#FBF3D4] rounded-2xl shadow-lg shadow-black/20 mb-4 ring-1 ring-[#FBF3D4]/30">
+            <span className="text-2xl font-extrabold text-[#024628]">C</span>
           </div>
           <h1 className="text-3xl font-extrabold text-[#FBF3D4] tracking-[0.18em]">CADIEUX</h1>
-          <p className="text-slate-400 mt-2">Core Element — Operations</p>
+          <p className="text-[rgba(251,243,212,0.7)] mt-2">Core Element — Operations</p>
         </div>
 
         {/* Login Card */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 shadow-xl">
+        <div className="bg-white border border-[#E8E0D4] rounded-2xl p-8 shadow-xl">
           <div className="mb-6">
-            <h2 className="text-xl font-semibold text-white">Sign in</h2>
+            <h2 className="text-xl font-semibold text-[#1A2B1F]">Sign in</h2>
           </div>
 
           {!supabaseConfigured && (
@@ -222,7 +222,7 @@ export default function Login() {
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
                 required
-                className="w-full px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                className="w-full px-4 py-3 bg-white border border-[#D1C9BC] rounded-lg text-[#1A2B1F] placeholder-[#8A9890] focus:outline-none focus:ring-2 focus:ring-[#024628] focus:border-transparent transition-all"
                 placeholder="Enter name or number"
               />
             </div>
@@ -238,7 +238,7 @@ export default function Login() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  className="w-full px-4 py-3 pr-12 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                  className="w-full px-4 py-3 pr-12 bg-white border border-[#D1C9BC] rounded-lg text-[#1A2B1F] placeholder-[#8A9890] focus:outline-none focus:ring-2 focus:ring-[#024628] focus:border-transparent transition-all"
                   placeholder="••••••••"
                 />
                 <button
@@ -247,7 +247,7 @@ export default function Login() {
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                   tabIndex={-1}
                   className={`absolute right-3 top-1/2 -translate-y-1/2 transition-colors ${
-                    showPassword ? 'text-white' : 'text-slate-500 hover:text-slate-300'
+                    showPassword ? 'text-[#024628]' : 'text-[#8A9890] hover:text-[#5C6D62]'
                   }`}
                 >
                   {showPassword ? (
@@ -267,11 +267,11 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 px-4 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-semibold rounded-lg shadow-lg shadow-indigo-500/30 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="w-full py-3 px-4 bg-[#024628] hover:bg-[#035c36] text-[#FBF3D4] font-semibold rounded-lg shadow-lg shadow-[#024628]/30 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {loading ? (
                 <>
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <div className="w-5 h-5 border-2 border-[#FBF3D4] border-t-transparent rounded-full animate-spin"></div>
                   Signing in...
                 </>
               ) : (
@@ -288,7 +288,7 @@ export default function Login() {
         </div>
 
         {/* Footer */}
-        <p className="text-center text-slate-600 text-sm mt-8">
+        <p className="text-center text-[rgba(251,243,212,0.55)] text-sm mt-8">
           © {new Date().getFullYear()} Core Element
         </p>
       </div>

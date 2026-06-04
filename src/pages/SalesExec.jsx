@@ -448,14 +448,14 @@ export default function SalesExec() {
       >
         <div className="mb-2 flex items-start justify-between gap-2">
           <div>
-            <p className="font-semibold text-white">{exec.full_name || 'N/A'}</p>
+            <p className="font-semibold text-slate-100">{exec.full_name || 'N/A'}</p>
             <p className="text-xs text-slate-500">📞 {execPhone(exec)}</p>
           </div>
           {statusBadge(exec.status)}
         </div>
         <div className="mb-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-300">
-          <span><span className="text-slate-500">Partners:</span> <span className="font-semibold text-white">{s.partners}</span></span>
-          <span><span className="text-slate-500">Assigned:</span> <span className="font-semibold text-white">{s.assigned}</span></span>
+          <span><span className="text-slate-500">Partners:</span> <span className="font-semibold text-slate-100">{s.partners}</span></span>
+          <span><span className="text-slate-500">Assigned:</span> <span className="font-semibold text-slate-100">{s.assigned}</span></span>
           <span><span className="text-slate-500">Closed:</span> <span className="font-semibold text-emerald-300">{s.closed}</span></span>
         </div>
         <div className="mb-2 text-xs text-slate-500">
@@ -539,14 +539,14 @@ export default function SalesExec() {
                 placeholder="Search by name, phone, or notes..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full rounded-lg border border-slate-700 bg-slate-800 py-2 pl-10 pr-4 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full rounded-lg border border-slate-700 bg-slate-800 py-2 pl-10 pr-4 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
           </div>
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="px-4 py-2 text-sm text-slate-400 transition-colors hover:text-white"
+              className="px-4 py-2 text-sm text-slate-400 transition-colors hover:text-slate-100"
             >
               Clear
             </button>
@@ -556,7 +556,7 @@ export default function SalesExec() {
 
       <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
         <div className="flex items-center justify-between border-b border-slate-800 px-6 py-4">
-          <h3 className="text-lg font-semibold text-white">Agent Accounts</h3>
+          <h3 className="text-lg font-semibold text-slate-100">Agent Accounts</h3>
           <span className="text-sm text-slate-500">
             {filteredExecs.length} agent{filteredExecs.length !== 1 ? 's' : ''}
           </span>
@@ -598,7 +598,7 @@ export default function SalesExec() {
                   >
                     <td className="px-4 py-3">
                       <div>
-                        <p className="font-medium text-white">{exec.full_name || 'N/A'}</p>
+                        <p className="font-medium text-slate-100">{exec.full_name || 'N/A'}</p>
                         <p className="text-xs text-slate-500">
                           {exec.created_at ? formatDateDDMMYY(exec.created_at) : ''}
                         </p>
@@ -608,8 +608,8 @@ export default function SalesExec() {
                       <p className="text-slate-300">{execPhone(exec)}</p>
                     </td>
                     <td className="px-4 py-3">{statusBadge(exec.status)}</td>
-                    <td className="px-4 py-3 text-right font-mono text-white">{s.partners}</td>
-                    <td className="px-4 py-3 text-right font-mono text-white">{s.assigned}</td>
+                    <td className="px-4 py-3 text-right font-mono text-slate-100">{s.partners}</td>
+                    <td className="px-4 py-3 text-right font-mono text-slate-100">{s.assigned}</td>
                     <td className="px-4 py-3 text-right font-mono text-emerald-300">{s.closed}</td>
                     <td className="px-4 py-3">
                       <p className="max-w-xs truncate text-slate-300">{exec.notes || '—'}</p>
@@ -689,14 +689,14 @@ export default function SalesExec() {
             <button
               type="button"
               onClick={handleCloseAddExecModal}
-              className="flex-1 rounded-lg bg-slate-800 px-4 py-2 text-white transition-colors hover:bg-slate-700"
+              className="flex-1 rounded-lg bg-slate-800 px-4 py-2 text-slate-100 transition-colors hover:bg-slate-700"
               disabled={creatingExec}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="flex-1 rounded-lg bg-emerald-600 px-4 py-2 font-medium text-white transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex-1 rounded-lg bg-emerald-600 px-4 py-2 font-medium text-[#fbf3d4] transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={creatingExec}
             >
               {creatingExec ? 'Creating...' : 'Create Agent'}
@@ -738,9 +738,9 @@ export default function SalesExec() {
                 <div className="rounded-lg border border-slate-800 bg-slate-900 p-2.5">
                   <p className="text-slate-500">Partners · Assigned · Closed</p>
                   <p className="font-mono text-slate-200">
-                    <span className="text-white">{s.partners}</span>
+                    <span className="text-slate-100">{s.partners}</span>
                     {' · '}
-                    <span className="text-white">{s.assigned}</span>
+                    <span className="text-slate-100">{s.assigned}</span>
                     {' · '}
                     <span className="text-emerald-300">{s.closed}</span>
                   </p>

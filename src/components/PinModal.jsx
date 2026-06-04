@@ -122,14 +122,14 @@ export default function PinModal({ isOpen, onConfirm, onCancel, actionLabel }) {
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-[rgba(2,70,40,0.4)] p-4 backdrop-blur-sm"
       onClick={onCancel}
       role="dialog"
       aria-modal="true"
       aria-labelledby="pin-modal-title"
     >
       <div
-        className="w-full max-w-sm rounded-2xl border border-[#1e2d3d] bg-[#0a0f14] p-5 shadow-[0_24px_64px_rgba(0,0,0,0.6)] animate-[fadeIn_200ms_ease-out]"
+        className="w-full max-w-sm rounded-2xl border border-[#E8E0D4] bg-white p-5 shadow-[0_24px_64px_rgba(2,70,40,0.18)] animate-[fadeIn_200ms_ease-out]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-3 flex items-center gap-2">
@@ -139,7 +139,7 @@ export default function PinModal({ isOpen, onConfirm, onCancel, actionLabel }) {
             </svg>
           </div>
           <div>
-            <h2 id="pin-modal-title" className="font-display text-lg font-semibold text-white">Security Verification</h2>
+            <h2 id="pin-modal-title" className="font-display text-lg font-semibold text-slate-100">Security Verification</h2>
             <p className="text-xs text-slate-400">
               {actionLabel ? `Confirm: ${actionLabel}` : 'Enter your dashboard PIN to confirm.'}
             </p>
@@ -166,7 +166,7 @@ export default function PinModal({ isOpen, onConfirm, onCancel, actionLabel }) {
                   onChange={(e) => handleChange(i, e.target.value)}
                   onKeyDown={(e) => handleKeyDown(i, e)}
                   disabled={lockMs > 0 || verifying}
-                  className="h-11 w-10 rounded-lg border border-[#1e2d3d] bg-[#111921] text-center font-display text-xl font-bold text-white outline-none transition-colors focus:border-[#024628] focus:ring-2 focus:ring-[#024628]/40 disabled:opacity-50"
+                  className="h-11 w-10 rounded-lg border border-[#D1C9BC] bg-white text-center font-display text-xl font-bold text-slate-100 outline-none transition-colors focus:border-[#024628] focus:ring-2 focus:ring-[#024628]/40 disabled:opacity-50"
                   aria-label={`Digit ${i + 1}`}
                 />
               ))}
@@ -192,7 +192,7 @@ export default function PinModal({ isOpen, onConfirm, onCancel, actionLabel }) {
           <button
             type="button"
             onClick={onCancel}
-            className="flex-1 rounded-lg border border-[#1e2d3d] bg-[#111921] px-4 py-2 text-sm font-semibold text-slate-300 transition hover:bg-[#162133]"
+            className="flex-1 rounded-lg border border-[#D1C9BC] bg-white px-4 py-2 text-sm font-semibold text-slate-300 transition hover:bg-[#F0EBE3]"
           >
             Cancel
           </button>

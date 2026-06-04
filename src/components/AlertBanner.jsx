@@ -58,7 +58,7 @@ export default function AlertBanner({ type = 'warning', title, message, onDismis
         <button
           onClick={onDismiss}
           aria-label="Dismiss"
-          className="flex-shrink-0 text-slate-500 transition-colors hover:text-white"
+          className="flex-shrink-0 text-slate-500 transition-colors hover:text-slate-100"
         >
           <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

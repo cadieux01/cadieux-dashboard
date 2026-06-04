@@ -95,7 +95,7 @@ function PartnerPerformanceSection({ data, dateRange, onDateRangeChange }) {
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Performance</p>
-          <h2 className="mt-2 font-display text-2xl font-semibold tracking-[-0.04em] text-white">
+          <h2 className="mt-2 font-display text-2xl font-semibold tracking-[-0.04em] text-slate-100">
             Partner Performance
           </h2>
         </div>
@@ -118,7 +118,7 @@ function PartnerPerformanceSection({ data, dateRange, onDateRangeChange }) {
       ) : (
         <div
           className="max-h-[400px] overflow-y-auto overscroll-contain pr-1 scroll-smooth"
-          style={{ scrollbarWidth: 'thin', scrollbarColor: '#024628 #0a0f14' }}
+          style={{ scrollbarWidth: 'thin', scrollbarColor: '#024628 #F0EBE3' }}
         >
           {data.map((p) => {
             const soldPct = maxSold > 0 ? (p.totalSold / maxSold) * 100 : 0
@@ -127,16 +127,16 @@ function PartnerPerformanceSection({ data, dateRange, onDateRangeChange }) {
             const retHovered = hover?.id === p.id && hover.kind === 'retracted'
 
             return (
-              <div key={p.id} className="relative border-b border-[#1e2d3d] py-2">
-                <p className="mb-1 text-[12px] font-semibold text-[#f1f5f9] sm:text-[13px]">{p.name}</p>
+              <div key={p.id} className="relative border-b border-[#E8E0D4] py-2">
+                <p className="mb-1 text-[12px] font-semibold text-[#1A2B1F] sm:text-[13px]">{p.name}</p>
 
                 <div
-                  className="relative mb-1 h-4 w-full overflow-hidden rounded bg-[#111921] sm:h-5"
+                  className="relative mb-1 h-4 w-full overflow-hidden rounded bg-[#F0EBE3] sm:h-5"
                   onMouseEnter={() => setHover({ id: p.id, kind: 'sold' })}
                   onMouseLeave={() => setHover(null)}
                 >
                   <div
-                    className="flex h-full items-center rounded px-2 text-[10px] font-semibold text-white transition-[width] duration-500 ease-out sm:text-[11px]"
+                    className="flex h-full items-center rounded px-2 text-[10px] font-semibold text-[#fbf3d4] transition-[width] duration-500 ease-out sm:text-[11px]"
                     style={{
                       width: `${Math.max(soldPct, p.totalSold > 0 ? 6 : 0)}%`,
                       backgroundColor: '#10b981',
@@ -156,12 +156,12 @@ function PartnerPerformanceSection({ data, dateRange, onDateRangeChange }) {
                 </div>
 
                 <div
-                  className="relative h-4 w-full overflow-hidden rounded bg-[#111921] sm:h-5"
+                  className="relative h-4 w-full overflow-hidden rounded bg-[#F0EBE3] sm:h-5"
                   onMouseEnter={() => setHover({ id: p.id, kind: 'retracted' })}
                   onMouseLeave={() => setHover(null)}
                 >
                   <div
-                    className="flex h-full items-center rounded px-2 text-[10px] font-semibold text-white transition-[width] duration-500 ease-out sm:text-[11px]"
+                    className="flex h-full items-center rounded px-2 text-[10px] font-semibold text-[#fbf3d4] transition-[width] duration-500 ease-out sm:text-[11px]"
                     style={{
                       width: `${Math.max(retPct, p.totalRetracted > 0 ? 6 : 0)}%`,
                       backgroundColor: '#ef4444',
@@ -181,12 +181,12 @@ function PartnerPerformanceSection({ data, dateRange, onDateRangeChange }) {
                 </div>
 
                 {(soldHovered || retHovered) && (
-                  <div className="pointer-events-none absolute right-2 top-[-6px] z-10 -translate-y-full rounded-lg border border-[#2d3748] bg-[#1a2332] px-3 py-2 text-xs shadow-[0_8px_24px_rgba(0,0,0,0.45)]">
-                    <p className="font-semibold text-[#f1f5f9]">
+                  <div className="pointer-events-none absolute right-2 top-[-6px] z-10 -translate-y-full rounded-lg border border-[#E8E0D4] bg-white px-3 py-2 text-xs shadow-[0_8px_24px_rgba(2,70,40,0.18)]">
+                    <p className="font-semibold text-[#1A2B1F]">
                       {p.name}{retHovered ? ' — Retracted' : ''}
                     </p>
                     {soldHovered ? (
-                      <div className="mt-1.5 space-y-0.5 text-[11px] text-[#cbd5e1]">
+                      <div className="mt-1.5 space-y-0.5 text-[11px] text-[#5C6D62]">
                         <div className="flex justify-between gap-6">
                           <span className="text-[#7c8a9a]">Total Sold</span>
                           <span>{p.totalSold} units</span>
@@ -197,7 +197,7 @@ function PartnerPerformanceSection({ data, dateRange, onDateRangeChange }) {
                         </div>
                       </div>
                     ) : (
-                      <div className="mt-1.5 space-y-0.5 text-[11px] text-[#cbd5e1]">
+                      <div className="mt-1.5 space-y-0.5 text-[11px] text-[#5C6D62]">
                         <div className="flex justify-between gap-6">
                           <span className="text-[#7c8a9a]">Total Retracted</span>
                           <span>{p.totalRetracted} units</span>
@@ -232,7 +232,7 @@ function TopPartnersSection({ rankings }) {
     <section className="dashboard-panel flex flex-col overflow-hidden rounded-[32px] p-5 sm:p-6">
       <div className="mb-5">
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Rank</p>
-        <h2 className="mt-2 font-display text-2xl font-semibold tracking-[-0.04em] text-white">Top partners</h2>
+        <h2 className="mt-2 font-display text-2xl font-semibold tracking-[-0.04em] text-slate-100">Top partners</h2>
       </div>
 
       {paged.length === 0 ? (
@@ -242,7 +242,7 @@ function TopPartnersSection({ rankings }) {
       ) : (
         <div
           className="max-h-[400px] space-y-2.5 overflow-y-auto overscroll-contain pr-1 scroll-smooth"
-          style={{ scrollbarWidth: 'thin', scrollbarColor: '#024628 #0a0f14' }}
+          style={{ scrollbarWidth: 'thin', scrollbarColor: '#024628 #F0EBE3' }}
         >
           {paged.map((trainer, index) => {
             const absIdx = (page - 1) * RANK_PER_PAGE + index
@@ -251,13 +251,13 @@ function TopPartnersSection({ rankings }) {
                 key={trainer.trainer_id || index}
                 type="button"
                 onClick={() => navigate(`/admin/partner/${trainer.trainer_id || ''}`)}
-                className="dashboard-subpanel flex w-full items-center gap-4 rounded-[24px] px-4 py-3 text-left transition hover:-translate-y-0.5 hover:bg-white/[0.04]"
+                className="dashboard-subpanel flex w-full items-center gap-4 rounded-[24px] px-4 py-3 text-left transition hover:-translate-y-0.5 hover:bg-[#F0EBE3]"
               >
-                <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-white/[0.06] text-sm font-semibold text-white">
+                <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[#F0EBE3] text-sm font-semibold text-slate-100">
                   {absIdx + 1}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-semibold text-white">{trainer.trainer_name}</p>
+                  <p className="truncate font-semibold text-slate-100">{trainer.trainer_name}</p>
                   <p className="truncate text-xs text-slate-500">{trainer.trainer_contact || 'No contact added'}</p>
                 </div>
                 <div className="text-right">
@@ -556,13 +556,13 @@ export default function Sales() {
         <div className="dashboard-panel flex items-center justify-between gap-4 rounded-2xl px-4 py-3 xl:max-w-md">
           <div className="min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Top contributor</p>
-            <p className="mt-0.5 truncate font-display text-lg font-semibold tracking-[-0.03em] text-white">
+            <p className="mt-0.5 truncate font-display text-lg font-semibold tracking-[-0.03em] text-slate-100">
               {summary.topPartner?.trainer_name || 'No activity yet'}
             </p>
           </div>
-          <div className="flex-shrink-0 rounded-full border border-white/10 bg-white/[0.05] px-3 py-1.5 text-right">
+          <div className="flex-shrink-0 rounded-full border border-[#E8E0D4] bg-[#F0EBE3] px-3 py-1.5 text-right">
             <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Sell-through</p>
-            <p className="text-base font-semibold text-emerald-100">
+            <p className="text-base font-semibold text-[#024628]">
               {summary.sellThrough.toFixed(1)}%
             </p>
           </div>
@@ -640,7 +640,7 @@ export default function Sales() {
           <section className="dashboard-panel rounded-[32px] p-5 sm:p-6">
             <div className="mb-5 flex items-center gap-2">
               <span className="text-lg" aria-hidden>📊</span>
-              <h2 className="font-display text-xl font-semibold tracking-[-0.03em] text-white sm:text-2xl">Variant Performance</h2>
+              <h2 className="font-display text-xl font-semibold tracking-[-0.03em] text-slate-100 sm:text-2xl">Variant Performance</h2>
               <span className="ml-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Tap a variant</span>
             </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -651,17 +651,17 @@ export default function Sales() {
                 <Link
                   key={v.key}
                   to={`/admin/overview/variant/${v.key}`}
-                  className="dashboard-subpanel block rounded-[20px] p-4 transition hover:-translate-y-0.5 hover:bg-white/[0.04]"
+                  className="dashboard-subpanel block rounded-[20px] p-4 transition hover:-translate-y-0.5 hover:bg-[#F0EBE3]"
                 >
                   <div className="flex items-center gap-2">
                     <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: v.color }} />
-                    <p className="text-sm font-semibold text-white">{v.label}</p>
+                    <p className="text-sm font-semibold text-slate-100">{v.label}</p>
                     <span className="ml-auto text-[11px] font-semibold text-slate-500">View →</span>
                   </div>
                   <div className="mt-3 space-y-1.5 text-sm">
                     <div className="flex items-center justify-between">
                       <span className="text-slate-400">Assigned</span>
-                      <span className="font-semibold text-white">{v.totals.assigned.toLocaleString()}</span>
+                      <span className="font-semibold text-slate-100">{v.totals.assigned.toLocaleString()}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-slate-400">Sold</span>
@@ -669,7 +669,7 @@ export default function Sales() {
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-slate-400">Sell-through</span>
-                      <span className="font-semibold text-white">{v.through.toFixed(0)}%</span>
+                      <span className="font-semibold text-slate-100">{v.through.toFixed(0)}%</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-slate-400">Revenue</span>

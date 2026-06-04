@@ -48,7 +48,7 @@ export default function RefreshButton({ onRefresh, loading = false }) {
         disabled={busy}
         aria-label="Refresh"
         title="Refresh"
-        className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex items-center gap-2 rounded-lg border border-[#E8E0D4] bg-[#F0EBE3] px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-[#ECE5DA] disabled:cursor-not-allowed disabled:opacity-60"
       >
         <RotateCw size={16} className={busy ? 'animate-spin' : ''} />
         <span className="hidden sm:inline">Refresh</span>

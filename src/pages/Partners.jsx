@@ -468,7 +468,7 @@ export default function Partners() {
       >
         <div className="mb-2 flex items-start justify-between gap-2">
           <div>
-            <p className="font-semibold text-white">{partner.full_name || 'N/A'}</p>
+            <p className="font-semibold text-slate-100">{partner.full_name || 'N/A'}</p>
             <p className="text-xs text-slate-500">📞 {partnerPhone(partner) || 'N/A'}</p>
           </div>
           <div className="flex flex-col items-end gap-1">
@@ -477,7 +477,7 @@ export default function Partners() {
           </div>
         </div>
         <div className="mb-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-300">
-          <span><span className="text-slate-500">Assigned:</span> <span className="font-semibold text-white">{s.assigned}</span></span>
+          <span><span className="text-slate-500">Assigned:</span> <span className="font-semibold text-slate-100">{s.assigned}</span></span>
           <span><span className="text-slate-500">Sold:</span> <span className="font-semibold text-emerald-300">{s.sold}</span></span>
           <span><span className="text-slate-500">Ret:</span> <span className="font-semibold text-amber-300">{s.retracted}</span></span>
         </div>
@@ -562,14 +562,14 @@ export default function Partners() {
                 placeholder="Search by partner name, phone, or notes..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
           </div>
           <select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
-            className="px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
           >
             <option value="all">All types</option>
             {PARTNER_TYPES.map((t) => (
@@ -579,7 +579,7 @@ export default function Partners() {
           {(searchQuery || typeFilter !== 'all') && (
             <button
               onClick={() => { setSearchQuery(''); setTypeFilter('all') }}
-              className="px-4 py-2 text-sm text-slate-400 hover:text-white transition-colors"
+              className="px-4 py-2 text-sm text-slate-400 hover:text-slate-100 transition-colors"
             >
               Clear filters
             </button>
@@ -589,7 +589,7 @@ export default function Partners() {
 
       <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-white">Partner Accounts</h3>
+          <h3 className="text-lg font-semibold text-slate-100">Partner Accounts</h3>
           <span className="text-sm text-slate-500">
             {filteredPartners.length} partner{filteredPartners.length !== 1 ? 's' : ''}
           </span>
@@ -632,7 +632,7 @@ export default function Partners() {
                   >
                     <td className="px-4 py-3">
                       <div>
-                        <p className="font-medium text-white">{partner.full_name || 'N/A'}</p>
+                        <p className="font-medium text-slate-100">{partner.full_name || 'N/A'}</p>
                         <p className="text-xs text-slate-500">
                           {partner.created_at ? formatDateDDMMYY(partner.created_at) : ''}
                         </p>
@@ -643,7 +643,7 @@ export default function Partners() {
                     </td>
                     <td className="px-4 py-3">{typeBadge(partner.partner_type)}</td>
                     <td className="px-4 py-3">{statusBadge(partner.status)}</td>
-                    <td className="px-4 py-3 text-right font-mono text-white">{s.assigned}</td>
+                    <td className="px-4 py-3 text-right font-mono text-slate-100">{s.assigned}</td>
                     <td className="px-4 py-3 text-right font-mono text-emerald-300">{s.sold}</td>
                     <td className="px-4 py-3 text-right font-mono text-amber-300">{s.retracted}</td>
                     <td className="px-4 py-3">
@@ -732,14 +732,14 @@ export default function Partners() {
             <button
               type="button"
               onClick={handleCloseAddPartnerModal}
-              className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg transition-colors"
+              className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-100 rounded-lg transition-colors"
               disabled={creatingPartner}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-[#fbf3d4] rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={creatingPartner}
             >
               {creatingPartner ? 'Creating...' : 'Create Partner'}

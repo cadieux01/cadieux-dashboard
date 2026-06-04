@@ -24,13 +24,13 @@ export class ErrorBoundary extends Component {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
-            <h2 className="text-xl font-semibold text-white mb-2 text-center">Something went wrong</h2>
+            <h2 className="text-xl font-semibold text-slate-100 mb-2 text-center">Something went wrong</h2>
             <p className="text-slate-400 text-sm mb-4 text-center">
               {this.state.error?.message || 'An unexpected error occurred'}
             </p>
             <button
               onClick={() => window.location.reload()}
-              className="w-full px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors"
+              className="w-full px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-[#fbf3d4] rounded-lg transition-colors"
             >
               Reload Page
             </button>

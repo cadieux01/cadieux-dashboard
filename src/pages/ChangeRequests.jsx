@@ -311,7 +311,7 @@ export default function ChangeRequests() {
       {/* Table */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-white">Requests</h3>
+          <h3 className="text-lg font-semibold text-slate-100">Requests</h3>
           <span className="text-sm text-slate-500">
             {filtered.length} request{filtered.length !== 1 ? 's' : ''}
           </span>
@@ -333,7 +333,7 @@ export default function ChangeRequests() {
             <tbody className="divide-y divide-slate-800">
               {filtered.map((r) => (
                 <tr key={r.id} className="hover:bg-slate-800/30 transition-colors">
-                  <td className="px-4 py-4 text-sm font-medium text-white">{r.requester_name || '—'}</td>
+                  <td className="px-4 py-4 text-sm font-medium text-slate-100">{r.requester_name || '—'}</td>
                   <td className="px-4 py-4 text-sm capitalize text-slate-300">{r.requester_role}</td>
                   <td className="px-4 py-4 text-sm text-slate-300">{REQUEST_TYPE_LABELS[r.request_type] || r.request_type}</td>
                   <td className="px-4 py-4 text-sm text-slate-400">{valueCell(r, 'current')}</td>
@@ -360,7 +360,7 @@ export default function ChangeRequests() {
         <form onSubmit={handleRejectSubmit}>
           <p className="mb-4 text-sm text-slate-400">
             Rejecting {REQUEST_TYPE_LABELS[rejectTarget?.request_type] || ''} change for{' '}
-            <span className="text-white">{rejectTarget?.requester_name}</span>.
+            <span className="text-slate-100">{rejectTarget?.requester_name}</span>.
           </p>
           <label className="mb-2 block text-sm font-semibold text-slate-300">Reason (optional)</label>
           <textarea
@@ -374,14 +374,14 @@ export default function ChangeRequests() {
             <button
               type="button"
               onClick={() => setRejectTarget(null)}
-              className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg transition-colors"
+              className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-100 rounded-lg transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={busyId === rejectTarget?.id}
-              className="flex-1 px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+              className="flex-1 px-4 py-2 bg-rose-600 hover:bg-rose-500 text-[#fbf3d4] rounded-lg font-medium transition-colors disabled:opacity-50"
             >
               {busyId === rejectTarget?.id ? 'Rejecting...' : 'Reject Request'}
             </button>
@@ -393,7 +393,7 @@ export default function ChangeRequests() {
       <Modal isOpen={!!pwTarget} onClose={() => setPwTarget(null)} title="Set New Password">
         <form onSubmit={handlePasswordApproveSubmit}>
           <p className="mb-4 text-sm text-slate-400">
-            Set a new password for <span className="text-white">{pwTarget?.requester_name}</span>.
+            Set a new password for <span className="text-slate-100">{pwTarget?.requester_name}</span>.
             Share it with them securely.
           </p>
           <div className="mb-4">
@@ -422,13 +422,13 @@ export default function ChangeRequests() {
             <button
               type="button"
               onClick={() => setPwTarget(null)}
-              className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg transition-colors"
+              className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-100 rounded-lg transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-medium transition-colors"
+              className="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-[#fbf3d4] rounded-lg font-medium transition-colors"
             >
               Approve &amp; Set Password
             </button>

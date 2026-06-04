@@ -47,7 +47,7 @@ export function StatTile({ label, value, color }) {
   return (
     <div className="dashboard-subpanel rounded-[16px] px-3 py-2.5">
       <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">{label}</p>
-      <p className={`mt-0.5 text-base font-semibold ${colors[color] || 'text-white'}`}>{value}</p>
+      <p className={`mt-0.5 text-base font-semibold ${colors[color] || 'text-slate-100'}`}>{value}</p>
     </div>
   )
 }
@@ -92,7 +92,7 @@ export function Pagination({ page, totalPages, onChange }) {
           type="button"
           onClick={() => onChange(Math.max(1, page - 1))}
           disabled={page === 1}
-          className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 font-semibold text-slate-200 transition hover:bg-white/[0.08] disabled:opacity-40"
+          className="rounded-full border border-[#E8E0D4] bg-[#F0EBE3] px-3 py-1 font-semibold text-slate-200 transition hover:bg-[#ECE5DA] disabled:opacity-40"
         >
           Prev
         </button>
@@ -100,7 +100,7 @@ export function Pagination({ page, totalPages, onChange }) {
           type="button"
           onClick={() => onChange(Math.min(totalPages, page + 1))}
           disabled={page === totalPages}
-          className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 font-semibold text-slate-200 transition hover:bg-white/[0.08] disabled:opacity-40"
+          className="rounded-full border border-[#E8E0D4] bg-[#F0EBE3] px-3 py-1 font-semibold text-slate-200 transition hover:bg-[#ECE5DA] disabled:opacity-40"
         >
           Next
         </button>
@@ -188,7 +188,7 @@ export function MonthlyLineChart({ data, height = 180 }) {
               y1={padding.top + innerH * (1 - t)}
               x2={w - padding.right}
               y2={padding.top + innerH * (1 - t)}
-              stroke="#1e2d3d"
+              stroke="#E8E0D4"
               strokeWidth={1}
             />
           ))}
@@ -257,7 +257,7 @@ export function ReasonBars({ counts, reasons, total }) {
               <span className={`inline-flex w-32 items-center justify-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${REASON_PILL[r.value]}`}>
                 {r.label}
               </span>
-              <div className="relative h-3 flex-1 overflow-hidden rounded-full bg-white/[0.06]">
+              <div className="relative h-3 flex-1 overflow-hidden rounded-full bg-[#F0EBE3]">
                 <div
                   className="absolute inset-y-0 left-0 rounded-full transition-[width] duration-300"
                   style={{ width: `${pct}%`, backgroundColor: REASON_FILL[r.value] }}

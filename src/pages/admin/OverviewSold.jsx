@@ -78,7 +78,7 @@ export default function OverviewSold() {
             type="button"
             onClick={exportCsv}
             disabled={rows.length === 0}
-            className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-white/[0.08] disabled:opacity-50"
+            className="rounded-full border border-[#E8E0D4] bg-[#F0EBE3] px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-[#ECE5DA] disabled:opacity-50"
           >
             Export CSV
           </button>
@@ -129,22 +129,22 @@ export default function OverviewSold() {
         <>
           <div className="hidden md:block overflow-x-auto">
             <table className="dashboard-table min-w-full">
-              <thead className="sticky top-0 bg-[#0a0f14]">
+              <thead className="sticky top-0 bg-[#F0EBE3]">
                 <tr>
-                  <th className="border-b border-white/8 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Date</th>
-                  <th className="border-b border-white/8 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Partner</th>
-                  <th className="border-b border-white/8 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Customer</th>
-                  <th className="border-b border-white/8 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Variant</th>
-                  <th className="border-b border-white/8 px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Units</th>
-                  <th className="border-b border-white/8 px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Revenue</th>
-                  <th className="border-b border-white/8 px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Days</th>
+                  <th className="border-b border-[#E8E0D4] px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Date</th>
+                  <th className="border-b border-[#E8E0D4] px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Partner</th>
+                  <th className="border-b border-[#E8E0D4] px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Customer</th>
+                  <th className="border-b border-[#E8E0D4] px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Variant</th>
+                  <th className="border-b border-[#E8E0D4] px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Units</th>
+                  <th className="border-b border-[#E8E0D4] px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Revenue</th>
+                  <th className="border-b border-[#E8E0D4] px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Days</th>
                 </tr>
               </thead>
               <tbody>
                 {paged.map((r) => (
                   <tr key={r.id}>
                     <td className="px-3 py-2 text-slate-300">{formatDateDDMMYY(r.date)}</td>
-                    <td className="px-3 py-2 font-semibold text-white">
+                    <td className="px-3 py-2 font-semibold text-slate-100">
                       <Link to={`/admin/partner/${r.partner_id}`} className="hover:text-emerald-200">{r.partner_name}</Link>
                     </td>
                     <td className="px-3 py-2 text-slate-300">{r.customer}</td>
@@ -162,7 +162,7 @@ export default function OverviewSold() {
             {paged.map((r) => (
               <div key={r.id} className="dashboard-subpanel rounded-[20px] px-4 py-3">
                 <div className="flex items-center justify-between">
-                  <Link to={`/admin/partner/${r.partner_id}`} className="font-semibold text-white hover:text-emerald-200">{r.partner_name}</Link>
+                  <Link to={`/admin/partner/${r.partner_id}`} className="font-semibold text-slate-100 hover:text-emerald-200">{r.partner_name}</Link>
                   <p className="text-xs text-slate-500">{formatDateDDMMYY(r.date)}</p>
                 </div>
                 <p className="mt-0.5 text-xs text-slate-400">to {r.customer}</p>
@@ -196,7 +196,7 @@ function VariantBreakdownCard({ variant, units, total, revenue }) {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: isPlain ? ACCENT_CREAM : ACCENT_GREEN }} />
-          <p className="font-semibold text-white">{label}</p>
+          <p className="font-semibold text-slate-100">{label}</p>
         </div>
         {winner && <span className="rounded-full bg-emerald-400/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-200">Winner 🏆</span>}
       </div>

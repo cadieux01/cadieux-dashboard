@@ -5,7 +5,7 @@ export default function Modal({ isOpen, onClose, title, children }) {
     <div className="fixed inset-0 z-[60] overflow-y-auto p-4 sm:p-6">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-slate-950/68 backdrop-blur-md"
+        className="absolute inset-0 bg-[rgba(2,70,40,0.4)] backdrop-blur-md"
         onClick={onClose}
       />
 
@@ -13,11 +13,11 @@ export default function Modal({ isOpen, onClose, title, children }) {
         {/* Modal - Mobile-first responsive */}
         <div className="dashboard-panel relative w-full max-w-[400px] overflow-hidden rounded-2xl">
           {/* Header */}
-          <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/8 bg-slate-950/88 px-4 py-3 backdrop-blur-xl">
-            <h2 className="pr-2 font-display text-base font-semibold tracking-tight text-white">{title}</h2>
+          <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[#E8E0D4] bg-white/95 px-4 py-3 backdrop-blur-xl">
+            <h2 className="pr-2 font-display text-base font-semibold tracking-tight text-slate-100">{title}</h2>
             <button
               onClick={onClose}
-              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl border border-white/8 text-slate-400 transition-all hover:border-white/12 hover:bg-white/[0.05] hover:text-white"
+              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl border border-[#E8E0D4] text-slate-400 transition-all hover:border-[#D1C9BC] hover:bg-[#F0EBE3] hover:text-slate-100"
               aria-label="Close"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

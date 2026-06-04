@@ -607,7 +607,7 @@ export default function PartnerDashboard() {
             <div className="mt-2 space-y-1 text-sm">
               <div className="flex items-center justify-between">
                 <span className="text-slate-400">Assigned</span>
-                <span className="font-semibold text-white">{summary.variants.multigrain.assigned.toLocaleString()}</span>
+                <span className="font-semibold text-slate-100">{summary.variants.multigrain.assigned.toLocaleString()}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-slate-400">Sold</span>
@@ -615,7 +615,7 @@ export default function PartnerDashboard() {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-slate-400">Left</span>
-                <span className="font-semibold text-white">{summary.variants.multigrain.left.toLocaleString()}</span>
+                <span className="font-semibold text-slate-100">{summary.variants.multigrain.left.toLocaleString()}</span>
               </div>
             </div>
           </div>
@@ -628,7 +628,7 @@ export default function PartnerDashboard() {
             <div className="mt-2 space-y-1 text-sm">
               <div className="flex items-center justify-between">
                 <span className="text-slate-400">Assigned</span>
-                <span className="font-semibold text-white">{summary.variants.plain.assigned.toLocaleString()}</span>
+                <span className="font-semibold text-slate-100">{summary.variants.plain.assigned.toLocaleString()}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-slate-400">Sold</span>
@@ -636,7 +636,7 @@ export default function PartnerDashboard() {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-slate-400">Left</span>
-                <span className="font-semibold text-white">{summary.variants.plain.left.toLocaleString()}</span>
+                <span className="font-semibold text-slate-100">{summary.variants.plain.left.toLocaleString()}</span>
               </div>
             </div>
           </div>
@@ -667,14 +667,14 @@ export default function PartnerDashboard() {
 
         {/* Sales History Table */}
         <div className="dashboard-panel overflow-hidden rounded-[32px]">
-          <div className="border-b border-white/8 px-4 py-5 sm:px-6">
+          <div className="border-b border-[#E8E0D4] px-4 py-5 sm:px-6">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">List</p>
-            <h2 className="mt-2 font-display text-2xl font-semibold tracking-[-0.04em] text-white">Sales</h2>
+            <h2 className="mt-2 font-display text-2xl font-semibold tracking-[-0.04em] text-slate-100">Sales</h2>
           </div>
           <div className="overflow-x-auto">
             <table className="dashboard-table w-full">
               <thead>
-                <tr className="border-b border-white/8">
+                <tr className="border-b border-[#E8E0D4]">
                   <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
                     Customer
                   </th>
@@ -698,7 +698,7 @@ export default function PartnerDashboard() {
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/6">
+              <tbody className="divide-y divide-[#E8E0D4]">
                 {sales.length === 0 ? (
                   <tr>
                     <td colSpan="7" className="px-4 sm:px-6 py-8 text-center text-slate-400">
@@ -716,7 +716,7 @@ export default function PartnerDashboard() {
                         className={`${complete ? 'bg-emerald-400/4' : 'bg-rose-400/4'}`}
                       >
                         <td className="px-3 py-2 whitespace-nowrap">
-                          <div className="text-sm sm:text-base font-medium text-white">
+                          <div className="text-sm sm:text-base font-medium text-slate-100">
                             {sale.buyer_name || 'N/A'}
                           </div>
                         </td>
@@ -731,7 +731,7 @@ export default function PartnerDashboard() {
                           </div>
                         </td>
                         <td className="px-3 py-2 whitespace-nowrap">
-                          <div className="text-sm sm:text-base text-white font-medium">
+                          <div className="text-sm sm:text-base text-slate-100 font-medium">
                             {sale.units_sold || 0}
                           </div>
                         </td>
@@ -761,7 +761,7 @@ export default function PartnerDashboard() {
                             )}
                             <button
                               onClick={() => handleEditSale(sale)}
-                              className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/[0.05] px-3 py-1.5 text-xs font-semibold text-slate-100 transition hover:bg-white/[0.08] sm:text-sm"
+                              className="inline-flex items-center justify-center rounded-full border border-[#E8E0D4] bg-[#ECE5DA] px-3 py-1.5 text-xs font-semibold text-slate-100 transition hover:bg-[#ECE5DA] sm:text-sm"
                             >
                               Edit
                             </button>
@@ -785,7 +785,7 @@ export default function PartnerDashboard() {
           type="button"
           aria-label="Close action menu"
           onClick={() => setIsFabExpanded(false)}
-          className="fixed inset-0 z-30 cursor-default bg-slate-950/30 backdrop-blur-[2px]"
+          className="fixed inset-0 z-30 cursor-default bg-[rgba(2,70,40,0.3)] backdrop-blur-[2px]"
         />
       )}
       <div className="fixed bottom-[68px] right-4 z-40 flex flex-col items-end gap-3 lg:bottom-6 lg:right-6">
@@ -808,7 +808,7 @@ export default function PartnerDashboard() {
                 setIsDateEditable(false)
                 setIsCustomerModalOpen(true)
               }}
-              className="flex animate-[fab-rise_180ms_ease-out] items-center gap-2 rounded-full border border-white/10 bg-[#111921] py-2 pl-3 pr-4 text-sm font-semibold text-white shadow-lg ring-1 ring-black/30 transition hover:bg-[#1a2332]"
+              className="flex animate-[fab-rise_180ms_ease-out] items-center gap-2 rounded-full border border-[#013a21] bg-[#024628] py-2 pl-3 pr-4 text-sm font-semibold text-[#fbf3d4] shadow-lg ring-1 ring-black/20 transition hover:bg-[#035c36]"
             >
               <UserPlus size={16} className="text-emerald-300" />
               New Customer
@@ -819,7 +819,7 @@ export default function PartnerDashboard() {
                 setQuickSaleData(QUICK_SALE_DEFAULTS)
                 setIsQuickSaleOpen(true)
               }}
-              className="flex animate-[fab-rise_220ms_ease-out] items-center gap-2 rounded-full border border-white/10 bg-[#111921] py-2 pl-3 pr-4 text-sm font-semibold text-white shadow-lg ring-1 ring-black/30 transition hover:bg-[#1a2332]"
+              className="flex animate-[fab-rise_220ms_ease-out] items-center gap-2 rounded-full border border-[#013a21] bg-[#024628] py-2 pl-3 pr-4 text-sm font-semibold text-[#fbf3d4] shadow-lg ring-1 ring-black/20 transition hover:bg-[#035c36]"
             >
               <ShoppingCart size={16} className="text-amber-200" />
               Quick Sale
@@ -828,7 +828,7 @@ export default function PartnerDashboard() {
         )}
         <button
           onClick={() => setIsFabExpanded((v) => !v)}
-          className="dashboard-fab flex items-center justify-center rounded-full text-white transition-all hover:-translate-y-0.5"
+          className="dashboard-fab flex items-center justify-center rounded-full text-[#fbf3d4] transition-all hover:-translate-y-0.5"
           aria-label={isFabExpanded ? 'Close action menu' : 'Open action menu'}
           aria-expanded={isFabExpanded}
         >
@@ -838,7 +838,7 @@ export default function PartnerDashboard() {
 
       {/* Quick Sale success toast */}
       {quickToast && (
-        <div className="fixed bottom-[140px] right-4 z-50 rounded-lg bg-emerald-500/95 px-4 py-2.5 text-sm font-semibold text-white shadow-lg lg:bottom-24">
+        <div className="fixed bottom-[140px] right-4 z-50 rounded-lg bg-emerald-500/95 px-4 py-2.5 text-sm font-semibold text-[#fbf3d4] shadow-lg lg:bottom-24">
           {quickToast}
         </div>
       )}
@@ -1037,7 +1037,7 @@ export default function PartnerDashboard() {
                       </p>
                     </div>
                     <p className="mt-1 text-[11px] text-slate-400">
-                      ₹149 · Avail: <span className="font-semibold text-white">{mgLeft}</span>
+                      ₹149 · Avail: <span className="font-semibold text-slate-100">{mgLeft}</span>
                     </p>
                     <div className="mt-3">
                       <QuantityStepper
@@ -1053,7 +1053,7 @@ export default function PartnerDashboard() {
                       <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-200">Plain</p>
                     </div>
                     <p className="mt-1 text-[11px] text-slate-400">
-                      ₹109 · Avail: <span className="font-semibold text-white">{plLeft}</span>
+                      ₹109 · Avail: <span className="font-semibold text-slate-100">{plLeft}</span>
                     </p>
                     <div className="mt-3">
                       <QuantityStepper

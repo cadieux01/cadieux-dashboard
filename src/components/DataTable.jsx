@@ -15,8 +15,8 @@ export default function DataTable({ columns, data, onSort, sortField, sortDirect
             {columns.map((column) => (
               <th
                 key={column.key}
-                className={`h-7 border-b border-white/8 px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 ${
-                  column.sortable ? 'cursor-pointer transition-colors hover:text-white' : ''
+                className={`h-7 border-b border-[#E8E0D4] px-2 py-1 text-left text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500 ${
+                  column.sortable ? 'cursor-pointer transition-colors hover:text-slate-100' : ''
                 }`}
                 onClick={() => column.sortable && handleSort(column.key)}
               >
@@ -48,7 +48,7 @@ export default function DataTable({ columns, data, onSort, sortField, sortDirect
             data.map((row, rowIndex) => (
               <tr
                 key={row.id || rowIndex}
-                className={`border-b border-white/6 last:border-b-0 ${
+                className={`border-b border-[#E8E0D4] last:border-b-0 ${
                   rowClassName ? rowClassName(row) : ''
                 }`}
               >

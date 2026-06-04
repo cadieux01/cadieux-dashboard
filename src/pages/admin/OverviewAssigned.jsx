@@ -68,7 +68,7 @@ export default function OverviewAssigned() {
             type="button"
             onClick={exportCsv}
             disabled={rows.length === 0}
-            className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-white/[0.08] disabled:opacity-50"
+            className="rounded-full border border-[#E8E0D4] bg-[#F0EBE3] px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-[#ECE5DA] disabled:opacity-50"
           >
             Export CSV
           </button>
@@ -106,34 +106,34 @@ export default function OverviewAssigned() {
           {/* Desktop table */}
           <div className="hidden md:block overflow-x-auto">
             <table className="dashboard-table min-w-full">
-              <thead className="sticky top-0 bg-[#0a0f14]">
+              <thead className="sticky top-0 bg-[#F0EBE3]">
                 <tr>
-                  <th className="border-b border-white/8 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Date</th>
-                  <th className="border-b border-white/8 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Partner</th>
-                  <th className="border-b border-white/8 px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Multi-Grain</th>
-                  <th className="border-b border-white/8 px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Plain</th>
-                  <th className="border-b border-white/8 px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Total</th>
+                  <th className="border-b border-[#E8E0D4] px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Date</th>
+                  <th className="border-b border-[#E8E0D4] px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Partner</th>
+                  <th className="border-b border-[#E8E0D4] px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Multi-Grain</th>
+                  <th className="border-b border-[#E8E0D4] px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Plain</th>
+                  <th className="border-b border-[#E8E0D4] px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Total</th>
                 </tr>
               </thead>
               <tbody>
                 {paged.map((a) => (
                   <tr key={a.id}>
                     <td className="px-3 py-2 text-slate-300">{formatDateDDMMYY(a.date_assigned)}</td>
-                    <td className="px-3 py-2 font-semibold text-white">
+                    <td className="px-3 py-2 font-semibold text-slate-100">
                       <Link to={`/admin/partner/${a.partner_id}`} className="hover:text-emerald-200">{a.partner_name}</Link>
                     </td>
                     <td className="px-3 py-2 text-right text-emerald-200">{a.multigrain_assigned.toLocaleString()}</td>
                     <td className="px-3 py-2 text-right text-amber-100">{a.plain_assigned.toLocaleString()}</td>
-                    <td className="px-3 py-2 text-right font-semibold text-white">{a.total.toLocaleString()}</td>
+                    <td className="px-3 py-2 text-right font-semibold text-slate-100">{a.total.toLocaleString()}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
-                <tr className="bg-white/[0.03]">
+                <tr className="bg-[#F0EBE3]">
                   <td colSpan={2} className="px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Total</td>
                   <td className="px-3 py-2 text-right font-semibold text-emerald-300">{totals.mg.toLocaleString()}</td>
                   <td className="px-3 py-2 text-right font-semibold text-amber-200">{totals.plain.toLocaleString()}</td>
-                  <td className="px-3 py-2 text-right font-semibold text-white">{totals.total.toLocaleString()}</td>
+                  <td className="px-3 py-2 text-right font-semibold text-slate-100">{totals.total.toLocaleString()}</td>
                 </tr>
               </tfoot>
             </table>
@@ -144,7 +144,7 @@ export default function OverviewAssigned() {
             {paged.map((a) => (
               <div key={a.id} className="dashboard-subpanel rounded-[20px] px-4 py-3">
                 <div className="flex items-center justify-between">
-                  <Link to={`/admin/partner/${a.partner_id}`} className="font-semibold text-white hover:text-emerald-200">{a.partner_name}</Link>
+                  <Link to={`/admin/partner/${a.partner_id}`} className="font-semibold text-slate-100 hover:text-emerald-200">{a.partner_name}</Link>
                   <p className="text-xs text-slate-500">{formatDateDDMMYY(a.date_assigned)}</p>
                 </div>
                 <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
@@ -158,7 +158,7 @@ export default function OverviewAssigned() {
                   </div>
                   <div>
                     <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Total</p>
-                    <p className="font-semibold text-white">{a.total}</p>
+                    <p className="font-semibold text-slate-100">{a.total}</p>
                   </div>
                 </div>
               </div>

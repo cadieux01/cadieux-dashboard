@@ -85,18 +85,18 @@ export default function VariantDetail() {
             <table className="dashboard-table min-w-full">
               <thead>
                 <tr>
-                  <th className="border-b border-white/8 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Partner</th>
-                  <th className="border-b border-white/8 px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Assigned</th>
-                  <th className="border-b border-white/8 px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Sold</th>
-                  <th className="border-b border-white/8 px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Retracted</th>
-                  <th className="border-b border-white/8 px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Revenue</th>
-                  <th className="border-b border-white/8 px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Sell-through</th>
+                  <th className="border-b border-[#E8E0D4] px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Partner</th>
+                  <th className="border-b border-[#E8E0D4] px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Assigned</th>
+                  <th className="border-b border-[#E8E0D4] px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Sold</th>
+                  <th className="border-b border-[#E8E0D4] px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Retracted</th>
+                  <th className="border-b border-[#E8E0D4] px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Revenue</th>
+                  <th className="border-b border-[#E8E0D4] px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Sell-through</th>
                 </tr>
               </thead>
               <tbody>
                 {detail.topPartners.map((p) => (
                   <tr key={p.partner_id}>
-                    <td className="px-3 py-2 font-semibold text-white">
+                    <td className="px-3 py-2 font-semibold text-slate-100">
                       <Link to={`/admin/partner/${p.partner_id}`} className="hover:text-emerald-200">{p.partner_name}</Link>
                     </td>
                     <td className="px-3 py-2 text-right text-slate-300">{p.assigned.toLocaleString()}</td>
@@ -143,18 +143,18 @@ export default function VariantDetail() {
               <table className="dashboard-table min-w-full">
                 <thead>
                   <tr>
-                    <th className="border-b border-white/8 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Date</th>
-                    <th className="border-b border-white/8 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Partner</th>
-                    <th className="border-b border-white/8 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Customer</th>
-                    <th className="border-b border-white/8 px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Units</th>
-                    <th className="border-b border-white/8 px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Revenue</th>
+                    <th className="border-b border-[#E8E0D4] px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Date</th>
+                    <th className="border-b border-[#E8E0D4] px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Partner</th>
+                    <th className="border-b border-[#E8E0D4] px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Customer</th>
+                    <th className="border-b border-[#E8E0D4] px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Units</th>
+                    <th className="border-b border-[#E8E0D4] px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Revenue</th>
                   </tr>
                 </thead>
                 <tbody>
                   {detail.recentSales.map((s) => (
                     <tr key={s.id}>
                       <td className="px-3 py-2 text-slate-300">{formatDateDDMMYY(s.date)}</td>
-                      <td className="px-3 py-2 font-semibold text-white">
+                      <td className="px-3 py-2 font-semibold text-slate-100">
                         <Link to={`/admin/partner/${s.partner_id}`} className="hover:text-emerald-200">{s.partner_name}</Link>
                       </td>
                       <td className="px-3 py-2 text-slate-300">{s.customer}</td>
@@ -170,7 +170,7 @@ export default function VariantDetail() {
               {detail.recentSales.map((s) => (
                 <div key={s.id} className="dashboard-subpanel rounded-[20px] px-4 py-3">
                   <div className="flex items-center justify-between">
-                    <Link to={`/admin/partner/${s.partner_id}`} className="font-semibold text-white hover:text-emerald-200">{s.partner_name}</Link>
+                    <Link to={`/admin/partner/${s.partner_id}`} className="font-semibold text-slate-100 hover:text-emerald-200">{s.partner_name}</Link>
                     <p className="text-xs text-slate-500">{formatDateDDMMYY(s.date)}</p>
                   </div>
                   <p className="mt-0.5 text-xs text-slate-400">to {s.customer}</p>

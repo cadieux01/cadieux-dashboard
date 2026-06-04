@@ -336,7 +336,7 @@ export default function AuditLogs() {
                   className={`rounded-lg border px-3 py-2 text-sm font-sans transition-colors ${
                     preset === p.key
                       ? 'border-indigo-500 bg-indigo-500/20 text-indigo-300'
-                      : 'border-slate-700 bg-slate-800 text-slate-300 hover:text-white'
+                      : 'border-slate-700 bg-slate-800 text-slate-300 hover:text-slate-100'
                   }`}
                 >
                   {p.label}
@@ -355,7 +355,7 @@ export default function AuditLogs() {
                   type="date"
                   value={customFrom}
                   onChange={(e) => setCustomFrom(e.target.value)}
-                  className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
               <div className="flex flex-col gap-1">
@@ -366,7 +366,7 @@ export default function AuditLogs() {
                   type="date"
                   value={customTo}
                   onChange={(e) => setCustomTo(e.target.value)}
-                  className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
             </div>
@@ -380,7 +380,7 @@ export default function AuditLogs() {
             <select
               value={filterAction}
               onChange={(e) => setFilterAction(e.target.value)}
-              className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white font-sans focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 font-sans focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               <option value="all">All actions</option>
               {ACTION_TYPES.map((a) => (
@@ -399,7 +399,7 @@ export default function AuditLogs() {
             <select
               value={filterCategory}
               onChange={(e) => setFilterCategory(e.target.value)}
-              className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white font-sans capitalize focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 font-sans capitalize focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               <option value="all">All categories</option>
               {categoryOptions.map((c) => (
@@ -420,7 +420,7 @@ export default function AuditLogs() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="user, description, anything…"
-              className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white font-sans focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 font-sans focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
 
@@ -444,7 +444,7 @@ export default function AuditLogs() {
 
       <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
         <div className="flex items-center justify-between border-b border-slate-800 px-6 py-4">
-          <h3 className="text-lg font-semibold text-white font-sans">Activity Log</h3>
+          <h3 className="text-lg font-semibold text-slate-100 font-sans">Activity Log</h3>
           <span className="text-sm text-slate-500 font-sans">
             {filtered.length === 0
               ? 'No entries'
@@ -510,7 +510,7 @@ export default function AuditLogs() {
               type="button"
               onClick={() => setPage(Math.max(1, page - 1))}
               disabled={page === 1}
-              className="rounded border border-slate-700 bg-slate-800 px-3 py-1 text-sm text-white font-sans transition-colors hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded border border-slate-700 bg-slate-800 px-3 py-1 text-sm text-slate-100 font-sans transition-colors hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Previous
             </button>
@@ -521,7 +521,7 @@ export default function AuditLogs() {
               type="button"
               onClick={() => setPage(Math.min(totalPages, page + 1))}
               disabled={page === totalPages}
-              className="rounded border border-slate-700 bg-slate-800 px-3 py-1 text-sm text-white font-sans transition-colors hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded border border-slate-700 bg-slate-800 px-3 py-1 text-sm text-slate-100 font-sans transition-colors hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Next
             </button>
@@ -538,7 +538,7 @@ function RowGroup({ row, prof, idx, hasDiff, isOpen, onToggle }) {
   const zebra = idx % 2 === 0 ? 'bg-slate-900' : 'bg-slate-900/40'
   return (
     <>
-      <tr className={`border-b border-white/5 ${zebra}`}>
+      <tr className={`border-b border-[#E8E0D4] ${zebra}`}>
         <td className="px-4 py-3 align-top text-slate-300">
           <div className="text-slate-200">{formatDateDDMMYY(row.created_at)}</div>
           <div className="text-xs text-slate-500">
@@ -546,7 +546,7 @@ function RowGroup({ row, prof, idx, hasDiff, isOpen, onToggle }) {
           </div>
         </td>
         <td className="px-4 py-3 align-top">
-          <div className="font-sans font-medium text-white">
+          <div className="font-sans font-medium text-slate-100">
             {auditDisplayName(row, prof)}
           </div>
           {prof?.email && (
@@ -573,7 +573,7 @@ function RowGroup({ row, prof, idx, hasDiff, isOpen, onToggle }) {
             <button
               type="button"
               onClick={onToggle}
-              className="rounded border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-slate-300 font-sans transition-colors hover:text-white"
+              className="rounded border border-slate-700 bg-slate-800 px-2 py-1 text-xs text-slate-300 font-sans transition-colors hover:text-slate-100"
             >
               {isOpen ? 'Hide' : 'View'}
             </button>
@@ -602,13 +602,13 @@ function renderDescription(value) {
   if (parts.length === 2) {
     return (
       <div className="space-y-1">
-        <div className="text-white">{parts[0]}</div>
+        <div className="text-slate-100">{parts[0]}</div>
         <div className="my-1 h-px w-full bg-slate-700"></div>
         <div className="text-slate-300">{parts[1]}</div>
       </div>
     )
   }
-  return <span className="text-white">{value}</span>
+  return <span className="text-slate-100">{value}</span>
 }
 
 function JsonBlock({ label, value, tone }) {

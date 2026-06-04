@@ -27,13 +27,13 @@ export default function Team() {
   return (
     <>
       {/* Partners / Agents toggle bar */}
-      <div className="sticky top-0 z-30 flex items-center gap-3 border-b border-[#1e2d3d] bg-[#0a0f14] px-4 py-2.5">
+      <div className="sticky top-0 z-30 flex items-center gap-3 border-b border-[#E8E0D4] bg-[#F7F3ED] px-4 py-2.5">
         <div className="flex gap-1">
           <button
             onClick={() => setView('partners')}
             className={`rounded-full px-3.5 py-1 text-sm font-semibold transition-colors ${
               view === 'partners'
-                ? 'bg-[#024628]/25 text-[#fbf3d4]'
+                ? 'bg-[#024628] text-[#fbf3d4]'
                 : 'text-slate-500 hover:text-slate-300'
             }`}
           >
@@ -44,7 +44,7 @@ export default function Team() {
               onClick={() => setView('agents')}
               className={`rounded-full px-3.5 py-1 text-sm font-semibold transition-colors ${
                 view === 'agents'
-                  ? 'bg-[#024628]/25 text-[#fbf3d4]'
+                  ? 'bg-[#024628] text-[#fbf3d4]'
                   : 'text-slate-500 hover:text-slate-300'
               }`}
             >

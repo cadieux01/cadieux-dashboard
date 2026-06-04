@@ -85,14 +85,14 @@ function PartnerCard({ partner, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className="dashboard-subpanel flex flex-col gap-2 rounded-[22px] p-4 text-left transition hover:-translate-y-0.5 hover:bg-white/[0.05]"
+      className="dashboard-subpanel flex flex-col gap-2 rounded-[22px] p-4 text-left transition hover:-translate-y-0.5 hover:bg-[#ECE5DA]"
     >
       <div className="flex items-center gap-3">
         <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[#024628] font-display text-base font-bold text-[#FBF3D4]">
           {initial}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate font-semibold text-white">{partner.name}</p>
+          <p className="truncate font-semibold text-slate-100">{partner.name}</p>
           <p className="truncate text-xs text-slate-500">📞 {partner.phone || 'No contact'}</p>
         </div>
       </div>
@@ -101,11 +101,11 @@ function PartnerCard({ partner, onClick }) {
         <span>{active ? 'Active' : 'Inactive'}</span>
       </div>
       <div className="mt-1 grid grid-cols-2 gap-2 text-xs">
-        <div className="rounded-[14px] bg-white/[0.04] px-2.5 py-1.5">
+        <div className="rounded-[14px] bg-[#F0EBE3] px-2.5 py-1.5">
           <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Sold</p>
           <p className="mt-0.5 font-semibold text-emerald-200">{partner.sold}</p>
         </div>
-        <div className="rounded-[14px] bg-white/[0.04] px-2.5 py-1.5">
+        <div className="rounded-[14px] bg-[#F0EBE3] px-2.5 py-1.5">
           <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">Attr</p>
           <p className="mt-0.5 font-semibold text-amber-200">{partner.attributed}</p>
         </div>

@@ -35,7 +35,7 @@ export default function KPICard({ title, value, subtitle, icon, trend, trendUp, 
   const theme = themes[color] || themes.indigo
 
   const interactive = typeof onClick === 'function'
-  const activeRing = active ? 'ring-2 ring-[#024628] ring-offset-2 ring-offset-[#0a0f14]' : ''
+  const activeRing = active ? 'ring-2 ring-[#024628] ring-offset-2 ring-offset-[#F7F3ED]' : ''
   const interactiveCls = interactive
     ? `cursor-pointer transition-transform duration-200 hover:-translate-y-0.5 hover:shadow-lg ${activeRing}`
     : ''
@@ -46,9 +46,9 @@ export default function KPICard({ title, value, subtitle, icon, trend, trendUp, 
         type: 'button',
         onClick,
         'aria-pressed': active,
-        className: `dashboard-panel relative rounded-xl p-3 text-left w-full ${theme.border} ${interactiveCls}`,
+        className: `dashboard-panel relative rounded-xl border-t-[3px] border-t-[#024628] p-3 text-left w-full ${theme.border} ${interactiveCls}`,
       }
-    : { className: `dashboard-panel rounded-xl p-3 ${theme.border}` }
+    : { className: `dashboard-panel rounded-xl border-t-[3px] border-t-[#024628] p-3 ${theme.border}` }
 
   return (
     <Wrapper {...wrapperProps}>
@@ -58,7 +58,7 @@ export default function KPICard({ title, value, subtitle, icon, trend, trendUp, 
           <div className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] ${theme.badge}`}>
             {title}
           </div>
-          <p className="mt-1.5 font-display text-2xl font-semibold leading-none tracking-[-0.04em] text-white sm:text-[28px]">
+          <p className="mt-1.5 font-display text-2xl font-semibold leading-none tracking-[-0.04em] text-[#024628] sm:text-[28px]">
             {value}
           </p>
           {subtitle && <p className="mt-1 text-[11px] text-slate-400">{subtitle}</p>}

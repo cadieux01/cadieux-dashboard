@@ -325,7 +325,7 @@ export default function AgentProfilePage() {
               <div key={t.type} className="dashboard-subpanel flex items-center justify-between rounded-[18px] px-4 py-3">
                 <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${PARTNER_TYPE_PILL[t.type] || PARTNER_TYPE_PILL.other}`}>{t.label}</span>
                 <span className="text-xs text-slate-300">
-                  <span className="font-semibold text-white">{t.partners}</span> partner{t.partners !== 1 ? 's' : ''} ·
+                  <span className="font-semibold text-slate-100">{t.partners}</span> partner{t.partners !== 1 ? 's' : ''} ·
                   {' '}<span className="font-semibold text-indigo-200">{t.delivered}</span> delivered
                 </span>
               </div>
@@ -344,14 +344,14 @@ export default function AgentProfilePage() {
       {profile.todayActivity.length > 0 && (
         <section className="mb-6">
           <h2 className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Today's Activity</h2>
-          <div className="dashboard-subpanel rounded-[22px] divide-y divide-white/[0.04]">
+          <div className="dashboard-subpanel rounded-[22px] divide-y divide-[#E8E0D4]">
             {profile.todayActivity.map((ev, i) => {
               const ai = ACTIVITY_ICON[ev.action] || ACTIVITY_ICON.assigned
               return (
                 <div key={i} className="flex items-center gap-3 px-4 py-2.5">
                   <span className="text-base">{ai.emoji}</span>
                   <div className="flex-1 min-w-0">
-                    <span className="text-sm font-semibold text-white">{ev.partner_name}</span>
+                    <span className="text-sm font-semibold text-slate-100">{ev.partner_name}</span>
                     <span className="ml-2 text-xs text-slate-400">
                       {ev.action === 'sold' ? 'sold' : ev.action === 'assigned' ? 'received' : 'returned'}
                       {' '}<span className={`font-semibold ${ai.color}`}>{ev.units}</span>
@@ -382,7 +382,7 @@ export default function AgentProfilePage() {
                   {delivPaged.map((d) => (
                     <tr key={d.id}>
                       <td className="px-3 py-2 text-slate-300">{formatDateDDMMYY(d.date)}</td>
-                      <td className="px-3 py-2"><Link to={`/admin/partner/${d.partner_id}`} className="font-semibold text-white hover:text-emerald-200">{d.partner_name}</Link></td>
+                      <td className="px-3 py-2"><Link to={`/admin/partner/${d.partner_id}`} className="font-semibold text-slate-100 hover:text-emerald-200">{d.partner_name}</Link></td>
                       <td className="px-3 py-2 text-right text-slate-300">{d.mg}</td>
                       <td className="px-3 py-2 text-right text-slate-300">{d.plain}</td>
                       <td className="px-3 py-2 text-right font-semibold text-indigo-200">{d.delivered}</td>
@@ -397,7 +397,7 @@ export default function AgentProfilePage() {
               {delivPaged.map((d) => (
                 <div key={d.id} className="dashboard-subpanel rounded-[20px] px-4 py-3">
                   <div className="flex items-center justify-between">
-                    <Link to={`/admin/partner/${d.partner_id}`} className="font-semibold text-white hover:text-emerald-200">{d.partner_name}</Link>
+                    <Link to={`/admin/partner/${d.partner_id}`} className="font-semibold text-slate-100 hover:text-emerald-200">{d.partner_name}</Link>
                     <p className="text-xs text-slate-500">{formatDateDDMMYY(d.date)}</p>
                   </div>
                   <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-300">
@@ -429,7 +429,7 @@ export default function AgentProfilePage() {
                   {retrPaged.map((r) => (
                     <tr key={r.id}>
                       <td className="px-3 py-2 text-slate-300">{formatDateDDMMYY(r.date)}</td>
-                      <td className="px-3 py-2 font-semibold text-white">{r.partner_name}</td>
+                      <td className="px-3 py-2 font-semibold text-slate-100">{r.partner_name}</td>
                       <td className="px-3 py-2"><VariantPill variant={r.variant} label={r.variant_label} /></td>
                       <td className="px-3 py-2 text-right font-semibold text-amber-200">{r.units}</td>
                       <td className="px-3 py-2 text-slate-300">{r.reason_label}</td>
@@ -443,7 +443,7 @@ export default function AgentProfilePage() {
               {retrPaged.map((r) => (
                 <div key={r.id} className="dashboard-subpanel rounded-[20px] px-4 py-3">
                   <div className="flex items-center justify-between">
-                    <p className="font-semibold text-white">{r.partner_name}</p>
+                    <p className="font-semibold text-slate-100">{r.partner_name}</p>
                     <p className="text-xs text-slate-500">{formatDateDDMMYY(r.date)}</p>
                   </div>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -473,7 +473,7 @@ export default function AgentProfilePage() {
                 {profile.stallSupplies.map((ss) => (
                   <tr key={ss.id}>
                     <td className="px-3 py-2 text-slate-300">{formatDateDDMMYY(ss.date)}</td>
-                    <td className="px-3 py-2 font-semibold text-white">{ss.stall}</td>
+                    <td className="px-3 py-2 font-semibold text-slate-100">{ss.stall}</td>
                     <td className="px-3 py-2"><VariantPill variant={ss.variant} label={ss.variant_label} /></td>
                     <td className="px-3 py-2 text-right font-semibold text-emerald-200">{ss.units}</td>
                     <td className="px-3 py-2 text-slate-300">{ss.source}</td>
@@ -487,7 +487,7 @@ export default function AgentProfilePage() {
             {profile.stallSupplies.map((ss) => (
               <div key={ss.id} className="dashboard-subpanel rounded-[20px] px-4 py-3">
                 <div className="flex items-center justify-between">
-                  <p className="font-semibold text-white">{ss.stall}</p>
+                  <p className="font-semibold text-slate-100">{ss.stall}</p>
                   <p className="text-xs text-slate-500">{formatDateDDMMYY(ss.date)}</p>
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -520,13 +520,13 @@ export default function AgentProfilePage() {
                   {partnerPaged.map((p) => (
                     <tr key={p.id}>
                       <td className="px-3 py-2">
-                        <Link to={`/admin/partner/${p.id}`} className="font-semibold text-white hover:text-emerald-200">{p.name}</Link>
+                        <Link to={`/admin/partner/${p.id}`} className="font-semibold text-slate-100 hover:text-emerald-200">{p.name}</Link>
                         <p className="text-[11px] text-slate-500">📞 {p.phone}</p>
                       </td>
                       <td className="px-3 py-2">
                         <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${PARTNER_TYPE_PILL[p.partner_type] || PARTNER_TYPE_PILL.other}`}>{PARTNER_TYPE_LABELS[p.partner_type] || 'Other'}</span>
                       </td>
-                      <td className="px-3 py-2 text-right text-white">{p.assigned}</td>
+                      <td className="px-3 py-2 text-right text-slate-100">{p.assigned}</td>
                       <td className="px-3 py-2 text-right font-semibold text-emerald-200">{p.sold}</td>
                       <td className="px-3 py-2 text-right text-amber-200">{p.retracted}</td>
                       <td className="px-3 py-2 text-right text-slate-300">{p.sellThrough}%</td>
@@ -539,11 +539,11 @@ export default function AgentProfilePage() {
               {partnerPaged.map((p) => (
                 <Link key={p.id} to={`/admin/partner/${p.id}`} className="block dashboard-subpanel rounded-[20px] px-4 py-3">
                   <div className="flex items-center justify-between">
-                    <span className="font-semibold text-white">{p.name}</span>
+                    <span className="font-semibold text-slate-100">{p.name}</span>
                     <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${PARTNER_TYPE_PILL[p.partner_type] || PARTNER_TYPE_PILL.other}`}>{PARTNER_TYPE_LABELS[p.partner_type] || 'Other'}</span>
                   </div>
                   <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs">
-                    <span className="text-slate-500">Delivered: <span className="font-semibold text-white">{p.assigned}</span></span>
+                    <span className="text-slate-500">Delivered: <span className="font-semibold text-slate-100">{p.assigned}</span></span>
                     <span className="text-slate-500">Sold: <span className="font-semibold text-emerald-300">{p.sold}</span></span>
                     <span className="text-slate-500">Ret: <span className="font-semibold text-amber-300">{p.retracted}</span></span>
                   </div>
@@ -566,7 +566,7 @@ export default function AgentProfilePage() {
 
 function Th({ children, right }) {
   return (
-    <th className={`border-b border-white/8 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 ${right ? 'text-right' : 'text-left'}`}>
+    <th className={`border-b border-[#E8E0D4] px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 ${right ? 'text-right' : 'text-left'}`}>
       {children}
     </th>
   )
@@ -578,18 +578,18 @@ function VariantBreakdownCard({ data }) {
     <div className="dashboard-subpanel rounded-[20px] p-4">
       <div className="flex items-center gap-2">
         <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: isPlain ? '#FBF3D4' : '#024628' }} />
-        <p className="font-semibold text-white">{data.label}</p>
+        <p className="font-semibold text-slate-100">{data.label}</p>
         <span className="ml-auto text-xs text-slate-500">₹{data.price}/unit</span>
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-        <Cell label="Delivered" value={data.assigned}  className="text-white" />
+        <Cell label="Delivered" value={data.assigned}  className="text-slate-100" />
         <Cell label="Sold"      value={data.sold}      className="text-emerald-200" />
         <Cell label="Left"      value={Math.max(0, data.assigned - data.sold - data.retracted)} className="text-slate-200" />
         <Cell label="Returned"  value={data.retracted} className="text-rose-200" />
       </div>
       <div className="mt-3 flex justify-between text-sm">
         <span className="text-slate-400">Sell-through</span>
-        <span className="font-semibold text-white">{data.sellThrough.toFixed(0)}%</span>
+        <span className="font-semibold text-slate-100">{data.sellThrough.toFixed(0)}%</span>
       </div>
       <div className="flex justify-between text-sm">
         <span className="text-slate-400">Revenue</span>
@@ -601,7 +601,7 @@ function VariantBreakdownCard({ data }) {
 
 function Cell({ label, value, className }) {
   return (
-    <div className="rounded-[12px] bg-white/[0.04] px-2.5 py-1.5">
+    <div className="rounded-[12px] bg-[#F0EBE3] px-2.5 py-1.5">
       <p className="text-[10px] uppercase tracking-[0.16em] text-slate-500">{label}</p>
       <p className={`mt-0.5 font-semibold ${className}`}>{value.toLocaleString()}</p>
     </div>

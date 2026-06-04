@@ -30,7 +30,7 @@ function DetailRow({ label, children }) {
   return (
     <div className="flex items-start justify-between gap-4 border-b border-slate-800 py-2.5 last:border-0">
       <span className="text-xs uppercase tracking-wider text-slate-500">{label}</span>
-      <span className="text-right text-sm font-medium text-white">{children}</span>
+      <span className="text-right text-sm font-medium text-slate-100">{children}</span>
     </div>
   )
 }
@@ -233,21 +233,21 @@ export default function UserDetailModal({
             <button
               type="button"
               onClick={startEdit}
-              className="flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-500"
+              className="flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-[#fbf3d4] transition-colors hover:bg-emerald-500"
             >
               <Pencil size={16} /> Edit Details
             </button>
             <button
               type="button"
               onClick={() => { setResetError(null); setNewPassword(''); setMode('reset') }}
-              className="flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-500"
+              className="flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-[#fbf3d4] transition-colors hover:bg-indigo-500"
             >
               <KeyRound size={16} /> Reset Password
             </button>
             <button
               type="button"
               onClick={() => onShareLogin(current)}
-              className="flex items-center justify-center gap-2 rounded-lg bg-slate-700 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-600"
+              className="flex items-center justify-center gap-2 rounded-lg bg-slate-700 px-4 py-2 text-sm font-medium text-slate-100 transition-colors hover:bg-slate-600"
             >
               <Send size={16} /> Share Login
             </button>
@@ -312,7 +312,7 @@ export default function UserDetailModal({
             <button
               type="button"
               onClick={() => { setMode('view'); setEditError(null) }}
-              className="flex-1 rounded-lg bg-slate-800 px-4 py-2 text-white transition-colors hover:bg-slate-700"
+              className="flex-1 rounded-lg bg-slate-800 px-4 py-2 text-slate-100 transition-colors hover:bg-slate-700"
               disabled={saving}
             >
               Cancel
@@ -320,7 +320,7 @@ export default function UserDetailModal({
             <button
               type="button"
               onClick={handleSave}
-              className="flex-1 rounded-lg bg-emerald-600 px-4 py-2 font-medium text-white transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex-1 rounded-lg bg-emerald-600 px-4 py-2 font-medium text-[#fbf3d4] transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={saving}
             >
               {saving ? 'Saving...' : 'Save Changes'}
@@ -343,7 +343,7 @@ export default function UserDetailModal({
           )}
 
           <p className="mb-4 text-sm text-slate-400">
-            Set a new password for <span className="font-medium text-white">{current.full_name || phone}</span>. They can log in with it immediately.
+            Set a new password for <span className="font-medium text-slate-100">{current.full_name || phone}</span>. They can log in with it immediately.
           </p>
 
           <FormField
@@ -360,7 +360,7 @@ export default function UserDetailModal({
             <button
               type="button"
               onClick={() => { setMode('view'); setResetError(null); setNewPassword('') }}
-              className="flex-1 rounded-lg bg-slate-800 px-4 py-2 text-white transition-colors hover:bg-slate-700"
+              className="flex-1 rounded-lg bg-slate-800 px-4 py-2 text-slate-100 transition-colors hover:bg-slate-700"
               disabled={resetting}
             >
               Cancel
@@ -368,7 +368,7 @@ export default function UserDetailModal({
             <button
               type="button"
               onClick={handleReset}
-              className="flex-1 rounded-lg bg-indigo-600 px-4 py-2 font-medium text-white transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
+              className="flex-1 rounded-lg bg-indigo-600 px-4 py-2 font-medium text-[#fbf3d4] transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={resetting}
             >
               {resetting ? 'Resetting...' : 'Reset Password'}
