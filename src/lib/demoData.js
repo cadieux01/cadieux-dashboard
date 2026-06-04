@@ -1,4 +1,4 @@
-import { getAssignmentStatus, timeRemaining } from './shelfLife.js'
+import { getAssignmentStatus, timeRemaining, shelfDays, sellDay } from './shelfLife.js'
 
 // ============================================================================
 // DEMO MODE
@@ -844,6 +844,33 @@ export function demoPartnerProfile(partnerId, { range = 'all' } = {}) {
     }
   }
   const within = (lo, hi) => salesHistory.filter((s) => s.days_to_sell >= lo && (hi == null || s.days_to_sell < hi)).length
+
+  // Per-day sell breakdown: how many units of each variant sold on shelf-day
+  // 1..N (where N is that variant's shelf life). Drives the "SELL SPEED
+  // BREAKDOWN" bars + average sell-time on the partner profile.
+  const dayBreakdownFor = (variantKey) => {
+    const total = shelfDays(variantKey)
+    const buckets = Array.from({ length: total }, (_, i) => ({ day: i + 1, units: 0 }))
+    let unitsSum = 0
+    let weighted = 0
+    for (const s of sales) {
+      if (s.variant !== variantKey) continue
+      const d = Math.min(sellDay(s.assigned_date, s.date), total)
+      buckets[d - 1].units += s.units
+      unitsSum += s.units
+      weighted += d * s.units
+    }
+    return {
+      totalDays: total,
+      totalUnits: unitsSum,
+      avgSellDay: unitsSum > 0 ? Math.round((weighted / unitsSum) * 10) / 10 : 0,
+      days: buckets.map((b) => ({
+        ...b,
+        pct: unitsSum > 0 ? Math.round((b.units / unitsSum) * 100) : 0,
+      })),
+    }
+  }
+
   const sellingSpeed = {
     multigrain: speedFor('multigrain'),
     plain: speedFor('plain'),
@@ -852,6 +879,10 @@ export function demoPartnerProfile(partnerId, { range = 'all' } = {}) {
       within1: within(0, 2),     // 0–1 days
       within2: within(2, 3),     // 2 days
       within3plus: within(3, null), // 3+ days
+    },
+    byDay: {
+      multigrain: dayBreakdownFor('multigrain'),
+      plain: dayBreakdownFor('plain'),
     },
   }
 

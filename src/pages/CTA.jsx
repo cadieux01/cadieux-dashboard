@@ -9,6 +9,23 @@ import RefreshStatus from '../components/RefreshStatus'
 import useRefreshable from '../lib/useRefreshable'
 import { getAssignmentStatus, timeRemaining, timeLabel, SHELF_LIFE } from '../lib/shelfLife'
 
+// Derive day-of-N / days-left / % shelf used straight from the row's
+// hours_remaining so it stays consistent with the time badge in both demo
+// (relative to the demo "today") and live mode.
+function dayInfo(variant, hoursRemaining) {
+  const total = SHELF_LIFE[variant]?.days ?? 0
+  const totalHours = total * 24
+  const elapsed = totalHours - hoursRemaining
+  const day = Math.min(Math.max(Math.floor(elapsed / 24) + 1, 1), total)
+  const daysLeft = Math.max(0, Math.ceil(hoursRemaining / 24))
+  const pctUsed = Math.min(100, Math.max(0, (elapsed / totalHours) * 100))
+  const lastDay = hoursRemaining > 0 && day >= total
+  return { total, day, daysLeft, pctUsed, lastDay }
+}
+
+// Largest shelf life across variants — drives the "By Day" filter options.
+const MAX_SHELF_DAYS = Math.max(...Object.values(SHELF_LIFE).map((s) => s.days))
+
 const VARIANT_PILL = {
   multigrain: 'bg-[#024628]/40 text-[#7fe0b7] border border-[#024628]/60',
   plain:      'bg-[#FBF3D4]/10 text-[#FBF3D4] border border-[#FBF3D4]/20',
@@ -56,6 +73,7 @@ export default function CTA() {
   const [loading, setLoading] = useState(true)
   const [partnerFilter, setPartnerFilter] = useState('all')
   const [variantFilter, setVariantFilter] = useState('all')
+  const [dayFilter, setDayFilter] = useState('all')
 
   const { refresh, refreshing, lastUpdated, pullDistance } = useRefreshable(() => fetchData())
 
@@ -138,6 +156,7 @@ export default function CTA() {
   const filtered = rows.filter((r) => {
     if (partnerFilter !== 'all' && r.partner_id !== partnerFilter) return false
     if (variantFilter !== 'all' && r.variant !== variantFilter) return false
+    if (dayFilter !== 'all' && dayInfo(r.variant, r.hours_remaining).day !== Number(dayFilter)) return false
     return true
   })
 
@@ -210,9 +229,19 @@ export default function CTA() {
           <option value="multigrain">Multi-Grain ({SHELF_LIFE.multigrain.days}d shelf life)</option>
           <option value="plain">Plain ({SHELF_LIFE.plain.days}d shelf life)</option>
         </select>
-        {(partnerFilter !== 'all' || variantFilter !== 'all') && (
+        <select
+          value={dayFilter}
+          onChange={(e) => setDayFilter(e.target.value)}
+          className="dashboard-select !w-auto"
+        >
+          <option value="all">All days</option>
+          {Array.from({ length: MAX_SHELF_DAYS }, (_, i) => i + 1).map((d) => (
+            <option key={d} value={d}>Day {d}</option>
+          ))}
+        </select>
+        {(partnerFilter !== 'all' || variantFilter !== 'all' || dayFilter !== 'all') && (
           <button
-            onClick={() => { setPartnerFilter('all'); setVariantFilter('all') }}
+            onClick={() => { setPartnerFilter('all'); setVariantFilter('all'); setDayFilter('all') }}
             className="text-xs text-slate-400 hover:text-slate-100 transition-colors"
           >
             Clear
@@ -288,8 +317,8 @@ export default function CTA() {
 }
 
 function AssignmentCard({ row, cfg, onNavigate }) {
-  const sl = SHELF_LIFE[row.variant]
-  const daysTotal = sl?.days ?? 0
+  const { total: daysTotal, day, daysLeft, pctUsed, lastDay } = dayInfo(row.variant, row.hours_remaining)
+  const expired = row.status === 'expired'
 
   return (
     <div
@@ -306,6 +335,28 @@ function AssignmentCard({ row, cfg, onNavigate }) {
           {timeLabel(row.hours_remaining)}
         </span>
       </div>
+
+      {/* Day of N — prominent */}
+      <div className="mb-3 flex items-end justify-between gap-2">
+        <div>
+          <span className={`text-2xl font-extrabold leading-none ${cfg.text}`}>Day {day}</span>
+          <span className="ml-1 text-sm font-semibold text-slate-500">of {daysTotal}</span>
+        </div>
+        <span className="text-xs font-semibold text-slate-500">
+          {expired ? 'Shelf life over' : `${daysLeft} day${daysLeft !== 1 ? 's' : ''} left`}
+        </span>
+      </div>
+
+      {/* Last-day / expired warning */}
+      {(lastDay || expired) && (
+        <div className={`mb-3 rounded-[12px] px-3 py-2 text-xs font-bold uppercase tracking-[0.14em] ${
+          expired
+            ? 'border border-[#DC2626]/40 bg-[#DC2626]/10 text-[#b91c1c]'
+            : 'border border-[#D97706]/40 bg-[#D97706]/10 text-[#b45309]'
+        }`}>
+          {expired ? '⚠ Expired — retract or divert' : '⚠ Last day — sell today'}
+        </div>
+      )}
 
       {/* Partner */}
       <p className="font-semibold text-slate-100">{row.partner_name}</p>
@@ -332,17 +383,19 @@ function AssignmentCard({ row, cfg, onNavigate }) {
         </div>
       </div>
 
-      {/* Shelf life bar */}
+      {/* Shelf life used bar */}
       <div className="mt-3">
+        <div className="mb-1 flex items-center justify-between text-[10px] uppercase tracking-[0.14em] text-slate-500">
+          <span>Shelf used</span>
+          <span>{Math.round(pctUsed)}%</span>
+        </div>
         <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#F0EBE3]">
           <div
             className={`h-full rounded-full transition-all ${
               row.status === 'active' ? 'bg-emerald-400' :
               row.status === 'expiring_soon' ? 'bg-amber-400' : 'bg-rose-400'
             }`}
-            style={{
-              width: `${Math.min(100, Math.max(0, (row.hours_remaining / (daysTotal * 24)) * 100))}%`,
-            }}
+            style={{ width: `${pctUsed}%` }}
           />
         </div>
       </div>

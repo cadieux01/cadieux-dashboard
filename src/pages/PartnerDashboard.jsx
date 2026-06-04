@@ -11,6 +11,14 @@ import useRefreshable from '../lib/useRefreshable'
 import { logAuditEvent } from '../lib/audit'
 import { formatDateDDMMYY } from '../lib/date'
 import { demoBlock, demoPartnerSales } from '../lib/demoData'
+import {
+  SHELF_LIFE,
+  shelfDay,
+  daysLeft as shelfDaysLeft,
+  shelfPercentUsed,
+  getAssignmentStatus,
+  isLastDay,
+} from '../lib/shelfLife'
 
 const QUICK_SALE_DEFAULTS = { mg_units: 0, plain_units: 0, customer_name: '', customer_phone: '' }
 
@@ -560,11 +568,49 @@ export default function PartnerDashboard() {
 
     const completedSales = sales.filter((sale) => isSaleComplete(sale)).length
 
+    // Per-variant shelf-life tracking. We assume FIFO selling, so the oldest
+    // assignment date with stock still on the shelf is the batch most at risk.
+    const assignDateOf = (sale) =>
+      sale.date_of_assignment || sale.purchase_date || (sale.created_at ? sale.created_at.slice(0, 10) : null)
+
+    const oldestAssignDate = { multigrain: null, plain: null }
+    for (const sale of sales) {
+      const d = assignDateOf(sale)
+      if (!d) continue
+      if ((sale.multigrain_assigned || 0) > 0 && (!oldestAssignDate.multigrain || d < oldestAssignDate.multigrain)) {
+        oldestAssignDate.multigrain = d
+      }
+      if ((sale.plain_assigned || 0) > 0 && (!oldestAssignDate.plain || d < oldestAssignDate.plain)) {
+        oldestAssignDate.plain = d
+      }
+    }
+
+    const now = new Date()
+    const shelfFor = (key) => {
+      const left = variants[key].left
+      const date = oldestAssignDate[key]
+      if (left <= 0 || !date) return null
+      const status = getAssignmentStatus(key, date, now)
+      return {
+        date,
+        left,
+        total: SHELF_LIFE[key].days,
+        day: shelfDay(key, date, now),
+        daysLeft: shelfDaysLeft(key, date, now),
+        pctUsed: shelfPercentUsed(key, date, now),
+        status,
+        // Units at risk = remaining stock once the oldest batch hits its last
+        // day or has already expired.
+        expiringUnits: status === 'expired' || isLastDay(key, date, now) ? left : 0,
+      }
+    }
+
     return {
       totalUnits,
       totalRevenue,
       completedSales,
       variants,
+      shelf: { multigrain: shelfFor('multigrain'), plain: shelfFor('plain') },
     }
   }, [sales])
 
@@ -664,6 +710,63 @@ export default function PartnerDashboard() {
             }
           />
         </div>
+
+        {/* Shelf-life day tracking — oldest open stock per variant */}
+        {(summary.shelf.multigrain || summary.shelf.plain) && (
+          <div className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {[
+              { key: 'multigrain', label: 'Multi-Grain', dot: '#024628', info: summary.shelf.multigrain },
+              { key: 'plain',      label: 'Plain',       dot: '#FBF3D4', info: summary.shelf.plain },
+            ].filter((v) => v.info).map((v) => {
+              const { info } = v
+              const barColor =
+                info.status === 'active' ? 'bg-emerald-400'
+                : info.status === 'expiring_soon' ? 'bg-amber-400'
+                : 'bg-rose-400'
+              const dayColor =
+                info.status === 'active' ? 'text-emerald-600'
+                : info.status === 'expiring_soon' ? 'text-amber-600'
+                : 'text-rose-600'
+              return (
+                <div key={v.key} className="dashboard-panel rounded-xl p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: v.dot }} />
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">{v.label} stock</p>
+                    </div>
+                    <span className="text-xs font-semibold text-slate-500">
+                      {info.status === 'expired' ? 'Shelf life over' : `${info.daysLeft} day${info.daysLeft !== 1 ? 's' : ''} left`}
+                    </span>
+                  </div>
+
+                  <div className="mt-2 flex items-end justify-between gap-2">
+                    <div>
+                      <span className={`text-2xl font-extrabold leading-none ${dayColor}`}>Day {info.day}</span>
+                      <span className="ml-1 text-sm font-semibold text-slate-500">of {info.total}</span>
+                    </div>
+                    <span className="text-sm font-semibold text-slate-100">{info.left} left</span>
+                  </div>
+
+                  <div className="mt-2">
+                    <div className="mb-1 flex items-center justify-between text-[10px] uppercase tracking-[0.14em] text-slate-500">
+                      <span>Shelf used</span>
+                      <span>{Math.round(info.pctUsed)}%</span>
+                    </div>
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#F0EBE3]">
+                      <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${info.pctUsed}%` }} />
+                    </div>
+                  </div>
+
+                  {info.expiringUnits > 0 && (
+                    <div className="mt-2 rounded-[10px] border border-[#DC2626]/40 bg-[#DC2626]/10 px-2.5 py-1.5 text-xs font-semibold text-[#b91c1c]">
+                      ⚠️ {info.expiringUnits} {v.label} unit{info.expiringUnits !== 1 ? 's' : ''} expiring today — sell or return
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
 
         {/* Sales History Table */}
         <div className="dashboard-panel overflow-hidden rounded-[32px]">

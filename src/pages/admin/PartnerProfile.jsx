@@ -12,7 +12,7 @@ import {
   PARTNER_TYPE_PILL,
 } from '../../lib/demoData'
 import { formatDateDDMMYY } from '../../lib/date'
-import { SHELF_LIFE } from '../../lib/shelfLife'
+import { SHELF_LIFE, shelfDays } from '../../lib/shelfLife'
 import {
   PageHeader,
   StatTile,
@@ -47,6 +47,28 @@ function liveInRange(dateStr, range) {
 
 function variantKeyFromName(name) {
   return /plain/i.test(name || '') ? 'plain' : 'multigrain'
+}
+
+// Per-day sell breakdown for one variant: units sold on shelf-day 1..N.
+// days_to_sell is whole days from assignment → sale, so sell-day = days+1.
+function byDayFromHistory(salesHistory, variantKey) {
+  const total = shelfDays(variantKey)
+  const buckets = Array.from({ length: total }, (_, i) => ({ day: i + 1, units: 0 }))
+  let unitsSum = 0
+  let weighted = 0
+  for (const s of salesHistory) {
+    if (s.variant !== variantKey) continue
+    const d = Math.min(Math.max((s.days_to_sell || 0) + 1, 1), total)
+    buckets[d - 1].units += s.units
+    unitsSum += s.units
+    weighted += d * s.units
+  }
+  return {
+    totalDays: total,
+    totalUnits: unitsSum,
+    avgSellDay: unitsSum > 0 ? Math.round((weighted / unitsSum) * 10) / 10 : 0,
+    days: buckets.map((b) => ({ ...b, pct: unitsSum > 0 ? Math.round((b.units / unitsSum) * 100) : 0 })),
+  }
 }
 
 function buildLiveMonthly(soldRows) {
@@ -184,6 +206,10 @@ function buildLivePartnerProfile(prof, salesRows, range) {
       multigrain: speedFor('multigrain'),
       plain: speedFor('plain'),
       distribution: { total: salesHistory.length, within1: within(0, 2), within2: within(2, 3), within3plus: within(3, null) },
+      byDay: {
+        multigrain: byDayFromHistory(salesHistory, 'multigrain'),
+        plain: byDayFromHistory(salesHistory, 'plain'),
+      },
     },
     customers,
     customerStats: { unique: new Set(customers.map((c) => c.name.toLowerCase())).size, withPhone, withoutPhone: customers.length - withPhone },
@@ -330,6 +356,9 @@ export default function PartnerProfile() {
 
       {/* SECTION C — Selling speed */}
       <SellingSpeedSection speed={profile.sellingSpeed} />
+
+      {/* SECTION C2 — Sell speed breakdown (per shelf day) */}
+      {profile.sellingSpeed.byDay && <SellSpeedBreakdown speed={profile.sellingSpeed} />}
 
       {/* Current stock — shelf life status (demo only — needs CTA feed) */}
       {isDemo && <CurrentStockSection partnerId={id} />}
@@ -559,6 +588,98 @@ function SellingSpeedSection({ speed }) {
           <SpeedBucket label="3+ days"  value={dist.within3plus} pct={pct(dist.within3plus)} color="bg-amber-400" />
         </div>
       </div>
+    </section>
+  )
+}
+
+// Color for a shelf-day bar: day 1 fresh/bright, mid days green, the final day
+// red (or amber for the 3-day Multi-Grain whose last day is a discount day),
+// and the penultimate day amber for longer (Plain) shelf lives.
+function dayBarColor(day, total) {
+  if (day === 1) return '#10b981'           // bright green — fastest
+  if (day === total) return total <= 3 ? '#D97706' : '#DC2626'
+  if (total > 3 && day === total - 1) return '#D97706' // amber
+  return '#34d399'                           // green — still fresh
+}
+
+function SellSpeedBreakdown({ speed }) {
+  const byDay = speed.byDay
+  // "Sell By" options span the largest variant shelf life.
+  const maxDays = Math.max(byDay.multigrain.totalDays, byDay.plain.totalDays)
+  const [sellBy, setSellBy] = useState('all')
+  const cutoff = sellBy === 'all' ? maxDays : Number(sellBy)
+
+  const variants = [byDay.multigrain, byDay.plain].map((b, i) => ({
+    ...b,
+    label: i === 0 ? 'Multi-Grain' : 'Plain',
+    dot: i === 0 ? '#024628' : '#FBF3D4',
+    // Cumulative % of units sold by the selected cutoff day.
+    soldByCutoff: b.totalUnits > 0
+      ? Math.round((b.days.filter((d) => d.day <= cutoff).reduce((s, d) => s + d.units, 0) / b.totalUnits) * 100)
+      : 0,
+  }))
+
+  return (
+    <section className="mb-6">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Sell speed breakdown</h2>
+        <div className="flex items-center gap-2">
+          <label className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Sell by</label>
+          <select value={sellBy} onChange={(e) => setSellBy(e.target.value)} className="dashboard-select !w-auto">
+            <option value="all">All days</option>
+            {Array.from({ length: maxDays }, (_, i) => i + 1).map((d) => (
+              <option key={d} value={d}>Day {d}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {variants.map((v) => {
+          const maxPct = Math.max(1, ...v.days.map((d) => d.pct))
+          return (
+            <div key={v.label} className="dashboard-subpanel rounded-[20px] p-4">
+              <div className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: v.dot }} />
+                <p className="font-semibold text-slate-100">{v.label}</p>
+                <span className="ml-auto text-xs text-slate-500">{v.totalUnits} sold · {v.totalDays}d shelf</span>
+              </div>
+
+              <div className="mt-3 space-y-1.5">
+                {v.days.map((d) => {
+                  const dimmed = d.day > cutoff
+                  return (
+                    <div key={d.day} className={`flex items-center gap-2 ${dimmed ? 'opacity-35' : ''}`}>
+                      <span className="w-12 shrink-0 text-xs font-semibold text-slate-500">Day {d.day}</span>
+                      <div className="h-3 flex-1 overflow-hidden rounded-full bg-[#F0EBE3]">
+                        <div
+                          className="h-full rounded-full transition-all"
+                          style={{ width: `${(d.pct / maxPct) * 100}%`, backgroundColor: dayBarColor(d.day, v.totalDays) }}
+                        />
+                      </div>
+                      <span className="w-16 shrink-0 text-right text-xs text-slate-500">
+                        <span className="font-semibold text-slate-100">{d.units}</span> · {d.pct}%
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+
+              <p className="mt-3 rounded-[12px] bg-[#F0EBE3] px-3 py-2 text-xs text-slate-500">
+                Average sell time: <span className="font-semibold text-slate-100">{v.avgSellDay} day{v.avgSellDay === 1 ? '' : 's'}</span>
+                {sellBy !== 'all' && (
+                  <> · <span className="font-semibold text-emerald-300">{v.soldByCutoff}%</span> sold by Day {cutoff}</>
+                )}
+              </p>
+            </div>
+          )
+        })}
+      </div>
+
+      <p className="mt-3 text-xs text-slate-500">
+        Average sell time — <span className="font-semibold text-slate-100">MG {byDay.multigrain.avgSellDay} days</span>
+        {' '}/ <span className="font-semibold text-slate-100">Plain {byDay.plain.avgSellDay} days</span>
+      </p>
     </section>
   )
 }
