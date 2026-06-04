@@ -42,7 +42,7 @@ export function StatTile({ label, value, color }) {
     rose: 'text-rose-200',
     slate: 'text-slate-200',
     green: 'text-emerald-200',
-    cream: 'text-[#FBF3D4]',
+    cream: 'text-[#8A6D1F]',
   }
   return (
     <div className="dashboard-subpanel rounded-[16px] px-3 py-2.5">
@@ -57,7 +57,7 @@ export function VariantPill({ variant, label }) {
   const isPlain = variant === 'plain'
   return (
     <span
-      className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${isPlain ? 'border-[#FBF3D4]/30 bg-[#FBF3D4]/12 text-[#FBF3D4]' : 'border-emerald-400/30 bg-emerald-400/12 text-emerald-100'}`}
+      className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${isPlain ? 'border-[#8A6D1F]/30 bg-[#FBF3D4]/40 text-[#8A6D1F]' : 'border-emerald-400/30 bg-emerald-400/12 text-emerald-200'}`}
     >
       {label}
     </span>

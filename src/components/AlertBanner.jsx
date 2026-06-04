@@ -17,8 +17,8 @@ export default function AlertBanner({ type = 'warning', title, message, onDismis
     },
     info: {
       bg: 'border-indigo-300/18 bg-indigo-400/8',
-      icon: 'text-indigo-100',
-      title: 'text-indigo-100',
+      icon: 'text-indigo-200',
+      title: 'text-indigo-200',
     },
   }
 

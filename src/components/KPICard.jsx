@@ -55,13 +55,13 @@ export default function KPICard({ title, value, subtitle, icon, trend, trendUp, 
       <div className={`absolute -right-8 -top-10 h-16 w-16 rounded-full bg-gradient-to-br ${theme.glow} blur-3xl`} />
       <div className="relative flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] ${theme.badge}`}>
+          <div className="inline-flex rounded-[4px] bg-[#ECFDF5] px-2 py-0.5 text-[11px] font-bold uppercase leading-none tracking-[0.08em] text-[#024628]">
             {title}
           </div>
-          <p className="mt-1.5 font-display text-2xl font-semibold leading-none tracking-[-0.04em] text-[#024628] sm:text-[28px]">
+          <p className="mt-1.5 font-display text-[28px] font-bold leading-none tracking-[-0.04em] text-[#1A2B1F]">
             {value}
           </p>
-          {subtitle && <p className="mt-1 text-[11px] text-slate-400">{subtitle}</p>}
+          {subtitle && <p className="mt-1 text-[12px] text-[#5C6D62]">{subtitle}</p>}
           {trend !== undefined && (
             <div
               className={`mt-1.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
