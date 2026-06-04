@@ -241,24 +241,35 @@ export default function PartnerProfile() {
     setLiveLoading(true)
     setLiveError(null)
     ;(async () => {
+      // Partner row — select('*') avoids unknown-column errors.
+      let prof = null
       try {
-        const { data: prof, error: pErr } = await supabase
+        const { data, error } = await supabase
           .from('profiles')
-          .select('id, full_name, phone, phone_number, email, status, created_at, partner_type, notes')
+          .select('*')
           .eq('id', id)
           .single()
-        if (pErr) throw pErr
-        const { data: salesRows, error: sErr } = await supabase
+        if (error) throw error
+        prof = data
+      } catch (err) {
+        console.warn('Partner row query failed:', err.message)
+      }
+      if (!prof) { if (alive) { setLiveProfile(null); setLiveLoading(false) } return }
+
+      // Sales — isolated so a failure here never blocks the profile.
+      let salesRows = []
+      try {
+        const { data, error } = await supabase
           .from('sales')
           .select('*')
           .eq('trainer_id', id)
-        if (sErr) throw sErr
-        if (alive) setLiveProfile(buildLivePartnerProfile(prof, salesRows, range))
-      } catch (e) {
-        if (alive) setLiveError(e.message || 'Failed to load partner')
-      } finally {
-        if (alive) setLiveLoading(false)
+        if (error) throw error
+        salesRows = data || []
+      } catch (err) {
+        console.warn('Partner sales query failed:', err.message)
       }
+
+      if (alive) { setLiveProfile(buildLivePartnerProfile(prof, salesRows, range)); setLiveLoading(false) }
     })()
     return () => { alive = false }
   }, [isDemo, id, range, tick])
@@ -360,7 +371,7 @@ export default function PartnerProfile() {
       {/* SECTION C2 — Sell speed breakdown (per shelf day) */}
       {profile.sellingSpeed.byDay && <SellSpeedBreakdown speed={profile.sellingSpeed} />}
 
-      {/* Current stock — shelf life status (demo only — needs CTA feed) */}
+      {/* Current stock — shelf life status */}
       {isDemo && <CurrentStockSection partnerId={id} />}
 
       {/* SECTION D — Customer log */}

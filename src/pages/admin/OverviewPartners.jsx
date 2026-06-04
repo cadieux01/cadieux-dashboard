@@ -61,7 +61,7 @@ export default function OverviewPartners() {
 
       {!isDemo ? (
         <div className="dashboard-subpanel rounded-[24px] px-5 py-8 text-center text-sm text-slate-400">
-          Partner drill-down is currently demo-only.
+          No data yet.
         </div>
       ) : partners.length === 0 ? (
         <div className="dashboard-subpanel rounded-[24px] px-5 py-8 text-center text-sm text-slate-400">

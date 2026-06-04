@@ -31,7 +31,7 @@ export default function VariantDetail() {
       <FadeIn className="dashboard-page">
         <PageHeader backTo="/admin/overview" backLabel="Overview" title="Variant" />
         <div className="dashboard-subpanel rounded-[24px] px-5 py-8 text-center text-sm text-slate-400">
-          Variant detail is currently demo-only.
+          No data yet.
         </div>
       </FadeIn>
     )

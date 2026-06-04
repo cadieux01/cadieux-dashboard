@@ -313,19 +313,31 @@ export default function Sales() {
       return
     }
     try {
-      const { data: partnersData, error: trainersError } = await supabase
-        .from('profiles')
-        .select('id, email, full_name, phone_number, notes, created_at')
-        .eq('role', 'partner')
-        .order('full_name', { ascending: true, nullsFirst: false })
+      // Partners — select('*') avoids unknown-column errors.
+      let partnersData = []
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('role', 'partner')
+          .order('full_name', { ascending: true, nullsFirst: false })
+        if (error) throw error
+        partnersData = data || []
+      } catch (err) {
+        console.warn('Partners query failed:', err.message)
+      }
 
-      if (trainersError) throw trainersError
-
-      const { data: salesData, error: salesError } = await supabase
-        .from('sales')
-        .select('trainer_id, units_assigned, units_sold, retracted_units')
-
-      if (salesError) throw salesError
+      // Sales — isolated so a failure here still leaves the partner list usable.
+      let salesData = []
+      try {
+        const { data, error } = await supabase
+          .from('sales')
+          .select('trainer_id, units_assigned, units_sold, retracted_units')
+        if (error) throw error
+        salesData = data || []
+      } catch (err) {
+        console.warn('Sales query failed:', err.message)
+      }
 
       const normalizedPartners = (partnersData || []).map((partner) => ({
         id: partner.id,

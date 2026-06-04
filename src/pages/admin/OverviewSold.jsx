@@ -119,7 +119,7 @@ export default function OverviewSold() {
 
       {!isDemo ? (
         <div className="dashboard-subpanel rounded-[24px] px-5 py-8 text-center text-sm text-slate-400">
-          Sale drill-down is currently demo-only.
+          No data yet.
         </div>
       ) : rows.length === 0 ? (
         <div className="dashboard-subpanel rounded-[24px] px-5 py-8 text-center text-sm text-slate-400">

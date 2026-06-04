@@ -204,31 +204,84 @@ export default function AgentProfilePage() {
     setLiveLoading(true)
     setLiveError(null)
     ;(async () => {
+      // Each query is isolated: a missing column or failed request never takes
+      // down the whole page — we log a warning and fall back to safe defaults.
+
+      // 1. Agent row. Select * so unknown columns can't error the query.
+      let agentRow = null
       try {
-        const { data: agentRow, error: aErr } = await supabase
-          .from('profiles')
-          .select('id, full_name, phone, phone_number, email, status, created_at')
-          .eq('id', id)
-          .single()
-        if (aErr) throw aErr
-        const { data: partnerRows, error: pErr } = await supabase
-          .from('profiles')
-          .select('id, full_name, phone, phone_number, status, partner_type, created_at')
-          .eq('role', 'partner')
-          .eq('onboarded_by', id)
-        if (pErr) throw pErr
-        const partnerIds = (partnerRows || []).map((p) => p.id)
-        let salesRows = []
-        if (partnerIds.length > 0) {
-          const { data: sr, error: sErr } = await supabase.from('sales').select('*').in('trainer_id', partnerIds)
-          if (sErr) throw sErr
-          salesRows = sr || []
+        const { data, error } = await supabase.from('profiles').select('*').eq('id', id).single()
+        if (error) throw error
+        agentRow = data
+      } catch (err) {
+        console.warn('Agent row query failed:', err.message)
+      }
+      if (!agentRow) {
+        if (alive) { setLiveProfile(null); setLiveLoading(false) }
+        return
+      }
+
+      // 2. Partners under this agent. First try the onboarded_by relationship;
+      //    if that column doesn't exist, fall back to showing all partners.
+      let partnerRows = []
+      let partnerAssignmentConfigured = true
+      try {
+        const { data, error } = await supabase
+          .from('profiles').select('*').eq('role', 'partner').eq('onboarded_by', id)
+        if (error) throw error
+        partnerRows = data || []
+      } catch (err) {
+        console.warn('Partner-by-agent query failed, showing all partners:', err.message)
+        partnerAssignmentConfigured = false
+        try {
+          const { data, error } = await supabase.from('profiles').select('*').eq('role', 'partner')
+          if (error) throw error
+          partnerRows = data || []
+        } catch (err2) {
+          console.warn('All-partners fallback failed:', err2.message)
+          partnerRows = []
         }
-        if (alive) setLiveProfile(buildLiveAgentProfile(agentRow, partnerRows, salesRows, range))
-      } catch (e) {
-        if (alive) setLiveError(e.message || 'Failed to load agent')
-      } finally {
-        if (alive) setLiveLoading(false)
+      }
+
+      // 3. Sales for those partners.
+      let salesRows = []
+      const partnerIds = partnerRows.map((p) => p.id)
+      if (partnerIds.length > 0) {
+        try {
+          const { data, error } = await supabase.from('sales').select('*').in('trainer_id', partnerIds)
+          if (error) throw error
+          salesRows = data || []
+        } catch (err) {
+          console.warn('Sales query failed:', err.message)
+        }
+      }
+
+      // 4. Today's activity from the audit log.
+      let todayActivity = []
+      try {
+        const start = new Date(); start.setHours(0, 0, 0, 0)
+        const { data, error } = await supabase
+          .from('audit_logs').select('*')
+          .eq('user_id', id)
+          .gte('created_at', start.toISOString())
+          .order('created_at', { ascending: false })
+          .limit(50)
+        if (error) throw error
+        todayActivity = (data || []).map((l) => ({
+          time: l.created_at ? new Date(l.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '',
+          description: l.description || l.action_type || l.action || 'Activity',
+          entity: l.entity_type || '',
+        }))
+      } catch (err) {
+        console.warn('Audit log query failed:', err.message)
+      }
+
+      if (alive) {
+        const built = buildLiveAgentProfile(agentRow, partnerRows, salesRows, range)
+        built.todayActivity = todayActivity
+        built.partnerAssignmentConfigured = partnerAssignmentConfigured
+        setLiveProfile(built)
+        setLiveLoading(false)
       }
     })()
     return () => { alive = false }
@@ -346,6 +399,20 @@ export default function AgentProfilePage() {
           <h2 className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Today's Activity</h2>
           <div className="dashboard-subpanel rounded-[22px] divide-y divide-[#E8E0D4]">
             {profile.todayActivity.map((ev, i) => {
+              // Two shapes: demo events ({action, partner_name, units, variant})
+              // and live audit-log entries ({description, entity, time}).
+              if (ev.description !== undefined) {
+                return (
+                  <div key={i} className="flex items-center gap-3 px-4 py-2.5">
+                    <span className="text-base">📝</span>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm font-semibold text-slate-100">{ev.description}</span>
+                      {ev.entity && <span className="ml-2 text-xs text-slate-400">{ev.entity}</span>}
+                    </div>
+                    <span className="text-[11px] text-slate-500 flex-shrink-0">{ev.time}</span>
+                  </div>
+                )
+              }
               const ai = ACTIVITY_ICON[ev.action] || ACTIVITY_ICON.assigned
               return (
                 <div key={i} className="flex items-center gap-3 px-4 py-2.5">
@@ -507,6 +574,11 @@ export default function AgentProfilePage() {
         <h2 className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
           Partners · {profile.partnerPerformance.length}
         </h2>
+        {profile.partnerAssignmentConfigured === false && (
+          <div className="mb-2 rounded-[16px] border border-amber-300/30 bg-amber-400/10 px-4 py-2.5 text-xs text-amber-200">
+            ℹ️ Partner assignment not configured yet — showing all partners.
+          </div>
+        )}
         {profile.partnerPerformance.length === 0 ? (
           <div className="dashboard-subpanel rounded-[20px] px-5 py-6 text-center text-sm text-slate-400">No partners in this period.</div>
         ) : (

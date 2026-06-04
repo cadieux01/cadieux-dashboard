@@ -91,7 +91,7 @@ export default function CTA() {
       // Fetch active assignments (units still unsold)
       const { data: salesData, error } = await supabase
         .from('sales')
-        .select(`*, trainers:profiles(id, full_name, phone, phone_number, email)`)
+        .select(`*, trainers:profiles(*)`)
         .order('date_of_assignment', { ascending: true, nullsFirst: false })
       if (error) throw error
 
