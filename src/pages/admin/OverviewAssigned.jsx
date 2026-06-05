@@ -1,10 +1,12 @@
 import { useMemo, useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
+import { supabase } from '../../lib/supabase'
 import {
   demoAssignments,
   demoDrilldownPartnerOptions,
   DRILLDOWN_RANGES,
+  VARIANTS,
 } from '../../lib/demoData'
 import { formatDateDDMMYY } from '../../lib/date'
 import { PageHeader, StatTile, Pagination, FadeIn, downloadCsv } from '../../components/drilldown/Shared'
@@ -16,25 +18,138 @@ const VARIANT_OPTIONS = [
 ]
 const ROWS_PER_PAGE = 20
 
+// Live date-range filter (mirrors demoData's withinRange but anchored to the
+// real "now" instead of the fixed demo date). Range values come from
+// DRILLDOWN_RANGES.
+function withinRangeReal(value, range) {
+  if (range === 'all' || !value) return true
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return true
+  const diff = (Date.now() - d.getTime()) / 86400000
+  switch (range) {
+    case 'today':     return diff < 1
+    case 'week':      return diff <= 7
+    case 'month':     return diff <= 30
+    case 'lastmonth': return diff > 30 && diff <= 60
+    case '3m':        return diff <= 90
+    case '6m':        return diff <= 180
+    case 'year':      return diff <= 365
+    default:          return true
+  }
+}
+
+// Shape live `sales` rows into the same per-assignment objects demoAssignments
+// returns. Total uses units_assigned so the page matches the Overview ASSIGNED
+// card (which sums units_assigned); the Multi-Grain/Plain split reads the
+// per-variant columns and falls back to product_variant so the two buckets
+// always sum to the row total.
+function shapeLiveAssignments(salesRows, nameById) {
+  return (salesRows || [])
+    .map((s) => {
+      const assigned = s.units_assigned || 0
+      let mg = s.multigrain_assigned || 0
+      let plain = s.plain_assigned || 0
+      if (mg + plain === 0 && assigned > 0) {
+        const isPlain = s.product_variant === VARIANTS.plain.name
+        if (isPlain) plain = assigned
+        else mg = assigned
+      }
+      return {
+        id: s.id,
+        partner_id: s.trainer_id,
+        partner_name: nameById[s.trainer_id] || 'Unknown',
+        multigrain_assigned: mg,
+        plain_assigned: plain,
+        total: mg + plain,
+        date_assigned: s.date_of_assignment || s.created_at,
+      }
+    })
+    .filter((r) => r.total > 0)
+    .sort((a, b) => new Date(b.date_assigned) - new Date(a.date_assigned))
+}
+
 export default function OverviewAssigned() {
   const { isDemo } = useAuth()
   const [filter, setFilter] = useState({ range: 'all', variant: 'all', partnerId: 'all' })
   const [page, setPage] = useState(1)
   const [tick, setTick] = useState(0)
+  const [liveRows, setLiveRows] = useState([])
+  const [livePartners, setLivePartners] = useState([])
+  const [loading, setLoading] = useState(!isDemo)
 
   useEffect(() => { setPage(1) }, [filter])
 
+  // Live fetch — same anon `supabase` client + `sales` table the Overview
+  // ASSIGNED card uses, so the totals line up. Re-runs on manual refresh.
+  useEffect(() => {
+    if (isDemo) return
+    let active = true
+    setLoading(true)
+    ;(async () => {
+      let partnersData = []
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('id, full_name, email')
+          .eq('role', 'partner')
+        if (error) throw error
+        partnersData = data || []
+      } catch (err) {
+        console.warn('Assigned: partners query failed:', err.message)
+      }
+
+      let salesData = []
+      try {
+        const { data, error } = await supabase
+          .from('sales')
+          .select('id, trainer_id, units_assigned, multigrain_assigned, plain_assigned, product_variant, date_of_assignment, created_at')
+        if (error) throw error
+        salesData = data || []
+      } catch (err) {
+        console.warn('Assigned: sales query failed:', err.message)
+      }
+
+      if (!active) return
+      const nameById = {}
+      for (const p of partnersData) nameById[p.id] = p.full_name || p.email || 'N/A'
+      setLivePartners(
+        partnersData
+          .map((p) => ({ value: p.id, label: p.full_name || p.email || 'N/A' }))
+          .sort((a, b) => a.label.localeCompare(b.label)),
+      )
+      setLiveRows(shapeLiveAssignments(salesData, nameById))
+      setLoading(false)
+    })()
+    return () => { active = false }
+  }, [isDemo, tick])
+
   const partnerOptions = useMemo(
-    () => isDemo ? [{ value: 'all', label: 'All partners' }, ...demoDrilldownPartnerOptions()] : [],
-    [isDemo],
+    () => isDemo
+      ? [{ value: 'all', label: 'All partners' }, ...demoDrilldownPartnerOptions()]
+      : [{ value: 'all', label: 'All partners' }, ...livePartners],
+    [isDemo, livePartners],
   )
 
   const rows = useMemo(() => {
-    if (!isDemo) return []
-    const out = demoAssignments({ range: filter.range, variant: filter.variant })
+    let out
+    if (isDemo) {
+      out = demoAssignments({ range: filter.range, variant: filter.variant })
+    } else {
+      // Apply the same range + variant filtering the demo adapter does.
+      out = liveRows
+        .filter((r) => withinRangeReal(r.date_assigned, filter.range))
+        .map((r) => {
+          let mg = r.multigrain_assigned
+          let plain = r.plain_assigned
+          if (filter.variant === 'multigrain') plain = 0
+          if (filter.variant === 'plain') mg = 0
+          return { ...r, multigrain_assigned: mg, plain_assigned: plain, total: mg + plain }
+        })
+        .filter((r) => r.total > 0)
+    }
     if (filter.partnerId === 'all') return out
     return out.filter((r) => r.partner_id === filter.partnerId)
-  }, [isDemo, filter, tick])
+  }, [isDemo, liveRows, filter, tick])
 
   const totals = useMemo(() => {
     const mg    = rows.reduce((s, a) => s + a.multigrain_assigned, 0)
@@ -93,9 +208,9 @@ export default function OverviewAssigned() {
         <StatTile label="Plain"          value={totals.plain.toLocaleString()} color="cream" />
       </div>
 
-      {!isDemo ? (
+      {loading ? (
         <div className="dashboard-subpanel rounded-[24px] px-5 py-8 text-center text-sm text-slate-400">
-          No data yet.
+          Loading assignments…
         </div>
       ) : rows.length === 0 ? (
         <div className="dashboard-subpanel rounded-[24px] px-5 py-8 text-center text-sm text-slate-400">
