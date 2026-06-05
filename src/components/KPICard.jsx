@@ -3,31 +3,26 @@ export default function KPICard({ title, value, subtitle, icon, trend, trendUp, 
     indigo: {
       glow: 'from-indigo-400/18 via-indigo-300/6 to-transparent',
       icon: 'bg-indigo-400/14 text-indigo-200',
-      badge: 'bg-indigo-400/12 text-indigo-100',
       border: 'border-indigo-300/12',
     },
     emerald: {
       glow: 'from-emerald-400/18 via-emerald-300/6 to-transparent',
       icon: 'bg-emerald-400/14 text-emerald-100',
-      badge: 'bg-emerald-400/12 text-emerald-100',
       border: 'border-emerald-300/12',
     },
     amber: {
       glow: 'from-amber-300/18 via-amber-200/6 to-transparent',
       icon: 'bg-amber-300/14 text-amber-100',
-      badge: 'bg-amber-300/12 text-amber-100',
       border: 'border-amber-200/12',
     },
     rose: {
       glow: 'from-rose-300/18 via-rose-200/6 to-transparent',
       icon: 'bg-rose-300/14 text-rose-100',
-      badge: 'bg-rose-300/12 text-rose-100',
       border: 'border-rose-200/12',
     },
     purple: {
       glow: 'from-violet-300/18 via-violet-200/6 to-transparent',
       icon: 'bg-violet-300/14 text-violet-700',
-      badge: 'bg-violet-300/12 text-violet-100',
       border: 'border-violet-200/12',
     },
   }

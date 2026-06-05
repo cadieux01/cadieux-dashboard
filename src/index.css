@@ -33,7 +33,7 @@
   --color-emerald-600: #024628; /* Foundation Green — solid button fill */
   --color-emerald-500: #047857; /* success text/fill */
   --color-emerald-400: #059669; /* success text on light */
-  --color-emerald-300: #10b981; /* success accent */
+  --color-emerald-300: #047857; /* success text — readable on light (was #10b981, 2.3:1 fail) */
   --color-emerald-200: #15803d; /* readable green when used as text */
   --color-emerald-100: #047857; /* readable green (used as text, not bg) */
 
