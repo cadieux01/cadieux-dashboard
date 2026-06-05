@@ -624,9 +624,9 @@ export default function Sales() {
         </Link>
         <Link to="/admin/overview/attributed">
           <KPICard
-            title="Attributed"
+            title="Retracted"
             value={kpiAttributed.toLocaleString()}
-            subtitle="Returns · View →"
+            subtitle="Pulled back · View →"
             color="amber"
             icon={
               <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">

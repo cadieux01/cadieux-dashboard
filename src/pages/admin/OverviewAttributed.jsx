@@ -1,11 +1,13 @@
 import { useMemo, useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
+import { supabase } from '../../lib/supabase'
 import {
   demoAttributions,
   demoDrilldownPartnerOptions,
   DRILLDOWN_RANGES,
   ATTRIBUTION_REASONS,
+  VARIANTS,
 } from '../../lib/demoData'
 import { formatDateDDMMYY } from '../../lib/date'
 import {
@@ -25,7 +27,60 @@ const VARIANT_OPTIONS = [
   { value: 'plain', label: 'Plain' },
 ]
 const REASON_FILTER_OPTIONS = [{ value: 'all', label: 'All reasons' }, ...ATTRIBUTION_REASONS]
+const REASON_LABEL_BY_VALUE = Object.fromEntries(ATTRIBUTION_REASONS.map((r) => [r.value, r.label]))
 const ROWS_PER_PAGE = 20
+
+// Live date-range filter anchored to the real "now" (mirrors demoData's
+// withinRange, which uses the fixed demo date).
+function withinRangeReal(value, range) {
+  if (range === 'all' || !value) return true
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return true
+  const diff = (Date.now() - d.getTime()) / 86400000
+  switch (range) {
+    case 'today':     return diff < 1
+    case 'week':      return diff <= 7
+    case 'month':     return diff <= 30
+    case 'lastmonth': return diff > 30 && diff <= 60
+    case '3m':        return diff <= 90
+    case '6m':        return diff <= 180
+    case 'year':      return diff <= 365
+    default:          return true
+  }
+}
+
+// Shape live `sales` rows that carry a retraction (retracted_units > 0) into
+// the same per-record objects demoAttributions returns. One sale row is one
+// retraction event here; variant is read from the per-variant retracted
+// columns, falling back to product_variant.
+function shapeLiveRetractions(salesRows, nameById) {
+  return (salesRows || [])
+    .filter((s) => (s.retracted_units || 0) > 0)
+    .map((s) => {
+      const mgR = s.multigrain_retracted || 0
+      const plainR = s.plain_retracted || 0
+      let variant = s.product_variant === VARIANTS.plain.name ? 'plain' : 'multigrain'
+      if (mgR > 0 && plainR === 0) variant = 'multigrain'
+      else if (plainR > 0 && mgR === 0) variant = 'plain'
+      const v = VARIANTS[variant] || VARIANTS.multigrain
+      const reason = s.retract_reason || 'other'
+      return {
+        id: s.id,
+        date: s.retract_date || s.updated_at || s.created_at,
+        partner_id: s.trainer_id,
+        partner_name: nameById[s.trainer_id] || 'Unknown',
+        variant,
+        variant_label: v.short,
+        units: s.retracted_units || 0,
+        reason,
+        reason_label: REASON_LABEL_BY_VALUE[reason] || reason,
+        notes: s.retract_notes || '',
+        attributed_by: nameById[s.retracted_by] || '—',
+        loss_value: (s.retracted_units || 0) * (v.price || 0),
+      }
+    })
+    .sort((a, b) => new Date(b.date) - new Date(a.date))
+}
 
 export default function OverviewAttributed() {
   const { isDemo } = useAuth()
@@ -33,18 +88,71 @@ export default function OverviewAttributed() {
   const [page, setPage] = useState(1)
   const [tick, setTick] = useState(0)
   const [expandedNote, setExpandedNote] = useState(null)
+  const [liveRows, setLiveRows] = useState([])
+  const [livePartners, setLivePartners] = useState([])
+  const [loading, setLoading] = useState(!isDemo)
 
   useEffect(() => { setPage(1) }, [filter])
 
+  // Live fetch — same anon `supabase` client + `sales` table the Overview
+  // RETRACTED card sums (sales.retracted_units), so the totals line up.
+  useEffect(() => {
+    if (isDemo) return
+    let active = true
+    setLoading(true)
+    ;(async () => {
+      let profilesData = []
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('id, full_name, email, role')
+        if (error) throw error
+        profilesData = data || []
+      } catch (err) {
+        console.warn('Retracted: profiles query failed:', err.message)
+      }
+
+      let salesData = []
+      try {
+        const { data, error } = await supabase
+          .from('sales')
+          .select('id, trainer_id, retracted_units, multigrain_retracted, plain_retracted, retract_reason, retract_notes, retracted_by, retract_date, product_variant, created_at, updated_at')
+        if (error) throw error
+        salesData = data || []
+      } catch (err) {
+        console.warn('Retracted: sales query failed:', err.message)
+      }
+
+      if (!active) return
+      const nameById = {}
+      for (const p of profilesData) nameById[p.id] = p.full_name || p.email || 'N/A'
+      setLivePartners(
+        profilesData
+          .filter((p) => p.role === 'partner')
+          .map((p) => ({ value: p.id, label: p.full_name || p.email || 'N/A' }))
+          .sort((a, b) => a.label.localeCompare(b.label)),
+      )
+      setLiveRows(shapeLiveRetractions(salesData, nameById))
+      setLoading(false)
+    })()
+    return () => { active = false }
+  }, [isDemo, tick])
+
   const partnerOptions = useMemo(
-    () => isDemo ? [{ value: 'all', label: 'All partners' }, ...demoDrilldownPartnerOptions()] : [],
-    [isDemo],
+    () => isDemo
+      ? [{ value: 'all', label: 'All partners' }, ...demoDrilldownPartnerOptions()]
+      : [{ value: 'all', label: 'All partners' }, ...livePartners],
+    [isDemo, livePartners],
   )
 
   const rows = useMemo(() => {
-    if (!isDemo) return []
-    return demoAttributions(filter)
-  }, [isDemo, filter, tick])
+    if (isDemo) return demoAttributions(filter)
+    return liveRows
+      .filter((r) => withinRangeReal(r.date, filter.range))
+      .filter((r) => filter.variant === 'all' || r.variant === filter.variant)
+      .filter((r) => filter.partnerId === 'all' || r.partner_id === filter.partnerId)
+      .filter((r) => filter.reason === 'all' || r.reason === filter.reason)
+  }, [isDemo, liveRows, filter, tick])
 
   const stats = useMemo(() => {
     if (rows.length === 0) return null
@@ -65,14 +173,14 @@ export default function OverviewAttributed() {
   const paged = rows.slice((page - 1) * ROWS_PER_PAGE, page * ROWS_PER_PAGE)
 
   const exportCsv = () => {
-    downloadCsv(`attributions-${Date.now()}.csv`, rows, [
+    downloadCsv(`retractions-${Date.now()}.csv`, rows, [
       { key: 'date', label: 'Date', value: (r) => formatDateDDMMYY(r.date) },
       { key: 'partner_name', label: 'Partner' },
       { key: 'variant_label', label: 'Variant' },
       { key: 'units', label: 'Units' },
       { key: 'reason_label', label: 'Reason' },
       { key: 'notes', label: 'Notes' },
-      { key: 'attributed_by', label: 'Attributed By' },
+      { key: 'attributed_by', label: 'Retracted By' },
     ])
   }
 
@@ -81,8 +189,8 @@ export default function OverviewAttributed() {
       <PageHeader
         backTo="/admin/overview"
         backLabel="Overview"
-        title="Attributed"
-        subtitle={`${rows.length} attribution ${rows.length === 1 ? 'record' : 'records'}`}
+        title="Retracted"
+        subtitle={`${rows.length} retraction ${rows.length === 1 ? 'record' : 'records'}`}
         onRefresh={() => setTick((t) => t + 1)}
         actions={
           <button
@@ -132,13 +240,13 @@ export default function OverviewAttributed() {
         </>
       )}
 
-      {!isDemo ? (
+      {loading ? (
         <div className="dashboard-subpanel rounded-[24px] px-5 py-8 text-center text-sm text-slate-400">
-          No data yet.
+          Loading retractions…
         </div>
       ) : rows.length === 0 ? (
         <div className="dashboard-subpanel rounded-[24px] px-5 py-8 text-center text-sm text-slate-400">
-          No attributions match these filters.
+          No retractions match these filters.
         </div>
       ) : (
         <>
