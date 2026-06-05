@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" href="/sunny/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cadieux | Core Element — Operations</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script>
+      // GitHub Pages SPA redirect handler
+      // This script handles the redirect from 404.html
+      // It converts /sunny/?/path back to /sunny/path
+      (function() {
+        var search = window.location.search;
+        if (search && search.indexOf('?/') === 0) {
+          var path = search.slice(2).replace(/~and~/g, '&');
+          var hash = window.location.hash;
+          var newPath = '/sunny/' + path + hash;
+          window.history.replaceState(null, null, newPath);
+        }
+      })();
+    </script>
+    <script type="module" crossorigin src="/dashboard/assets/index.CYV7h9Bn.js"></script>
+    <link rel="stylesheet" crossorigin href="/dashboard/assets/index.BQyPNpSF.css">
+  </head>
+  <body class="font-body antialiased">
+    <div id="root"></div>
+  </body>
+</html>
