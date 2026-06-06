@@ -9,6 +9,11 @@ import {
   REQUEST_TYPE_LABELS,
 } from '../lib/changeRequests'
 import { demoBlock } from '../lib/demoData'
+import {
+  variantLabel,
+  listSalespersonAssignments,
+  confirmAssignment,
+} from '../lib/partnerWorkflow'
 import RefreshButton from '../components/RefreshButton'
 import RefreshStatus from '../components/RefreshStatus'
 import useRefreshable from '../lib/useRefreshable'
@@ -420,6 +425,11 @@ export default function Profile() {
         )}
       </div>
 
+      {/* My Assignments — sales users see what they owe partners */}
+      {profile.role === 'sales' && !isDemo && (
+        <SalesAssignmentsSection profileId={profile.id} viewerId={profile.id} />
+      )}
+
       {/* Dashboard PIN — admin-only */}
       {profile.role === 'admin' && (
         <DashboardPinSection onToast={showToast} />
@@ -463,6 +473,93 @@ export default function Profile() {
       </div>
 
       <RefreshStatus pullDistance={pullDistance} refreshing={refreshing} at={lastUpdated} onRefresh={refresh} />
+    </div>
+  )
+}
+
+// ============================================================================
+// SalesAssignmentsSection — a sales user's own list of partner assignments
+// (request→assign→deliver workflow). Shows total units still owed and lets the
+// salesperson confirm delivery (Pending → Delivered).
+// ============================================================================
+function SalesAssignmentsSection({ profileId, viewerId }) {
+  const [rows, setRows] = useState([])
+  const [pendingUnits, setPendingUnits] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [busyId, setBusyId] = useState(null)
+
+  const load = async () => {
+    setLoading(true)
+    try {
+      const { assignments, pendingUnits: pu } = await listSalespersonAssignments(profileId)
+      setRows(assignments)
+      setPendingUnits(pu)
+    } catch (e) {
+      console.warn('listSalespersonAssignments failed:', e.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profileId])
+
+  const confirm = async (a) => {
+    setBusyId(a.id)
+    try {
+      await confirmAssignment({ assignmentId: a.id, confirmedBy: viewerId })
+      await load()
+    } catch (e) {
+      console.error('confirmAssignment failed:', e)
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-slate-800 bg-slate-900 p-4 sm:p-6 mb-6">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h2 className="text-lg font-semibold text-slate-100">My Assignments</h2>
+        <span className="rounded-full border border-amber-700 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-400">
+          {pendingUnits} units pending
+        </span>
+      </div>
+      {loading ? (
+        <p className="text-sm text-slate-400">Loading…</p>
+      ) : rows.length === 0 ? (
+        <p className="text-sm text-slate-400">No assignments yet.</p>
+      ) : (
+        <div className="space-y-3">
+          {rows.map((a) => (
+            <div
+              key={a.id}
+              className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-950/40 px-4 py-3"
+            >
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-slate-100">{a.partner_name}</p>
+                <p className="text-xs text-slate-500">
+                  {a.units} × {variantLabel(a.variant)} · {a.source === 'request' ? 'From request' : 'Proactive'}
+                  {a.status === 'confirmed' && a.confirmed_at ? ` · Delivered ${formatDateDDMMYY(a.confirmed_at)}` : ''}
+                </p>
+              </div>
+              {a.status === 'confirmed' ? (
+                <span className="rounded-full border border-emerald-700 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-400">Delivered</span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => confirm(a)}
+                  disabled={busyId === a.id}
+                  className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-[#fbf3d4] hover:bg-emerald-500 disabled:opacity-50"
+                >
+                  {busyId === a.id ? '…' : 'Confirm delivery'}
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

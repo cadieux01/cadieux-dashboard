@@ -12,6 +12,11 @@ import {
 } from '../../lib/demoData'
 import { formatDateDDMMYY } from '../../lib/date'
 import {
+  variantLabel,
+  listSalespersonAssignments,
+  confirmAssignment,
+} from '../../lib/partnerWorkflow'
+import {
   PageHeader,
   StatTile,
   Pagination,
@@ -186,7 +191,7 @@ function buildLiveAgentProfile(agentRow, partnerRows, salesRows, range) {
 
 export default function AgentProfilePage() {
   const { id } = useParams()
-  const { isDemo } = useAuth()
+  const { isDemo, profile: viewer } = useAuth()
   const [range, setRange] = useState('month')
   const [tick, setTick] = useState(0)
   const [partnerPage, setPartnerPage] = useState(1)
@@ -195,6 +200,39 @@ export default function AgentProfilePage() {
   const [liveProfile, setLiveProfile] = useState(null)
   const [liveLoading, setLiveLoading] = useState(!isDemo)
   const [liveError, setLiveError] = useState(null)
+
+  // Partner assignments owed by this salesperson (request→assign→deliver flow).
+  const [assignments, setAssignments] = useState([])
+  const [pendingUnits, setPendingUnits] = useState(0)
+  const [busyAssignId, setBusyAssignId] = useState(null)
+
+  const loadAssignments = async () => {
+    if (isDemo || !id) return
+    try {
+      const { assignments: rows, pendingUnits: pu } = await listSalespersonAssignments(id)
+      setAssignments(rows)
+      setPendingUnits(pu)
+    } catch (err) {
+      console.warn('listSalespersonAssignments failed:', err.message)
+    }
+  }
+
+  useEffect(() => {
+    loadAssignments()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDemo, id, tick])
+
+  const confirmDelivery = async (a) => {
+    setBusyAssignId(a.id)
+    try {
+      await confirmAssignment({ assignmentId: a.id, confirmedBy: viewer?.id })
+      await loadAssignments()
+    } catch (err) {
+      console.error('confirmAssignment failed:', err)
+    } finally {
+      setBusyAssignId(null)
+    }
+  }
 
   useEffect(() => { setPartnerPage(1); setDelivPage(1); setRetrPage(1) }, [range, id])
 
@@ -368,6 +406,92 @@ export default function AgentProfilePage() {
         <StatTile label="Collected Back"        value={profile.totals.retracted.toLocaleString()} color="amber" />
         <StatTile label="Supplied to Stalls"    value={profile.totals.suppliedToStalls.toLocaleString()} color="green" />
       </div>
+
+      {/* SECTION A2 — Partner assignments (request→assign→deliver) */}
+      {!isDemo && (
+        <section className="mb-6">
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Assignments</h2>
+            <span className="rounded-full border border-amber-400/30 bg-amber-400/15 px-3 py-1 text-[11px] font-semibold text-amber-700">
+              {pendingUnits} units pending delivery
+            </span>
+          </div>
+          {assignments.length === 0 ? (
+            <div className="dashboard-subpanel rounded-[20px] px-5 py-6 text-center text-sm text-slate-400">No assignments yet.</div>
+          ) : (
+            <>
+              {/* Desktop table — admin proof: all four lifecycle timestamps + actors */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="dashboard-table min-w-full">
+                  <thead>
+                    <tr>
+                      <Th>Partner</Th><Th>Variant</Th><Th right>Units</Th><Th>Source</Th>
+                      <Th>Requested</Th><Th>Accepted</Th><Th>Assigned</Th><Th>Delivered</Th><Th right>Status</Th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {assignments.map((a) => (
+                      <tr key={a.id}>
+                        <td className="px-3 py-2"><Link to={`/admin/partner/${a.partner_id}`} className="font-semibold text-slate-100 hover:text-emerald-200">{a.partner_name}</Link></td>
+                        <td className="px-3 py-2 text-slate-300">{variantLabel(a.variant)}</td>
+                        <td className="px-3 py-2 text-right font-semibold text-indigo-200">{a.units}</td>
+                        <td className="px-3 py-2 text-slate-400">{a.source === 'request' ? 'Request' : 'Proactive'}</td>
+                        <td className="px-3 py-2 text-slate-400">{a.requested_at ? formatDateDDMMYY(a.requested_at) : '—'}</td>
+                        <td className="px-3 py-2 text-slate-400" title={a.accepted_by_name ? `by ${a.accepted_by_name}` : ''}>{a.accepted_at ? formatDateDDMMYY(a.accepted_at) : '—'}</td>
+                        <td className="px-3 py-2 text-slate-400" title={a.assigned_by_name ? `by ${a.assigned_by_name}` : ''}>{a.assigned_at ? formatDateDDMMYY(a.assigned_at) : '—'}</td>
+                        <td className="px-3 py-2 text-slate-400" title={a.confirmed_by_name ? `by ${a.confirmed_by_name}` : ''}>{a.confirmed_at ? formatDateDDMMYY(a.confirmed_at) : '—'}</td>
+                        <td className="px-3 py-2 text-right">
+                          {a.status === 'confirmed' ? (
+                            <span className="rounded-full border border-emerald-400/30 bg-emerald-400/15 px-2.5 py-1 text-[11px] font-semibold text-emerald-200">Delivered</span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => confirmDelivery(a)}
+                              disabled={busyAssignId === a.id}
+                              className="rounded-lg bg-[#024628] px-3 py-1.5 text-[11px] font-semibold text-[#fbf3d4] transition hover:bg-[#035c36] disabled:opacity-50"
+                            >
+                              {busyAssignId === a.id ? 'Confirming…' : 'Confirm delivery'}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {/* Mobile cards */}
+              <div className="space-y-2 md:hidden">
+                {assignments.map((a) => (
+                  <div key={a.id} className="dashboard-subpanel rounded-[20px] px-4 py-3">
+                    <div className="flex items-center justify-between">
+                      <Link to={`/admin/partner/${a.partner_id}`} className="font-semibold text-slate-100">{a.partner_name}</Link>
+                      {a.status === 'confirmed' ? (
+                        <span className="rounded-full border border-emerald-400/30 bg-emerald-400/15 px-2.5 py-1 text-[10px] font-semibold text-emerald-200">Delivered</span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => confirmDelivery(a)}
+                          disabled={busyAssignId === a.id}
+                          className="rounded-lg bg-[#024628] px-3 py-1.5 text-[10px] font-semibold text-[#fbf3d4] disabled:opacity-50"
+                        >
+                          {busyAssignId === a.id ? '…' : 'Confirm'}
+                        </button>
+                      )}
+                    </div>
+                    <p className="mt-1 text-sm text-slate-300">{a.units} × {variantLabel(a.variant)} · {a.source === 'request' ? 'Request' : 'Proactive'}</p>
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      Req {a.requested_at ? formatDateDDMMYY(a.requested_at) : '—'} ·
+                      Acc {a.accepted_at ? formatDateDDMMYY(a.accepted_at) : '—'} ·
+                      Asg {a.assigned_at ? formatDateDDMMYY(a.assigned_at) : '—'} ·
+                      Del {a.confirmed_at ? formatDateDDMMYY(a.confirmed_at) : '—'}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </section>
+      )}
 
       {/* FIX 6 — partner breakdown by type */}
       {profile.partnerTypeBreakdown.length > 0 && (
