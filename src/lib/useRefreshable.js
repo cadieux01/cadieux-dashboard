@@ -12,8 +12,12 @@ const MAX_PULL = 90
  *
  * Also wires pull-to-refresh: on touch devices, dragging down from the top of
  * the scroll container (the <main> element) past 60px triggers refresh().
+ *
+ * Pass `{ auto: true }` to keep the page live without a manual reload: it
+ * re-fetches when the tab regains focus/visibility and on a polling interval
+ * (default 30s, only while the tab is visible).
  */
-export default function useRefreshable(refreshFn) {
+export default function useRefreshable(refreshFn, { auto = false, intervalMs = 30000 } = {}) {
   const [refreshing, setRefreshing] = useState(false)
   const [lastUpdated, setLastUpdated] = useState(() => Date.now())
   const [pullDistance, setPullDistance] = useState(0)
@@ -31,6 +35,25 @@ export default function useRefreshable(refreshFn) {
       setLastUpdated(Date.now())
     }
   }, [])
+
+  // Live auto-refresh: refetch on focus/visibility and a polling interval so a
+  // change made elsewhere (e.g. a partner records a sale) shows up without the
+  // user manually reloading or hitting refresh.
+  useEffect(() => {
+    if (!auto) return
+    const onFocus = () => refresh()
+    const onVisible = () => { if (document.visibilityState === 'visible') refresh() }
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisible)
+    const id = intervalMs > 0
+      ? setInterval(() => { if (document.visibilityState === 'visible') refresh() }, intervalMs)
+      : null
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisible)
+      if (id) clearInterval(id)
+    }
+  }, [auto, intervalMs, refresh])
 
   useEffect(() => {
     const scroller = document.querySelector('main')

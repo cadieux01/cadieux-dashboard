@@ -300,7 +300,7 @@ export default function Sales() {
     joining_date: new Date().toISOString().split('T')[0],
   })
 
-  const { refresh, refreshing, lastUpdated, pullDistance } = useRefreshable(() => fetchData())
+  const { refresh, refreshing, lastUpdated, pullDistance } = useRefreshable(() => fetchData(), { auto: true })
 
   useEffect(() => { fetchData() }, [])
 
