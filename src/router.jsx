@@ -10,6 +10,8 @@ const Leads = lazy(() => import('./pages/Leads'))
 const CTA = lazy(() => import('./pages/CTA'))
 const AuditLogs = lazy(() => import('./pages/AuditLogs'))
 const PartnerDashboard = lazy(() => import('./pages/PartnerDashboard'))
+const PartnerRequests = lazy(() => import('./pages/PartnerRequests'))
+const AdminPartnerRequests = lazy(() => import('./pages/AdminPartnerRequests'))
 const Partners = lazy(() => import('./pages/Partners'))
 const SalesExec = lazy(() => import('./pages/SalesExec'))
 const Team = lazy(() => import('./pages/Team'))
@@ -120,6 +122,10 @@ export const router = createBrowserRouter([
         element: <ProtectedRoute allowedRoles={['admin', 'sales']}>{withSuspense(ChangeRequests)}</ProtectedRoute>,
       },
       {
+        path: 'partner-requests',
+        element: <ProtectedRoute allowedRoles={['admin', 'sales']}>{withSuspense(AdminPartnerRequests)}</ProtectedRoute>,
+      },
+      {
         path: 'profile',
         element: <ProtectedRoute allowedRoles={['admin', 'sales']}>{withSuspense(Profile)}</ProtectedRoute>,
       },
@@ -144,6 +150,10 @@ export const router = createBrowserRouter([
       {
         path: 'dashboard',
         element: withSuspense(PartnerDashboard),
+      },
+      {
+        path: 'requests',
+        element: withSuspense(PartnerRequests),
       },
       {
         path: 'profile',

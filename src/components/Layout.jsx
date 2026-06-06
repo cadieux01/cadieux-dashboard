@@ -9,6 +9,8 @@ import {
   FileText,
   User,
   UserPlus,
+  Inbox,
+  Package,
   Home,
   LogOut,
   Shield,
@@ -60,6 +62,7 @@ const adminNavigation = [
   { name: 'CTA', href: '/admin/cta', Icon: Megaphone },
   { name: 'Team', href: '/admin/team', Icon: Users },
   { name: 'Change Requests', href: '/admin/change-requests', badge: 'pendingRequests', Icon: ClipboardCheck },
+  { name: 'Requests', href: '/admin/partner-requests', Icon: Inbox },
   { name: 'Audit', href: '/admin/audit-logs', Icon: FileText },
   { name: 'Profile', href: '/admin/profile', Icon: User },
 ]
@@ -70,11 +73,13 @@ const salesNavigation = [
   { name: 'CTA', href: '/admin/cta', Icon: Megaphone },
   { name: 'Team', href: '/admin/team', Icon: Users },
   { name: 'Partner Requests', href: '/admin/change-requests', badge: 'pendingRequests', Icon: ClipboardCheck },
+  { name: 'Requests', href: '/admin/partner-requests', Icon: Inbox },
   { name: 'Profile', href: '/admin/profile', Icon: User },
 ]
 
 const partnerNavigation = [
   { name: 'Home', href: '/partner/dashboard', Icon: Home },
+  { name: 'Request', href: '/partner/requests', Icon: Package },
   { name: 'Profile', href: '/partner/profile', Icon: User },
 ]
 
