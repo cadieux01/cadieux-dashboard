@@ -16,6 +16,7 @@ import {
 } from '../lib/partnerWorkflow'
 import RefreshButton from '../components/RefreshButton'
 import RefreshStatus from '../components/RefreshStatus'
+import AgentUnits from '../components/AgentUnits'
 import useRefreshable from '../lib/useRefreshable'
 import { isPinSet, setPin, clearPin, verifyPin, PIN_LENGTH } from '../lib/pinSecurity'
 
@@ -424,6 +425,11 @@ export default function Profile() {
           </form>
         )}
       </div>
+
+      {/* Units — agent's live inventory ledger (manageable: deliver / return) */}
+      {profile.role === 'sales' && !isDemo && (
+        <AgentUnits agentId={profile.id} canManage />
+      )}
 
       {/* My Assignments — sales users see what they owe partners */}
       {profile.role === 'sales' && !isDemo && (

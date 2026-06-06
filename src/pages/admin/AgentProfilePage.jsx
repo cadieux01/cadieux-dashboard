@@ -24,6 +24,7 @@ import {
   VariantPill,
   MonthlyLineChart,
 } from '../../components/drilldown/Shared'
+import AgentUnits from '../../components/AgentUnits'
 
 const ROWS_PER_PAGE = 20
 
@@ -492,6 +493,9 @@ export default function AgentProfilePage() {
           )}
         </section>
       )}
+
+      {/* SECTION A3 — Inventory ledger (admin read-only view of agent's Units) */}
+      {!isDemo && <AgentUnits agentId={id} canManage={false} />}
 
       {/* FIX 6 — partner breakdown by type */}
       {profile.partnerTypeBreakdown.length > 0 && (

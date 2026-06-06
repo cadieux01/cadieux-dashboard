@@ -1,0 +1,257 @@
+import { useEffect, useState } from 'react'
+import { supabase } from '../lib/supabase'
+import { VARIANTS } from '../lib/demoData'
+import { formatDateTimeDDMMYY } from '../lib/date'
+import {
+  getAgentInventory,
+  deliverToPartner,
+  recordReturn,
+  variantLabel,
+} from '../lib/agentInventory'
+
+// ============================================================================
+// AgentUnits — live inventory ledger for one agent (salesperson).
+//   available = received − delivered + returned
+// Big "Total Available" number + received/delivered/returned breakdown +
+// scrollable history. When canManage is true (the agent viewing their own
+// page) it also exposes "Assign to partner" (gated on available > 0) and
+// "Record return". Read-only for admins viewing the agent.
+// ============================================================================
+
+const CARD = 'rounded-xl border border-slate-800 bg-slate-900 p-4 sm:p-6 mb-6'
+
+const ENTRY_META = {
+  received: { label: 'Received', cls: 'text-emerald-400', sign: '+' },
+  delivered: { label: 'Delivered', cls: 'text-amber-400', sign: '−' },
+  returned: { label: 'Returned', cls: 'text-sky-400', sign: '+' },
+}
+
+function Stat({ label, value, accent }) {
+  return (
+    <div className="rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2.5 text-center">
+      <p className="text-xs text-slate-400">{label}</p>
+      <p className={`mt-0.5 font-display text-xl font-bold ${accent || 'text-slate-100'}`}>{value}</p>
+    </div>
+  )
+}
+
+export default function AgentUnits({ agentId, canManage = false }) {
+  const [inv, setInv] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [partners, setPartners] = useState([])
+  const [mode, setMode] = useState(null) // 'deliver' | 'return' | null
+  const [form, setForm] = useState({ partner_id: '', variant: 'multigrain', units: '' })
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState(null)
+
+  const load = async () => {
+    setLoading(true)
+    try {
+      const data = await getAgentInventory(agentId)
+      setInv(data)
+    } catch (e) {
+      console.warn('getAgentInventory failed:', e.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agentId])
+
+  useEffect(() => {
+    if (!canManage) return
+    supabase
+      .from('profiles')
+      .select('id, full_name, phone')
+      .eq('role', 'partner')
+      .order('full_name', { ascending: true })
+      .then(({ data }) => setPartners(data || []))
+  }, [canManage])
+
+  const resetForm = () => {
+    setMode(null)
+    setForm({ partner_id: '', variant: 'multigrain', units: '' })
+    setErr(null)
+  }
+
+  const submit = async (e) => {
+    e.preventDefault()
+    setErr(null)
+    const units = parseInt(form.units) || 0
+    if (!form.partner_id) { setErr('Please select a partner.'); return }
+    if (units <= 0) { setErr('Please enter a unit count.'); return }
+    setBusy(true)
+    try {
+      if (mode === 'deliver') {
+        await deliverToPartner({ agentId, partnerId: form.partner_id, variant: form.variant, units })
+      } else {
+        await recordReturn({ agentId, partnerId: form.partner_id, variant: form.variant, units })
+      }
+      resetForm()
+      await load()
+    } catch (e2) {
+      setErr(e2.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className={CARD}>
+        <p className="text-sm text-slate-400">Loading units…</p>
+      </div>
+    )
+  }
+
+  const totals = inv?.totals || { received: 0, delivered: 0, returned: 0 }
+  const available = inv?.available || 0
+  const byVariant = inv?.byVariant || {}
+  const history = inv?.history || []
+
+  return (
+    <div className={CARD}>
+      <h2 className="mb-4 text-lg font-semibold text-slate-100">Units</h2>
+
+      {/* Big total available */}
+      <div className="mb-4 rounded-xl border border-emerald-600/40 bg-emerald-500/10 px-4 py-5 text-center">
+        <p className="text-xs uppercase tracking-wide text-emerald-300">Total Available Units</p>
+        <p className="mt-1 font-display text-5xl font-bold text-emerald-300">{available}</p>
+        <p className="mt-1 text-xs text-slate-400">
+          {VARIANTS.multigrain.short}: {byVariant.multigrain?.available || 0} ·{' '}
+          {VARIANTS.plain.short}: {byVariant.plain?.available || 0}
+        </p>
+      </div>
+
+      {/* Breakdown */}
+      <div className="mb-4 grid grid-cols-3 gap-2">
+        <Stat label="Received" value={totals.received} accent="text-emerald-400" />
+        <Stat label="Delivered" value={totals.delivered} accent="text-amber-400" />
+        <Stat label="Returned" value={totals.returned} accent="text-sky-400" />
+      </div>
+
+      {/* Manage actions (agent only) */}
+      {canManage && (
+        <div className="mb-4">
+          {!mode ? (
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => { resetForm(); setMode('deliver') }}
+                disabled={available <= 0}
+                title={available <= 0 ? 'No available units — ask an admin to assign you stock first.' : undefined}
+                className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-semibold text-[#fbf3d4] hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Assign to partner
+              </button>
+              <button
+                type="button"
+                onClick={() => { resetForm(); setMode('return') }}
+                className="rounded-lg bg-sky-500/20 px-3 py-1.5 text-sm font-semibold text-sky-200 hover:bg-sky-500/30"
+              >
+                Record return
+              </button>
+              {available <= 0 && (
+                <p className="w-full text-xs text-amber-400">
+                  No available units. An admin must assign you stock before you can deliver to a partner.
+                </p>
+              )}
+            </div>
+          ) : (
+            <form onSubmit={submit} className="space-y-3 rounded-lg border border-slate-800 bg-slate-950/40 p-3">
+              <p className="text-sm font-semibold text-slate-200">
+                {mode === 'deliver' ? 'Assign units to a partner' : 'Record units returned by a partner'}
+              </p>
+              <select
+                value={form.partner_id}
+                onChange={(e) => setForm({ ...form, partner_id: e.target.value })}
+                className="dashboard-select"
+              >
+                <option value="">Select partner…</option>
+                {partners.map((p) => (
+                  <option key={p.id} value={p.id}>{p.full_name || p.phone || 'Partner'}</option>
+                ))}
+              </select>
+              <div className="grid grid-cols-2 gap-2">
+                <select
+                  value={form.variant}
+                  onChange={(e) => setForm({ ...form, variant: e.target.value })}
+                  className="dashboard-select"
+                >
+                  <option value="multigrain">{VARIANTS.multigrain.short}</option>
+                  <option value="plain">{VARIANTS.plain.short}</option>
+                </select>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={form.units}
+                  onChange={(e) => setForm({ ...form, units: e.target.value.replace(/[^0-9]/g, '') })}
+                  placeholder="Units"
+                  className="dashboard-input"
+                />
+              </div>
+              {mode === 'deliver' && (
+                <p className="text-xs text-slate-400">
+                  Available {form.variant === 'plain' ? VARIANTS.plain.short : VARIANTS.multigrain.short}:{' '}
+                  {byVariant[form.variant]?.available || 0}
+                </p>
+              )}
+              {err && <p className="text-sm font-semibold text-rose-400">{err}</p>}
+              <div className="flex gap-2">
+                <button
+                  type="submit"
+                  disabled={busy}
+                  className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-[#fbf3d4] hover:bg-emerald-500 disabled:opacity-50"
+                >
+                  {busy ? '…' : mode === 'deliver' ? 'Assign' : 'Record return'}
+                </button>
+                <button
+                  type="button"
+                  onClick={resetForm}
+                  className="rounded-lg bg-slate-800 px-3 py-2 text-sm text-slate-300 hover:bg-slate-700"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      )}
+
+      {/* History */}
+      <h3 className="mb-2 text-sm font-semibold text-slate-300">History</h3>
+      {history.length === 0 ? (
+        <p className="text-sm text-slate-400">No inventory activity yet.</p>
+      ) : (
+        <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
+          {history.map((h) => {
+            const meta = ENTRY_META[h.entry_type] || { label: h.entry_type, cls: 'text-slate-300', sign: '' }
+            return (
+              <div
+                key={h.id}
+                className="flex items-start justify-between gap-3 rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2"
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-slate-100">
+                    <span className={meta.cls}>{meta.label}</span>{' '}
+                    {h.units} × {variantLabel(h.variant)}
+                    {h.partner_name ? ` · ${h.partner_name}` : ''}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {formatDateTimeDDMMYY(h.created_at)} · by {h.actor_name}
+                  </p>
+                </div>
+                <span className={`flex-shrink-0 font-mono text-sm font-semibold ${meta.cls}`}>
+                  {meta.sign}{h.units}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}

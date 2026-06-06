@@ -12,6 +12,7 @@ import { logAuditEvent, createAuditDescription } from '../lib/audit'
 import { formatDateDDMMYY, formatDateTimeDDMMYY } from '../lib/date'
 import { useAuth } from '../context/AuthContext'
 import { demoBlock, demoLeads, demoLeadSales, demoLeadTrainers, VARIANTS } from '../lib/demoData'
+import { listAgents, recordReceived } from '../lib/agentInventory'
 
 function currentTimeHHMM() {
   const d = new Date()
@@ -96,10 +97,13 @@ const STATUS_OPTIONS = [
 ]
 
 export default function Leads() {
-  const { isDemo, user } = useAuth()
+  const { isDemo, user, isAdmin } = useAuth()
   const [leads, setLeads] = useState([])
   const [sales, setSales] = useState([])
   const [trainers, setTrainers] = useState([])
+  const [agents, setAgents] = useState([])
+  // Assign modal target: 'partner' (sales row) vs 'agent' (inventory ledger).
+  const [assignTarget, setAssignTarget] = useState('partner')
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -146,6 +150,7 @@ export default function Leads() {
   })
   const [saleFormData, setSaleFormData] = useState({
     trainer_id: '',
+    agent_id: '',
     multigrain_assigned: '',
     plain_assigned: '',
     units_sold: '',
@@ -254,9 +259,18 @@ export default function Leads() {
         created_at: partner.created_at,
       }))
 
+      // Agents (salespeople/admins) available as an "assign to agent" target.
+      let agentList = []
+      try {
+        agentList = await listAgents()
+      } catch (agentErr) {
+        console.warn('Agent lookup failed:', agentErr.message)
+      }
+
       setLeads(leadsData || [])
       setSales(salesData || [])
       setTrainers(normalizedPartners)
+      setAgents(agentList)
     } catch (error) {
       console.error('Error fetching data:', error)
     } finally {
@@ -614,14 +628,41 @@ export default function Leads() {
 
   const handleSaveSale = async () => {
     if (isDemo) return demoBlock()
-    if (!saleFormData.trainer_id) {
-      alert('Please select a partner')
-      return
-    }
 
     const multigrainAssigned = parseInt(saleFormData.multigrain_assigned) || 0
     const plainAssigned = parseInt(saleFormData.plain_assigned) || 0
     const totalAssigned = multigrainAssigned + plainAssigned
+
+    // --- Assign to AGENT (admin → agent inventory ledger, never touches sales) ---
+    if (assignTarget === 'agent' && !editingSaleId) {
+      if (!saleFormData.agent_id) {
+        alert('Please select an agent')
+        return
+      }
+      if (totalAssigned <= 0) {
+        alert('Please enter at least one variant quantity')
+        return
+      }
+      try {
+        if (multigrainAssigned > 0) {
+          await recordReceived({ agentId: saleFormData.agent_id, variant: 'multigrain', units: multigrainAssigned })
+        }
+        if (plainAssigned > 0) {
+          await recordReceived({ agentId: saleFormData.agent_id, variant: 'plain', units: plainAssigned })
+        }
+        handleCloseSaleModal()
+        await fetchData()
+      } catch (error) {
+        console.error('Error assigning to agent:', error)
+        alert('Error assigning to agent: ' + error.message)
+      }
+      return
+    }
+
+    if (!saleFormData.trainer_id) {
+      alert('Please select a partner')
+      return
+    }
 
     if (totalAssigned <= 0) {
       alert('Please enter at least one variant quantity')
@@ -763,6 +804,7 @@ export default function Leads() {
 
       setSaleFormData({
         trainer_id: '',
+        agent_id: '',
         multigrain_assigned: '',
         plain_assigned: '',
         units_sold: '',
@@ -855,8 +897,10 @@ export default function Leads() {
     setEditingSaleId(null)
     setEditingSaleData(null)
     setIsDateEditable(false)
+    setAssignTarget('partner')
     setSaleFormData({
       trainer_id: '',
+      agent_id: '',
       multigrain_assigned: '',
       plain_assigned: '',
       units_sold: '',
@@ -1822,7 +1866,7 @@ export default function Leads() {
       <Modal
         isOpen={isAddSaleModalOpen}
         onClose={handleCloseSaleModal}
-        title={editingSaleId ? 'Edit Assignment' : 'Assign Unit'}
+        title={editingSaleId ? 'Edit Assignment' : assignTarget === 'agent' ? 'Assign to Agent' : 'Assign Unit'}
       >
         <form
           onSubmit={(e) => {
@@ -1830,15 +1874,49 @@ export default function Leads() {
             handleSaveSale()
           }}
         >
-          <FormField
-            label="Partner"
-            type="select"
-            value={saleFormData.trainer_id}
-            onChange={(value) => setSaleFormData({ ...saleFormData, trainer_id: value })}
-            options={trainers.map((t) => ({ value: t.id, label: t.name }))}
-            required
-          />
-          
+          {/* Target toggle (admin only): assign stock to a Partner or to an Agent */}
+          {!editingSaleId && isAdmin && (
+            <div className="mb-3 grid grid-cols-2 gap-2 rounded-lg border border-[#E8E0D4] bg-[#F0EBE3] p-1">
+              {[
+                { key: 'partner', label: 'To Partner' },
+                { key: 'agent', label: 'To Agent' },
+              ].map((opt) => (
+                <button
+                  key={opt.key}
+                  type="button"
+                  onClick={() => setAssignTarget(opt.key)}
+                  className={`rounded-md px-3 py-2 text-sm font-semibold transition ${
+                    assignTarget === opt.key
+                      ? 'bg-[#024628] text-[#FBF3D4]'
+                      : 'text-[#3C4A40] hover:bg-[#E8E0D4]'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {assignTarget === 'agent' && !editingSaleId ? (
+            <FormField
+              label="Agent"
+              type="select"
+              value={saleFormData.agent_id}
+              onChange={(value) => setSaleFormData({ ...saleFormData, agent_id: value })}
+              options={agents.map((a) => ({ value: a.id, label: a.full_name || a.phone || 'Agent' }))}
+              required
+            />
+          ) : (
+            <FormField
+              label="Partner"
+              type="select"
+              value={saleFormData.trainer_id}
+              onChange={(value) => setSaleFormData({ ...saleFormData, trainer_id: value })}
+              options={trainers.map((t) => ({ value: t.id, label: t.name }))}
+              required
+            />
+          )}
+
           {/* Per-variant assignment — either can be 0, at least one must be > 0 */}
           <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <NumberStepper
