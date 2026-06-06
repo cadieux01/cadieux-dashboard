@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { formatDateDDMMYY } from '../lib/date'
 import { useAuth } from '../context/AuthContext'
-import { demoCTAData, demoCTARetractions } from '../lib/demoData'
+import { demoCTAData, demoCTARetractions, VARIANTS } from '../lib/demoData'
 import RefreshButton from '../components/RefreshButton'
 import RefreshStatus from '../components/RefreshStatus'
 import useRefreshable from '../lib/useRefreshable'
@@ -25,6 +25,26 @@ function dayInfo(variant, hoursRemaining) {
 
 // Largest shelf life across variants — drives the "By Day" filter options.
 const MAX_SHELF_DAYS = Math.max(...Object.values(SHELF_LIFE).map((s) => s.days))
+
+// Map a free-text product_variant to a shelf-life variant key. Partner sales and
+// single-variant assignments store the full product name here.
+function variantKeyOf(productVariant) {
+  if (!productVariant) return null
+  if (productVariant === VARIANTS.multigrain.name) return 'multigrain'
+  if (productVariant === VARIANTS.plain.name) return 'plain'
+  if (/multi/i.test(productVariant)) return 'multigrain'
+  if (/plain/i.test(productVariant)) return 'plain'
+  return null
+}
+
+// Whole days between assignment and sale (assigned→sold). Sold same day = 0.
+function soldAfterDays(assignedDate, soldDate) {
+  if (!assignedDate || !soldDate) return null
+  const a = new Date(assignedDate)
+  const s = new Date(soldDate)
+  if (Number.isNaN(a.getTime()) || Number.isNaN(s.getTime())) return null
+  return Math.max(0, Math.floor((s - a) / 86400000))
+}
 
 const VARIANT_PILL = {
   multigrain: 'bg-[#024628]/40 text-[#7fe0b7] border border-[#024628]/60',
@@ -75,7 +95,7 @@ export default function CTA() {
   const [variantFilter, setVariantFilter] = useState('all')
   const [dayFilter, setDayFilter] = useState('all')
 
-  const { refresh, refreshing, lastUpdated, pullDistance } = useRefreshable(() => fetchData())
+  const { refresh, refreshing, lastUpdated, pullDistance } = useRefreshable(() => fetchData(), { auto: true })
 
   useEffect(() => { fetchData() }, [])
 
@@ -96,47 +116,44 @@ export default function CTA() {
       if (error) throw error
 
       const liveRows = (salesData || []).flatMap((sale) => {
-        const variants = []
-        const mgRemaining = (sale.multigrain_assigned || 0) - (sale.multigrain_sold || 0)
-        const plRemaining = (sale.plain_assigned || 0) - (sale.plain_sold || 0)
         const date = sale.date_of_assignment
+        if (!date) return []
         const partner = sale.trainers || {}
         const pName = partner.full_name || partner.email || `Partner ${sale.trainer_id?.slice(0, 6)}`
         const pPhone = partner.phone || partner.phone_number || ''
 
-        if (mgRemaining > 0 && date) {
-          variants.push({
-            id: `${sale.id}_mg`,
+        const makeRow = (key, assigned, sold, soldDate) => {
+          const remaining = (assigned || 0) - (sold || 0)
+          if (remaining <= 0) return null
+          return {
+            id: `${sale.id}_${key}`,
             partner_id: sale.trainer_id,
             partner_name: pName,
             partner_phone: pPhone,
-            variant: 'multigrain',
-            variant_label: 'Multi-Grain',
+            variant: key,
+            variant_label: VARIANTS[key]?.short || key,
             assigned_date: date,
-            units_assigned: sale.multigrain_assigned || 0,
-            units_sold: sale.multigrain_sold || 0,
-            units_remaining: mgRemaining,
-            status: getAssignmentStatus('multigrain', date, today),
-            hours_remaining: timeRemaining('multigrain', date, today),
-          })
+            sold_date: soldDate || null,
+            units_assigned: assigned || 0,
+            units_sold: sold || 0,
+            units_remaining: remaining,
+            status: getAssignmentStatus(key, date, today),
+            hours_remaining: timeRemaining(key, date, today),
+          }
         }
-        if (plRemaining > 0 && date) {
-          variants.push({
-            id: `${sale.id}_pl`,
-            partner_id: sale.trainer_id,
-            partner_name: pName,
-            partner_phone: pPhone,
-            variant: 'plain',
-            variant_label: 'Plain',
-            assigned_date: date,
-            units_assigned: sale.plain_assigned || 0,
-            units_sold: sale.plain_sold || 0,
-            units_remaining: plRemaining,
-            status: getAssignmentStatus('plain', date, today),
-            hours_remaining: timeRemaining('plain', date, today),
-          })
-        }
-        return variants
+
+        // Sale rows + single-variant assignments carry the variant in
+        // product_variant and use the generic units_assigned/units_sold columns
+        // (the same source the Overview reads). Multi-variant assignments instead
+        // carry a multigrain_assigned/plain_assigned split with no product_variant.
+        const pvKey = variantKeyOf(sale.product_variant)
+        const variants = pvKey
+          ? [makeRow(pvKey, sale.units_assigned, sale.units_sold, sale.purchase_date)]
+          : [
+              makeRow('multigrain', sale.multigrain_assigned, 0, sale.purchase_date),
+              makeRow('plain', sale.plain_assigned, 0, sale.purchase_date),
+            ]
+        return variants.filter(Boolean)
       })
 
       setRows(liveRows)
@@ -320,6 +337,14 @@ function AssignmentCard({ row, cfg, onNavigate }) {
   const { total: daysTotal, day, daysLeft, pctUsed, lastDay } = dayInfo(row.variant, row.hours_remaining)
   const expired = row.status === 'expired'
 
+  // Sell-speed: how fast the sold units moved, from assigned→sold timestamps
+  // (date_of_assignment → purchase_date). Sold within 2 days (before day 3) is
+  // safe/green; day 3 or later reuses the existing amber "About to Expire" style.
+  const soldDays = row.units_sold > 0 ? soldAfterDays(row.assigned_date, row.sold_date) : null
+  const speedCfg = soldDays === null
+    ? null
+    : soldDays < 2 ? STATUS_CONFIG.active : STATUS_CONFIG.expiring_soon
+
   return (
     <div
       onClick={onNavigate}
@@ -360,11 +385,17 @@ function AssignmentCard({ row, cfg, onNavigate }) {
 
       {/* Partner */}
       <p className="font-semibold text-slate-100">{row.partner_name}</p>
-      <div className="mt-0.5 flex items-center gap-2">
+      <div className="mt-0.5 flex flex-wrap items-center gap-2">
         <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${VARIANT_PILL[row.variant]}`}>
           {row.variant_label}
         </span>
         <span className="text-xs text-slate-500">{daysTotal}d shelf life</span>
+        {speedCfg && (
+          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${speedCfg.badge}`}>
+            <span className={`h-1.5 w-1.5 rounded-full ${speedCfg.dot}`} />
+            Sold in {soldDays === 0 ? 'under a day' : `${soldDays} day${soldDays !== 1 ? 's' : ''}`}
+          </span>
+        )}
       </div>
 
       {/* Stats */}

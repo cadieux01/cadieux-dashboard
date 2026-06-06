@@ -1081,11 +1081,11 @@ export function demoVariantDetail(variantKey, { range = 'all' } = {}) {
 //   daysAgo(7+)  → both expired
 const CTA_ASSIGNMENTS = [
   // Active — multigrain
-  { id: 'ca1', partner_id: 'p1', variant: 'multigrain', assigned: 10, sold: 3, date: daysAgo(0) },
-  { id: 'ca2', partner_id: 'p2', variant: 'multigrain', assigned:  8, sold: 2, date: daysAgo(1) },
+  { id: 'ca1', partner_id: 'p1', variant: 'multigrain', assigned: 10, sold: 3, date: daysAgo(0), sold_date: daysAgo(0) },
+  { id: 'ca2', partner_id: 'p2', variant: 'multigrain', assigned:  8, sold: 2, date: daysAgo(1), sold_date: daysAgo(0) },
   // Active — plain
-  { id: 'ca3', partner_id: 'p3', variant: 'plain',      assigned: 12, sold: 5, date: daysAgo(1) },
-  { id: 'ca4', partner_id: 'p4', variant: 'plain',      assigned: 10, sold: 4, date: daysAgo(3) },
+  { id: 'ca3', partner_id: 'p3', variant: 'plain',      assigned: 12, sold: 5, date: daysAgo(1), sold_date: daysAgo(0) },
+  { id: 'ca4', partner_id: 'p4', variant: 'plain',      assigned: 10, sold: 4, date: daysAgo(3), sold_date: daysAgo(0) },
   // Expiring soon — multigrain (2 days elapsed → ~24h left)
   { id: 'ca5', partner_id: 'p5', variant: 'multigrain', assigned:  6, sold: 1, date: daysAgo(2) },
   { id: 'ca6', partner_id: 'p6', variant: 'multigrain', assigned:  9, sold: 3, date: daysAgo(2) },
@@ -1117,6 +1117,7 @@ export function demoCTAData() {
       variant: a.variant,
       variant_label: VARIANTS[a.variant]?.short || a.variant,
       assigned_date: a.date,
+      sold_date: a.sold_date || null,
       units_assigned: a.assigned,
       units_sold: a.sold,
       units_remaining: a.assigned - a.sold,
