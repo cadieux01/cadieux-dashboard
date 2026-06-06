@@ -17,7 +17,13 @@ import RefreshStatus from '../components/RefreshStatus'
 import useRefreshable from '../lib/useRefreshable'
 import { useAuth } from '../context/AuthContext'
 import DEMO_DATA, { demoBlock, PARTNER_TYPES, PARTNER_TYPE_LABELS, PARTNER_TYPE_PILL } from '../lib/demoData'
-import { Eye, Pencil, Phone, Send } from 'lucide-react'
+import { Eye, Pencil, Phone, Send, Package } from 'lucide-react'
+import {
+  WORKFLOW_VARIANT_OPTIONS,
+  variantLabel,
+  createAssignment,
+  listSalespeople,
+} from '../lib/partnerWorkflow'
 
 // A partner's "display phone" is either the dedicated `phone` column or the
 // digits embedded in the synthetic `<digits>@cadieux.partner` auth email.
@@ -29,7 +35,7 @@ function partnerPhone(p) {
 }
 
 export default function Partners() {
-  const { isDemo } = useAuth()
+  const { isDemo, isAdmin, profile } = useAuth()
   const navigate = useNavigate()
   const [partners, setPartners] = useState([])
   const [stats, setStats] = useState({})
@@ -46,6 +52,11 @@ export default function Partners() {
   const [highlightId, setHighlightId] = useState(null)
   const [detailUser, setDetailUser] = useState(null)
   const [detailMode, setDetailMode] = useState('view')
+  // Proactive "Assign stock" modal (admin/sales → creates a partner_assignment).
+  const [assignPartner, setAssignPartner] = useState(null)
+  const [assignForm, setAssignForm] = useState({ variant: 'multigrain', units: '', salesperson_id: '' })
+  const [assignSaving, setAssignSaving] = useState(false)
+  const [salespeople, setSalespeople] = useState([])
   const rowRefs = useRef({})
 
   const partnerStat = (p) => stats[p.id] || { assigned: 0, sold: 0, retracted: 0 }
@@ -393,11 +404,52 @@ export default function Partners() {
     setDetailMode(mode)
   }
 
+  const openAssign = async (partner) => {
+    setAssignForm({ variant: 'multigrain', units: '', salesperson_id: '' })
+    setAssignPartner(partner)
+    if (isAdmin && salespeople.length === 0) {
+      try { setSalespeople(await listSalespeople()) } catch { /* picker optional */ }
+    }
+  }
+
+  const submitAssign = async () => {
+    if (isDemo) { demoBlock('Assigning stock'); return }
+    const units = parseInt(assignForm.units, 10) || 0
+    if (units < 1) return
+    const salespersonId = isAdmin ? assignForm.salesperson_id : profile.id
+    if (!salespersonId) return
+    setAssignSaving(true)
+    try {
+      await createAssignment({
+        partnerId: assignPartner.id,
+        salespersonId,
+        variant: assignForm.variant,
+        units,
+        sourceRequestId: null,
+        assignedBy: profile.id,
+      })
+      setBanner({ type: 'success', message: `Assigned ${units} × ${variantLabel(assignForm.variant)} to ${assignPartner.full_name || 'partner'}.` })
+      setAssignPartner(null)
+    } catch (err) {
+      console.error('createAssignment failed:', err)
+      setBanner({ type: 'error', message: err.message || 'Could not create assignment.' })
+    } finally {
+      setAssignSaving(false)
+    }
+  }
+
   const rowActions = (partner) => {
     const status = partner.status || 'active'
     const busy = busyId === partner.id
     return (
       <div className="flex items-center justify-end gap-2">
+        <button
+          onClick={() => openAssign(partner)}
+          title="Assign stock"
+          className="inline-flex items-center justify-center rounded bg-[#024628]/10 px-2 py-1.5 text-[#024628] transition-colors hover:bg-[#024628]/20"
+        >
+          <Package size={16} />
+        </button>
         <a
           href={`tel:${partnerPhone(partner)}`}
           title="Call partner"
@@ -774,6 +826,64 @@ export default function Partners() {
           onClose={() => setShareData(null)}
         />
       )}
+
+      <Modal isOpen={!!assignPartner} onClose={() => setAssignPartner(null)} title="Assign stock">
+        {assignPartner && (
+          <div>
+            <p className="mb-3 text-sm text-slate-300">
+              Assigning to <span className="font-semibold text-slate-100">{assignPartner.full_name || 'partner'}</span>.
+            </p>
+            <div className="mb-3">
+              <label className="mb-1 block text-xs font-semibold text-slate-300">Variant</label>
+              <select
+                value={assignForm.variant}
+                onChange={(e) => setAssignForm((f) => ({ ...f, variant: e.target.value }))}
+                className="dashboard-select"
+              >
+                {WORKFLOW_VARIANT_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="mb-3">
+              <label className="mb-1 block text-xs font-semibold text-slate-300">Units</label>
+              <input
+                type="number"
+                min={1}
+                value={assignForm.units}
+                onChange={(e) => setAssignForm((f) => ({ ...f, units: e.target.value }))}
+                placeholder="How many units?"
+                className="dashboard-input"
+              />
+            </div>
+            {isAdmin && (
+              <div className="mb-4">
+                <label className="mb-1 block text-xs font-semibold text-slate-300">Salesperson</label>
+                <select
+                  value={assignForm.salesperson_id}
+                  onChange={(e) => setAssignForm((f) => ({ ...f, salesperson_id: e.target.value }))}
+                  className="dashboard-select"
+                >
+                  <option value="">Select salesperson</option>
+                  {salespeople.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.full_name || s.phone || s.id}{s.role === 'admin' ? ' (admin)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={submitAssign}
+              disabled={assignSaving || (parseInt(assignForm.units, 10) || 0) < 1 || (isAdmin && !assignForm.salesperson_id)}
+              className="w-full rounded-xl bg-[#024628] px-4 py-2.5 text-sm font-semibold text-[#fbf3d4] transition hover:bg-[#035c36] disabled:opacity-50"
+            >
+              {assignSaving ? 'Assigning…' : 'Confirm assignment'}
+            </button>
+          </div>
+        )}
+      </Modal>
 
       <RefreshStatus pullDistance={pullDistance} refreshing={refreshing} at={lastUpdated} onRefresh={refresh} />
     </div>
