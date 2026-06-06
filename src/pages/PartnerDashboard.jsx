@@ -67,14 +67,25 @@ function QuantityStepper({ value, available, onChange }) {
 }
 
 const VARIANTS = {
-  multigrain: { name: 'Multi-Grain High Protein Bread', price: 149 },
-  plain: { name: 'Plain High Protein Bread', price: 109 },
+  multigrain: { name: 'Multi-Grain High Protein Bread', short: 'Multigrain', price: 149 },
+  plain: { name: 'Plain High Protein Bread', short: 'Plain', price: 109 },
 }
 
-const VARIANT_OPTIONS = [
-  { value: 'multigrain', label: 'Multi-Grain High Protein Bread — ₹149' },
-  { value: 'plain', label: 'Plain High Protein Bread — ₹109' },
-]
+// A fresh, empty "Add Customer" form. Supports selecting BOTH variants on one
+// entry: mg_selected/pl_selected toggle the chips, mg_units/pl_units hold each
+// variant's count. On submit we write one sales row per selected variant
+// (see handleSaveCustomer) so existing per-variant reporting stays correct.
+const emptyCustomerForm = () => ({
+  buyer_name: '',
+  buyer_contact: '',
+  mg_selected: false,
+  pl_selected: false,
+  mg_units: '',
+  pl_units: '',
+  purchase_date: new Date().toISOString().split('T')[0],
+  notes: '',
+  picture_file: null,
+})
 
 // Resolve a stored variant (by key or by saved name) back to its definition.
 const variantFromSale = (sale) => {
@@ -105,15 +116,7 @@ export default function PartnerDashboard() {
   const [isQRModalOpen, setIsQRModalOpen] = useState(false)
   const [qrImageUrl, setQrImageUrl] = useState(null)
   const [editingSaleId, setEditingSaleId] = useState(null)
-  const [customerFormData, setCustomerFormData] = useState({
-    buyer_name: '',
-    buyer_contact: '',
-    product_variant: '',
-    units_purchased: '',
-    purchase_date: new Date().toISOString().split('T')[0],
-    notes: '',
-    picture_file: null,
-  })
+  const [customerFormData, setCustomerFormData] = useState(emptyCustomerForm())
   const [formErrors, setFormErrors] = useState({})
   const [isDateEditable, setIsDateEditable] = useState(false)
   const [isFabExpanded, setIsFabExpanded] = useState(false)
@@ -129,9 +132,11 @@ export default function PartnerDashboard() {
     { auto: true, intervalMs: 8000 },
   )
 
-  const selectedVariant = VARIANTS[customerFormData.product_variant] || null
-  const previewUnits = parseInt(customerFormData.units_purchased) || 0
-  const previewRevenue = selectedVariant ? selectedVariant.price * previewUnits : 0
+  const mgUnits = parseInt(customerFormData.mg_units) || 0
+  const plUnits = parseInt(customerFormData.pl_units) || 0
+  const previewRevenue =
+    (customerFormData.mg_selected ? mgUnits * VARIANTS.multigrain.price : 0) +
+    (customerFormData.pl_selected ? plUnits * VARIANTS.plain.price : 0)
 
   const quickMgUnits = parseInt(quickSaleData.mg_units) || 0
   const quickPlUnits = parseInt(quickSaleData.plain_units) || 0
@@ -153,19 +158,23 @@ export default function PartnerDashboard() {
     if (contact && !/^\d{10}$/.test(contact)) {
       errors.buyer_contact = 'Enter a valid 10-digit number.'
     }
-    if (!customerFormData.product_variant) {
-      errors.product_variant = 'Please select a product variant.'
+    if (!customerFormData.mg_selected && !customerFormData.pl_selected) {
+      errors.variants = 'Please select at least one product variant.'
     }
-    if (previewUnits < 1) {
-      errors.units_purchased = 'Units must be at least 1.'
+    if (customerFormData.mg_selected && mgUnits < 1) {
+      errors.mg_units = 'Enter Multigrain units (at least 1).'
+    }
+    if (customerFormData.pl_selected && plUnits < 1) {
+      errors.pl_units = 'Enter Plain units (at least 1).'
     }
     return errors
   }
 
   const isCustomerFormValid =
     customerFormData.buyer_name.trim().length >= 2 &&
-    !!customerFormData.product_variant &&
-    previewUnits >= 1 &&
+    (customerFormData.mg_selected || customerFormData.pl_selected) &&
+    (!customerFormData.mg_selected || mgUnits >= 1) &&
+    (!customerFormData.pl_selected || plUnits >= 1) &&
     (!customerFormData.buyer_contact.trim() || /^\d{10}$/.test(customerFormData.buyer_contact.trim()))
 
   useEffect(() => {
@@ -259,12 +268,19 @@ export default function PartnerDashboard() {
       const currentTrainerId = trainerId || user.id
       setTrainerId(currentTrainerId)
 
-      const unitsPurchased = parseInt(customerFormData.units_purchased) || 0
-      const variant = VARIANTS[customerFormData.product_variant]
-      const unitPrice = variant?.price || 0
-      const revenue = unitPrice * unitsPurchased
+      // Selected variants → one line item each (units + its own price). The
+      // partner can pick Multigrain, Plain, or BOTH on a single entry.
+      const lines = []
+      if (customerFormData.mg_selected && mgUnits > 0) {
+        lines.push({ variant: VARIANTS.multigrain, units: mgUnits })
+      }
+      if (customerFormData.pl_selected && plUnits > 0) {
+        lines.push({ variant: VARIANTS.plain, units: plUnits })
+      }
+      if (lines.length === 0) return
+      const totalRevenue = lines.reduce((s, l) => s + l.units * l.variant.price, 0)
 
-      // Upload picture if provided
+      // Upload picture if provided (shared across the variant rows)
       let pictureUrl = null
       if (customerFormData.picture_file) {
         const fileExt = customerFormData.picture_file.name.split('.').pop()
@@ -288,34 +304,37 @@ export default function PartnerDashboard() {
         pictureUrl = urlData?.publicUrl
       }
 
-      // Prepare update/insert payload - only include fields that exist
-      const salePayload = {
+      // Fields shared by every row (buyer + optional metadata).
+      const basePayload = {
         buyer_name: customerFormData.buyer_name,
         buyer_contact: customerFormData.buyer_contact,
-        units_sold: unitsPurchased,
-        product_variant: variant?.name || null,
-        unit_price: unitPrice,
       }
-
-      // Add optional fields if they have values
       if (customerFormData.purchase_date) {
-        salePayload.purchase_date = customerFormData.purchase_date
+        basePayload.purchase_date = customerFormData.purchase_date
       }
       if (customerFormData.notes) {
-        salePayload.customer_notes = customerFormData.notes
+        basePayload.customer_notes = customerFormData.notes
       }
       if (pictureUrl) {
-        salePayload.picture_url = pictureUrl
+        basePayload.picture_url = pictureUrl
       }
 
       if (editingSaleId) {
-        // Get old values for audit
+        // Editing is a single-row update — edit mode is single-variant (the
+        // chips enforce one selection), so update that one sale row in place.
+        const line = lines[0]
         const oldSale = sales.find(s => s.id === editingSaleId)
 
-        // Update existing sale
+        const updatePayload = {
+          ...basePayload,
+          units_sold: line.units,
+          product_variant: line.variant.name,
+          unit_price: line.variant.price,
+        }
+
         const { error } = await supabase
           .from('sales')
-          .update(salePayload)
+          .update(updatePayload)
           .eq('id', editingSaleId)
 
         if (error) {
@@ -328,7 +347,7 @@ export default function PartnerDashboard() {
           actionType: 'UPDATE',
           entityType: 'sale',
           entityId: editingSaleId,
-          description: `Updated customer sale: ${customerFormData.buyer_name || 'Unknown'} | ${variant?.name || 'N/A'} | ${unitsPurchased} units | ₹${revenue}`,
+          description: `Updated customer sale: ${customerFormData.buyer_name || 'Unknown'} | ${line.variant.name} | ${line.units} units | ₹${line.units * line.variant.price}`,
           oldValues: oldSale ? {
             buyer_name: oldSale.buyer_name,
             buyer_contact: oldSale.buyer_contact,
@@ -336,32 +355,37 @@ export default function PartnerDashboard() {
             purchase_date: oldSale.purchase_date,
             customer_notes: oldSale.customer_notes,
           } : null,
-          newValues: salePayload,
+          newValues: updatePayload,
         })
       } else {
-        // Create new sale
+        // Create new sale — one row per selected variant (mirrors Quick Sale),
+        // so existing per-variant Sold/Left + revenue reporting stays correct.
         if (!currentTrainerId) {
           alert('Partner profile not found. Please contact admin.')
           return
         }
 
-        const insertPayload = {
-          ...salePayload,
+        const today = new Date().toISOString().split('T')[0]
+        const rows = lines.map((l) => ({
+          ...basePayload,
           trainer_id: currentTrainerId,
-          units_assigned: unitsPurchased,
-          date_of_assignment: customerFormData.purchase_date || new Date().toISOString().split('T')[0],
-        }
+          units_sold: l.units,
+          units_assigned: l.units,
+          product_variant: l.variant.name,
+          unit_price: l.variant.price,
+          date_of_assignment: customerFormData.purchase_date || today,
+        }))
 
         const { error, data } = await supabase
           .from('sales')
-          .insert(insertPayload)
+          .insert(rows)
           .select()
 
         if (error) {
           console.error('Insert error:', error)
           console.error('Trainer ID:', currentTrainerId)
           console.error('Profile:', profile)
-          console.error('Payload:', insertPayload)
+          console.error('Payload:', rows)
 
           // Provide more helpful error message
           if (error.message && error.message.includes('customer_notes')) {
@@ -378,21 +402,13 @@ export default function PartnerDashboard() {
           actionType: 'CREATE',
           entityType: 'sale',
           entityId: data?.[0]?.id || null,
-          description: `Created customer sale: ${customerFormData.buyer_name || 'Unknown'} | ${variant?.name || 'N/A'} | ${unitsPurchased} units | ₹${revenue}`,
-          newValues: insertPayload,
+          description: `Created customer sale: ${customerFormData.buyer_name || 'Unknown'} | ${lines.map((l) => `${l.units}×${l.variant.short}`).join(' + ')} | ₹${totalRevenue}`,
+          newValues: { rows },
         })
       }
 
       // Reset form and refresh
-      setCustomerFormData({
-        buyer_name: '',
-        buyer_contact: '',
-        product_variant: '',
-        units_purchased: '',
-        purchase_date: new Date().toISOString().split('T')[0],
-        notes: '',
-        picture_file: null,
-      })
+      setCustomerFormData(emptyCustomerForm())
       setEditingSaleId(null)
       setIsDateEditable(false)
       setIsCustomerModalOpen(false)
@@ -479,14 +495,17 @@ export default function PartnerDashboard() {
       sale.product_variant && VARIANTS[sale.product_variant]
         ? sale.product_variant
         : Object.keys(VARIANTS).find((k) => VARIANTS[k].name === sale.product_variant) || ''
+    const units = sale.units_sold?.toString() || ''
     setCustomerFormData({
+      ...emptyCustomerForm(),
       buyer_name: sale.buyer_name || '',
       buyer_contact: sale.buyer_contact || '',
-      product_variant: variantKey,
-      units_purchased: sale.units_sold?.toString() || '',
+      mg_selected: variantKey === 'multigrain',
+      pl_selected: variantKey === 'plain',
+      mg_units: variantKey === 'multigrain' ? units : '',
+      pl_units: variantKey === 'plain' ? units : '',
       purchase_date: sale.purchase_date || new Date().toISOString().split('T')[0],
       notes: sale.customer_notes || '',
-      picture_file: null,
     })
     setFormErrors({})
     setIsDateEditable(false)
@@ -531,15 +550,7 @@ export default function PartnerDashboard() {
       })
 
       // Reset form and close modal
-      setCustomerFormData({
-        buyer_name: '',
-        buyer_contact: '',
-        product_variant: '',
-        units_purchased: '',
-        purchase_date: new Date().toISOString().split('T')[0],
-        notes: '',
-        picture_file: null,
-      })
+      setCustomerFormData(emptyCustomerForm())
       setEditingSaleId(null)
       setIsDateEditable(false)
       setIsCustomerModalOpen(false)
@@ -996,15 +1007,7 @@ export default function PartnerDashboard() {
               onClick={() => {
                 setIsFabExpanded(false)
                 setEditingSaleId(null)
-                setCustomerFormData({
-                  buyer_name: '',
-                  buyer_contact: '',
-                  product_variant: '',
-                  units_purchased: '',
-                  purchase_date: new Date().toISOString().split('T')[0],
-                  notes: '',
-                  picture_file: null,
-                })
+                setCustomerFormData(emptyCustomerForm())
                 setFormErrors({})
                 setIsDateEditable(false)
                 setIsCustomerModalOpen(true)
@@ -1050,15 +1053,7 @@ export default function PartnerDashboard() {
         onClose={() => {
           setIsCustomerModalOpen(false)
           setEditingSaleId(null)
-          setCustomerFormData({
-            buyer_name: '',
-            buyer_contact: '',
-            product_variant: '',
-            units_purchased: '',
-            purchase_date: new Date().toISOString().split('T')[0],
-            notes: '',
-            picture_file: null,
-          })
+          setCustomerFormData(emptyCustomerForm())
           setFormErrors({})
           setIsDateEditable(false)
         }}
@@ -1089,26 +1084,77 @@ export default function PartnerDashboard() {
             error={formErrors.buyer_contact}
           />
 
-          <FormField
-            label="Product Variant"
-            type="select"
-            value={customerFormData.product_variant}
-            onChange={(value) => setCustomerFormData({ ...customerFormData, product_variant: value })}
-            options={VARIANT_OPTIONS}
-            required
-            error={formErrors.product_variant}
-          />
+          <div className="mb-4">
+            <label className="block text-sm font-semibold text-slate-300 mb-2">
+              Product Variant <span className="text-rose-300">*</span>
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { key: 'multigrain', sel: 'mg_selected' },
+                { key: 'plain', sel: 'pl_selected' },
+              ].map(({ key, sel }) => {
+                const variant = VARIANTS[key]
+                const active = customerFormData[sel]
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() =>
+                      setCustomerFormData((prev) =>
+                        editingSaleId
+                          ? {
+                              ...prev,
+                              mg_selected: key === 'multigrain',
+                              pl_selected: key === 'plain',
+                            }
+                          : { ...prev, [sel]: !prev[sel] },
+                      )
+                    }
+                    aria-pressed={active}
+                    className={`rounded-xl border px-3 py-3 text-left transition ${
+                      active
+                        ? 'border-[#024628] bg-[#024628] text-[#fbf3d4] shadow-sm'
+                        : 'border-slate-300 bg-white text-slate-700 hover:border-[#024628]'
+                    }`}
+                  >
+                    <div className="text-sm font-semibold">{variant.short}</div>
+                    <div className={`text-xs ${active ? 'text-[#fbf3d4]/80' : 'text-slate-500'}`}>
+                      ₹{variant.price}/unit
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+            {formErrors.variants && (
+              <p className="mt-1.5 text-xs text-rose-400">{formErrors.variants}</p>
+            )}
+          </div>
 
-          <FormField
-            label="Units Purchased"
-            type="number"
-            value={customerFormData.units_purchased}
-            onChange={(value) => setCustomerFormData({ ...customerFormData, units_purchased: value })}
-            placeholder="Enter units purchased"
-            required
-            minLength={1}
-            error={formErrors.units_purchased}
-          />
+          {customerFormData.mg_selected && (
+            <FormField
+              label="Multigrain units"
+              type="number"
+              value={customerFormData.mg_units}
+              onChange={(value) => setCustomerFormData({ ...customerFormData, mg_units: value })}
+              placeholder="Enter Multigrain units"
+              required
+              minLength={1}
+              error={formErrors.mg_units}
+            />
+          )}
+
+          {customerFormData.pl_selected && (
+            <FormField
+              label="Plain units"
+              type="number"
+              value={customerFormData.pl_units}
+              onChange={(value) => setCustomerFormData({ ...customerFormData, pl_units: value })}
+              placeholder="Enter Plain units"
+              required
+              minLength={1}
+              error={formErrors.pl_units}
+            />
+          )}
 
           <div className="mb-4">
             <label className="block text-sm font-semibold text-slate-300 mb-2">
@@ -1118,8 +1164,17 @@ export default function PartnerDashboard() {
               ₹{previewRevenue.toLocaleString()}
             </div>
             <p className="mt-1.5 text-xs text-slate-500">
-              {selectedVariant
-                ? `${previewUnits || 0} × ₹${selectedVariant.price} (auto-calculated)`
+              {customerFormData.mg_selected || customerFormData.pl_selected
+                ? [
+                    customerFormData.mg_selected
+                      ? `${mgUnits} × ₹${VARIANTS.multigrain.price}`
+                      : null,
+                    customerFormData.pl_selected
+                      ? `${plUnits} × ₹${VARIANTS.plain.price}`
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' + ') + ' (auto-calculated)'
                 : 'Select a variant and units to calculate revenue'}
             </p>
           </div>
