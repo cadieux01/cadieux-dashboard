@@ -182,6 +182,19 @@ export async function listSupply() {
   }))
 }
 
+// A partner's own assignments (stock delivered to them by an agent/admin).
+// RLS scopes the result to partner_id = auth.uid() for a partner. Used by the
+// partner Home to compute available stock (delivered − sold).
+export async function listMyAssignments(partnerId) {
+  const { data, error } = await supabase
+    .from('partner_assignments')
+    .select('*')
+    .eq('partner_id', partnerId)
+    .order('assigned_at', { ascending: false })
+  if (error) throw error
+  return data || []
+}
+
 // --- Assignments ------------------------------------------------------------
 
 // Create an assignment (admin/sales). sourceRequestId links it back to the

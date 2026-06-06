@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useRef } from 'react'
+import { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { logAuditEvent } from '../lib/audit'
 import { isDemoMode, getDemoAuth, clearDemoSession } from '../lib/demoData'
@@ -30,6 +30,7 @@ export function AuthProvider({ children }) {
         loading: false,
         signIn: async () => ({ data: { user: {} }, error: null }),
         signOut: async () => ({ error: null }),
+        refreshProfile: async () => {},
       }}>
         {children}
       </AuthContext.Provider>
@@ -239,6 +240,60 @@ export function AuthProvider({ children }) {
     }
   }
 
+  // Re-read the caller's own profile row and update the cached copy if a
+  // material field changed. This is how an approved name/phone change request
+  // (applied by the approver to the canonical logistics.profiles row) becomes
+  // visible to the requester everywhere — sidebar, profile page, etc. — without
+  // a manual reload. We only swap state when something actually changed so the
+  // profile object reference stays stable and doesn't churn dependent effects.
+  const refreshProfile = useCallback(async () => {
+    if (isDemo) return
+    const uid = currentUserIdRef.current
+    if (!uid) return
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', uid)
+        .single()
+      if (error || !data) return
+      const prev = profileRef.current
+      if (
+        !prev ||
+        prev.full_name !== data.full_name ||
+        prev.phone !== data.phone ||
+        prev.email !== data.email ||
+        prev.role !== data.role
+      ) {
+        profileRef.current = data
+        setProfile(data)
+      }
+    } catch {
+      /* transient — next tick will retry */
+    }
+  }, [isDemo])
+
+  // Keep the cached profile live (visible-tab poll + focus). Cheap single-row
+  // lookup, so an approved change reflects within a few seconds on any page.
+  useEffect(() => {
+    if (isDemo) return
+    const tick = () => {
+      if (typeof document !== 'undefined' && document.hidden) return
+      if (!currentUserIdRef.current) return
+      refreshProfile()
+    }
+    const onFocus = () => tick()
+    const onVisible = () => { if (document.visibilityState === 'visible') tick() }
+    const id = setInterval(tick, 10000)
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      clearInterval(id)
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [isDemo, refreshProfile])
+
   const signIn = async (email, password) => {
     try {
       const signInPromise = supabase.auth.signInWithPassword({ email, password })
@@ -309,6 +364,7 @@ export function AuthProvider({ children }) {
     isDemo,
     signIn,
     signOut,
+    refreshProfile,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

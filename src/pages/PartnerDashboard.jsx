@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Plus, X, UserPlus, ShoppingCart } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
@@ -11,6 +11,7 @@ import useRefreshable from '../lib/useRefreshable'
 import { logAuditEvent } from '../lib/audit'
 import { formatDateDDMMYY } from '../lib/date'
 import { demoBlock, demoPartnerSales } from '../lib/demoData'
+import { listMyAssignments, listMyRequests } from '../lib/partnerWorkflow'
 import {
   SHELF_LIFE,
   shelfDay,
@@ -93,10 +94,13 @@ const saleRevenue = (sale) => {
 }
 
 export default function PartnerDashboard() {
-  const { profile, isDemo } = useAuth()
+  const { profile, isDemo, refreshProfile } = useAuth()
   const [loading, setLoading] = useState(true)
   const [sales, setSales] = useState([])
+  const [assignments, setAssignments] = useState([])
+  const [requests, setRequests] = useState([])
   const [trainerId, setTrainerId] = useState(null)
+  const initialLoadDoneRef = useRef(false)
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false)
   const [isQRModalOpen, setIsQRModalOpen] = useState(false)
   const [qrImageUrl, setQrImageUrl] = useState(null)
@@ -116,7 +120,14 @@ export default function PartnerDashboard() {
   const [isQuickSaleOpen, setIsQuickSaleOpen] = useState(false)
   const [quickSaleData, setQuickSaleData] = useState(QUICK_SALE_DEFAULTS)
   const [quickToast, setQuickToast] = useState(null)
-  const { refresh, refreshing, lastUpdated, pullDistance } = useRefreshable(() => fetchTrainerAndSales())
+  // Live Home: auto-refetch on focus/visibility + a short poll so an accepted
+  // request or a changed assignment status from an agent shows up on its own,
+  // without a manual reload (Supabase realtime is not enabled on the logistics
+  // tables, so we poll). Also re-reads the profile each tick for live name/phone.
+  const { refresh, refreshing, lastUpdated, pullDistance } = useRefreshable(
+    () => fetchTrainerAndSales(),
+    { auto: true, intervalMs: 8000 },
+  )
 
   const selectedVariant = VARIANTS[customerFormData.product_variant] || null
   const previewUnits = parseInt(customerFormData.units_purchased) || 0
@@ -165,11 +176,16 @@ export default function PartnerDashboard() {
     if (isDemo) {
       setTrainerId('demo-partner-id')
       setSales(demoPartnerSales())
+      setAssignments([])
+      setRequests([])
+      initialLoadDoneRef.current = true
       setLoading(false)
       return
     }
     try {
-      setLoading(true)
+      // Only the very first load shows the full-page spinner; background polls
+      // refresh silently (the RefreshButton/status indicator covers those).
+      if (!initialLoadDoneRef.current) setLoading(true)
       // Get current user
       const { data: { user } } = await supabase.auth.getUser()
       if (!user || !profile) return
@@ -177,9 +193,30 @@ export default function PartnerDashboard() {
       // sales.trainer_id now points to profiles.id (partner id)
       setTrainerId(user.id)
       await fetchSales(user.id)
+      await fetchPartnerOrders(user.id)
+      // Keep the partner's own name/phone live too (Change 3 behaviour).
+      await refreshProfile()
     } catch (error) {
       console.error('Error fetching trainer and sales:', error)
+    } finally {
+      initialLoadDoneRef.current = true
       setLoading(false)
+    }
+  }
+
+  // Stock delivered to this partner (partner_assignments) + their open orders
+  // (partner_requests). Agent deliveries write partner_assignments, not sales,
+  // so available stock must include them.
+  const fetchPartnerOrders = async (tid) => {
+    try {
+      const [asg, reqs] = await Promise.all([
+        listMyAssignments(tid),
+        listMyRequests(tid),
+      ])
+      setAssignments(asg)
+      setRequests(reqs)
+    } catch (error) {
+      console.error('Error fetching partner orders:', error)
     }
   }
 
@@ -614,6 +651,34 @@ export default function PartnerDashboard() {
     }
   }, [sales])
 
+  // Units delivered to this partner via the agent/admin workflow
+  // (partner_assignments). 'pending' = delivered but not yet confirmed,
+  // 'confirmed' = receipt confirmed — both are stock the partner holds.
+  const deliveredViaAssignments = useMemo(
+    () =>
+      assignments
+        .filter((a) => a.status === 'pending' || a.status === 'confirmed')
+        .reduce((sum, a) => sum + (a.units || 0), 0),
+    [assignments],
+  )
+
+  // Available = everything delivered to the partner (legacy sales *_assigned
+  // rows + partner_assignments) minus everything they've sold (sales.units_sold,
+  // i.e. summary.totalUnits). Reuses the dashboard's existing remaining/unsold
+  // math and just adds partner_assignments as a second delivery source.
+  const availableUnits = useMemo(() => {
+    const assignedFromSales =
+      summary.variants.multigrain.assigned + summary.variants.plain.assigned
+    return Math.max(0, assignedFromSales + deliveredViaAssignments - summary.totalUnits)
+  }, [summary, deliveredViaAssignments])
+
+  // Active/open orders = the partner's requests not yet fully delivered
+  // (displayStatus is 'pending' | 'accepted' | 'delivered').
+  const activeOrders = useMemo(
+    () => requests.filter((r) => r.displayStatus !== 'delivered').length,
+    [requests],
+  )
+
   if (loading) {
     return (
       <div className="dashboard-page flex min-h-screen items-center justify-center">
@@ -640,6 +705,39 @@ export default function PartnerDashboard() {
                 ? `${summary.completedSales} done`
                 : 'None yet'}
             </p>
+          </div>
+        </div>
+
+        {/* Headline figures — what the partner most needs at a glance */}
+        <div className="mb-4 grid grid-cols-2 gap-3">
+          <div
+            className="rounded-2xl border p-5 shadow-sm"
+            style={{ backgroundColor: '#024628', borderColor: '#024628' }}
+          >
+            <p
+              className="text-[11px] font-semibold uppercase tracking-[0.18em]"
+              style={{ color: '#FBF3D4' }}
+            >
+              Available Units
+            </p>
+            <p
+              className="mt-1 font-display text-5xl font-extrabold leading-none sm:text-6xl"
+              style={{ color: '#FBF3D4' }}
+            >
+              {availableUnits.toLocaleString()}
+            </p>
+            <p className="mt-2 text-xs" style={{ color: 'rgba(251,243,212,0.75)' }}>
+              to sell right now
+            </p>
+          </div>
+          <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-sm">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700">
+              Active Orders
+            </p>
+            <p className="mt-1 font-display text-5xl font-extrabold leading-none text-slate-100 sm:text-6xl">
+              {activeOrders.toLocaleString()}
+            </p>
+            <p className="mt-2 text-xs text-slate-400">open right now</p>
           </div>
         </div>
 
