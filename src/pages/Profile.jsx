@@ -18,7 +18,7 @@ import RefreshButton from '../components/RefreshButton'
 import RefreshStatus from '../components/RefreshStatus'
 import AgentUnits from '../components/AgentUnits'
 import useRefreshable from '../lib/useRefreshable'
-import { isPinSet, setPin, clearPin, verifyPin, PIN_LENGTH } from '../lib/pinSecurity'
+import { isPinSet, setPin, changePin, removePin, PIN_LENGTH } from '../lib/pinSecurity'
 
 // Self-service profile page for ALL roles. Name / phone / password can't
 // be edited directly — each change is filed as a request for an admin (or,
@@ -572,18 +572,29 @@ function SalesAssignmentsSection({ profileId, viewerId }) {
 
 // ============================================================================
 // DashboardPinSection — admin-only card for setting / changing / removing the
-// dashboard PIN. The PIN gates every write across the dashboard for admin and
-// sales users via usePinGate(). Stored as a SHA-256 hash in localStorage.
+// account-level dashboard PIN. The PIN gates sensitive actions across the
+// dashboard for admin and sales users via usePinGate(). It is stored ONLY as a
+// bcrypt hash in the DB and verified server-side (verify-admin-pin Edge
+// Function) — so it follows the account onto every device.
 // ============================================================================
 function DashboardPinSection({ onToast }) {
   // 'idle' | 'setting' | 'changing' | 'removing'
   const [mode, setMode] = useState('idle')
-  const [hasPin, setHasPin] = useState(isPinSet())
+  const [hasPin, setHasPin] = useState(null) // null = still loading
   const [currentPin, setCurrentPin] = useState('')
   const [newPin, setNewPin] = useState('')
   const [confirmPin, setConfirmPin] = useState('')
   const [err, setErr] = useState(null)
   const [busy, setBusy] = useState(false)
+
+  // Ask the server whether a PIN exists for this account.
+  useEffect(() => {
+    let cancelled = false
+    isPinSet()
+      .then((set) => { if (!cancelled) setHasPin(!!set) })
+      .catch(() => { if (!cancelled) setHasPin(false) })
+    return () => { cancelled = true }
+  }, [])
 
   const reset = () => {
     setMode('idle')
@@ -621,26 +632,18 @@ function DashboardPinSection({ onToast }) {
       return
     }
     if (mode === 'changing') {
-      try {
-        setBusy(true)
-        await verifyPin(currentPin)
-      } catch (e) {
-        setErr(e.message)
-        setBusy(false)
-        return
-      }
       if (newPin.length !== PIN_LENGTH) {
         setErr(`New PIN must be ${PIN_LENGTH} digits.`)
-        setBusy(false)
         return
       }
       if (newPin !== confirmPin) {
         setErr('PINs do not match.')
-        setBusy(false)
         return
       }
+      setBusy(true)
       try {
-        await setPin(newPin)
+        // Verifies the current PIN AND sets the new one server-side in one call.
+        await changePin(currentPin, newPin)
         reset()
         onToast?.('Dashboard PIN updated.')
       } catch (e) {
@@ -650,10 +653,9 @@ function DashboardPinSection({ onToast }) {
       return
     }
     if (mode === 'removing') {
+      setBusy(true)
       try {
-        setBusy(true)
-        await verifyPin(currentPin)
-        clearPin()
+        await removePin(currentPin)
         setHasPin(false)
         reset()
         onToast?.('Dashboard PIN removed.')
@@ -681,14 +683,16 @@ function DashboardPinSection({ onToast }) {
 
       <div className="mb-4 rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2.5 text-sm">
         <span className="text-slate-400">Status: </span>
-        {hasPin ? (
+        {hasPin === null ? (
+          <span className="font-semibold text-slate-400">Checking…</span>
+        ) : hasPin ? (
           <span className="font-semibold text-emerald-300">PIN is set ✓</span>
         ) : (
           <span className="font-semibold text-amber-300">No PIN set</span>
         )}
       </div>
 
-      {mode === 'idle' && (
+      {mode === 'idle' && hasPin !== null && (
         <div className="flex flex-wrap gap-2">
           {hasPin ? (
             <>

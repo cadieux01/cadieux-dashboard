@@ -1,116 +1,152 @@
 // ============================================================================
-// pinSecurity.js — client-side dashboard PIN gate.
+// pinSecurity.js — ACCOUNT-LEVEL dashboard PIN gate (server-verified).
 // ----------------------------------------------------------------------------
-// A 6-digit PIN that admin/sales users must enter before any write action.
-// The PIN is set once by an admin (Profile page) and persisted as a SHA-256
-// hash in localStorage. All other browsers learn the PIN out-of-band (admin
-// shares it verbally or via ShareCredentials).
+// The 6-digit PIN that admin/sales users must enter before sensitive actions
+// is stored ONLY as a bcrypt hash in `logistics.admin_pins`, keyed by the
+// account id. All set/change/remove/verify/is-set operations run inside the
+// `verify-admin-pin` Edge Function with the service-role key. The plaintext PIN
+// and the hash NEVER live in the browser or localStorage.
 //
-// Storage keys (localStorage):
-//   dashboard_pin_hash         hex SHA-256 of the canonical PIN string
-//   dashboard_pin_attempts     number of failed attempts in the current window
-//   dashboard_pin_lock_until   ms timestamp; if > Date.now() the PIN gate is
-//                              locked even with the correct PIN
+// Because the PIN is keyed by account, a single shared admin login = one PIN
+// that applies on EVERY device. This replaces the old localStorage SHA-256
+// scheme, which was device-local and defaulted to ALLOW when no local hash was
+// present (a device that never set a PIN could approve with none).
 //
-// Behaviour:
-//   - 3 wrong attempts in a row → 5-minute lockout
-//   - Successful verify resets the attempt counter
-//   - PIN is required ONLY for role === 'admin' or 'sales'
+// Lockout (3 wrong attempts → 5 minutes) is authoritative in the DB, so every
+// device agrees. The Edge Function returns the lockout/attempt state on each
+// failed verify; this module surfaces it on the thrown Error.
 // ============================================================================
 
-const PIN_HASH_KEY      = 'dashboard_pin_hash'
-const PIN_ATTEMPTS_KEY  = 'dashboard_pin_attempts'
-const PIN_LOCK_KEY      = 'dashboard_pin_lock_until'
+import { supabase } from './supabase'
 
 export const PIN_LENGTH = 6
 export const MAX_ATTEMPTS = 3
-export const LOCKOUT_MS = 5 * 60 * 1000 // 5 minutes
+export const LOCKOUT_MS = 5 * 60 * 1000 // mirrors the server constant for UI copy
 
-// SHA-256 → lowercase hex. Uses Web Crypto so the plaintext never touches
-// JS-land beyond this function.
-async function sha256Hex(input) {
-  const enc = new TextEncoder().encode(String(input))
-  const buf = await crypto.subtle.digest('SHA-256', enc)
-  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('')
+// Short-lived "already verified this session" cache. A successful verify is
+// remembered for the duration of the admin session so the gate doesn't prompt
+// on every single click. The PIN itself is never stored — only an expiry. The
+// cache is per-tab (sessionStorage) and cleared on sign-out / new login.
+const VERIFIED_KEY = 'admin_pin_verified_until'
+const VERIFIED_TTL_MS = 30 * 60 * 1000 // aligned to the 30-min admin session
+
+const VERIFY_ADMIN_PIN_URL =
+  import.meta.env?.VITE_VERIFY_ADMIN_PIN_URL ||
+  'https://uejagupcwevadfhfuadv.supabase.co/functions/v1/verify-admin-pin'
+
+// POST to the Edge Function with the caller's session JWT. Returns the parsed
+// body on 2xx; throws an Error (with .status / .lockedMs / .attemptsLeft /
+// .noPin attached when present) otherwise.
+async function callPinFn(payload) {
+  const { data: sessionWrap } = await supabase.auth.getSession()
+  const token = sessionWrap?.session?.access_token
+  if (!token) throw new Error('Not authenticated')
+
+  let res
+  try {
+    res = await fetch(VERIFY_ADMIN_PIN_URL, {
+      method: 'POST',
+      mode: 'cors',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    })
+  } catch (networkErr) {
+    throw new Error(
+      `Could not reach the PIN service (${networkErr?.message || 'fetch failed'}). ` +
+        `Check your connection and try again.`,
+    )
+  }
+
+  let body = null
+  try {
+    const text = await res.text()
+    body = text ? JSON.parse(text) : null
+  } catch {
+    body = null
+  }
+
+  if (!res.ok) {
+    const err = new Error((body && body.error) || `PIN service error (HTTP ${res.status})`)
+    err.status = res.status
+    if (body) {
+      if (typeof body.lockedMs === 'number') err.lockedMs = body.lockedMs
+      if (typeof body.attemptsLeft === 'number') err.attemptsLeft = body.attemptsLeft
+      if (body.noPin) err.noPin = true
+      if (body.locked) err.locked = true
+    }
+    throw err
+  }
+  return body || {}
 }
 
-// True if a PIN has been configured on this browser.
-export function isPinSet() {
-  if (typeof window === 'undefined') return false
-  return !!localStorage.getItem(PIN_HASH_KEY)
+// True if a PIN is configured for THIS ACCOUNT (server-derived, so every
+// device agrees). Async — callers must await. DEFAULT-DENY: on any error we
+// treat the PIN as "set" so the gate keeps blocking rather than letting an
+// action through (the caller surfaces the error).
+export async function isPinSet() {
+  const body = await callPinFn({ action: 'is-set' })
+  return !!body.isSet
 }
 
-// Stores the new PIN (replacing any existing one). Returns nothing.
+// Store a brand-new PIN (first-time set). Throws if one already exists.
 export async function setPin(pin) {
   const clean = String(pin || '').trim()
   if (clean.length !== PIN_LENGTH || !/^\d+$/.test(clean)) {
     throw new Error(`PIN must be exactly ${PIN_LENGTH} digits.`)
   }
-  const hash = await sha256Hex(clean)
-  localStorage.setItem(PIN_HASH_KEY, hash)
-  localStorage.removeItem(PIN_ATTEMPTS_KEY)
-  localStorage.removeItem(PIN_LOCK_KEY)
+  await callPinFn({ action: 'set', pin: clean })
 }
 
-// Removes the PIN entirely (admin-only operation; gate the UI).
-export function clearPin() {
-  if (typeof window === 'undefined') return
-  localStorage.removeItem(PIN_HASH_KEY)
-  localStorage.removeItem(PIN_ATTEMPTS_KEY)
-  localStorage.removeItem(PIN_LOCK_KEY)
-}
-
-// Returns ms remaining in the current lockout, or 0 if not locked.
-export function getLockoutRemainingMs() {
-  if (typeof window === 'undefined') return 0
-  const until = parseInt(localStorage.getItem(PIN_LOCK_KEY) || '0', 10)
-  if (!until) return 0
-  const remaining = until - Date.now()
-  if (remaining <= 0) {
-    localStorage.removeItem(PIN_LOCK_KEY)
-    localStorage.removeItem(PIN_ATTEMPTS_KEY)
-    return 0
+// Change an existing PIN. Requires the CURRENT PIN.
+export async function changePin(currentPin, newPin) {
+  const cur = String(currentPin || '').trim()
+  const next = String(newPin || '').trim()
+  if (next.length !== PIN_LENGTH || !/^\d+$/.test(next)) {
+    throw new Error(`New PIN must be exactly ${PIN_LENGTH} digits.`)
   }
-  return remaining
+  await callPinFn({ action: 'change', current_pin: cur, new_pin: next })
+  clearVerifiedCache()
 }
 
-// Current consecutive failed-attempt count (0..MAX_ATTEMPTS).
-export function getAttempts() {
-  if (typeof window === 'undefined') return 0
-  return parseInt(localStorage.getItem(PIN_ATTEMPTS_KEY) || '0', 10)
+// Remove the PIN entirely. Requires the CURRENT PIN.
+export async function removePin(currentPin) {
+  await callPinFn({ action: 'remove', current_pin: String(currentPin || '').trim() })
+  clearVerifiedCache()
 }
 
-// Compares `pin` to the stored hash. On success returns true and resets the
-// attempt counter. On failure increments attempts and triggers lockout when
-// MAX_ATTEMPTS is reached. Throws if locked out.
+// Verify a PIN for a gated action. Returns true on success (and refreshes the
+// session cache); throws an Error carrying lockout / attempt info on failure.
 export async function verifyPin(pin) {
-  const remaining = getLockoutRemainingMs()
-  if (remaining > 0) {
-    const min = Math.ceil(remaining / 60000)
-    throw new Error(`Locked out. Try again in ${min} minute${min === 1 ? '' : 's'}.`)
-  }
-
-  const stored = localStorage.getItem(PIN_HASH_KEY)
-  if (!stored) throw new Error('No PIN set yet. Ask an admin to set one.')
-
-  const hash = await sha256Hex(String(pin || '').trim())
-  if (hash === stored) {
-    localStorage.removeItem(PIN_ATTEMPTS_KEY)
-    return true
-  }
-
-  const next = getAttempts() + 1
-  if (next >= MAX_ATTEMPTS) {
-    localStorage.setItem(PIN_LOCK_KEY, String(Date.now() + LOCKOUT_MS))
-    localStorage.removeItem(PIN_ATTEMPTS_KEY)
-    throw new Error(`Too many wrong attempts. Locked for 5 minutes.`)
-  }
-  localStorage.setItem(PIN_ATTEMPTS_KEY, String(next))
-  throw new Error(`Wrong PIN. ${MAX_ATTEMPTS - next} attempt${MAX_ATTEMPTS - next === 1 ? '' : 's'} left.`)
+  await callPinFn({ action: 'verify', pin: String(pin || '').trim() })
+  markVerified()
+  return true
 }
 
-// Convenience predicate used by callers to decide whether to render PinModal.
-// PIN is required for admin and sales roles. Partners never see it.
+// ── Session cache helpers ──────────────────────────────────────────────────
+export function markVerified() {
+  try {
+    sessionStorage.setItem(VERIFIED_KEY, String(Date.now() + VERIFIED_TTL_MS))
+  } catch { /* sessionStorage unavailable — just skip the cache */ }
+}
+
+export function isRecentlyVerified() {
+  try {
+    const until = parseInt(sessionStorage.getItem(VERIFIED_KEY) || '0', 10)
+    return until > Date.now()
+  } catch {
+    return false
+  }
+}
+
+export function clearVerifiedCache() {
+  try { sessionStorage.removeItem(VERIFIED_KEY) } catch { /* noop */ }
+}
+
+// Convenience predicate: PIN is required for admin and sales. Partners never
+// see it.
 export function pinRequiredFor(role) {
   return role === 'admin' || role === 'sales'
 }

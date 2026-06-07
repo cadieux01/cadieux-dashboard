@@ -325,9 +325,11 @@ export function AuthProvider({ children }) {
   }
 
   const signOut = async () => {
-    // Clear the idle-activity timestamp so the next login starts clean.
+    // Clear the idle-activity timestamp + any cached PIN verification so the
+    // next login (or a different user on this device) starts clean.
     try {
       localStorage.removeItem('cdx_last_activity')
+      sessionStorage.removeItem('admin_pin_verified_until')
     } catch {
       /* ignore */
     }

@@ -1,25 +1,27 @@
 import { useCallback, useMemo, useState } from 'react'
 import PinModal from '../components/PinModal'
-import { pinRequiredFor, isPinSet } from './pinSecurity'
+import { pinRequiredFor, isRecentlyVerified } from './pinSecurity'
 import { useAuth } from '../context/AuthContext'
 
-// usePinGate — wraps any write-action with a PIN confirmation modal.
+// usePinGate — wraps any sensitive action with an account-level PIN check.
 //
 // Returns { gate, PinGateElement }:
-//   gate(actionFn, actionLabel?)   — runs actionFn() immediately for roles
-//                                    that don't need a PIN; otherwise opens
-//                                    the modal and runs actionFn on confirm.
-//   PinGateElement                 — JSX to render once per page (renders the
-//                                    modal when gated).
+//   gate(actionFn, actionLabel?)   — for roles that need a PIN (admin/sales,
+//                                    non-demo) this ALWAYS opens the modal,
+//                                    which verifies the PIN SERVER-SIDE before
+//                                    running actionFn. DEFAULT-DENY: if no PIN
+//                                    is set the modal blocks the action and
+//                                    tells the user to set one in Profile.
+//   PinGateElement                 — JSX to render once per page.
 //
-// Demo mode is exempt — actions still bubble through to the page's own
-// demoBlock() handler, which surfaces the demo toast.
+// A successful verify is cached for the admin session (sessionStorage) so the
+// gate doesn't prompt on every click; gate() skips the modal while that cache
+// is fresh. Demo mode is exempt — the action bubbles to the page's demoBlock().
 export default function usePinGate() {
   const { role, isDemo } = useAuth()
   const [pending, setPending] = useState(null) // { run, label } | null
 
-  const requirePin = pinRequiredFor(role) && !isDemo && isPinSet()
-  const noPinSetForRequiredRole = pinRequiredFor(role) && !isDemo && !isPinSet()
+  const requirePin = pinRequiredFor(role) && !isDemo
 
   const gate = useCallback(
     (actionFn, actionLabel) => {
@@ -29,16 +31,15 @@ export default function usePinGate() {
         actionFn()
         return
       }
-      // No PIN configured yet — surface a console hint and run anyway, so the
-      // dashboard doesn't soft-lock the very first admin. The Profile page
-      // will tell them to set a PIN.
-      if (noPinSetForRequiredRole) {
+      // Recently verified this session — don't re-prompt.
+      if (isRecentlyVerified()) {
         actionFn()
         return
       }
+      // Otherwise always require a server-verified PIN before running.
       setPending({ run: actionFn, label: actionLabel })
     },
-    [role, isDemo, noPinSetForRequiredRole],
+    [role, isDemo],
   )
 
   const PinGateElement = useMemo(

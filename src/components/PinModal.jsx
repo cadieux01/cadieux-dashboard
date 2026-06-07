@@ -1,52 +1,67 @@
 import { useEffect, useRef, useState } from 'react'
-import {
-  PIN_LENGTH,
-  verifyPin,
-  isPinSet,
-  getLockoutRemainingMs,
-  getAttempts,
-  MAX_ATTEMPTS,
-} from '../lib/pinSecurity'
+import { PIN_LENGTH, MAX_ATTEMPTS, verifyPin, isPinSet } from '../lib/pinSecurity'
 
 // ============================================================================
-// PinModal — 6-digit PIN entry overlay used to gate every dashboard write.
+// PinModal — 6-digit PIN entry overlay used to gate sensitive dashboard
+// actions. The PIN is verified SERVER-SIDE (account-level) via verifyPin().
+// On open it asks the server whether a PIN is set for this account; if none is
+// set it DEFAULT-DENIES (no Confirm) and points the user to Profile.
 // Props:
 //   isOpen        boolean   show / hide
-//   onConfirm()             called once the PIN verifies
+//   onConfirm()             called once the PIN verifies on the server
 //   onCancel()              called on Cancel or backdrop click
-//   actionLabel             optional verb shown in the prompt (e.g. "Delete partner")
+//   actionLabel             optional verb shown in the prompt
 // ============================================================================
 export default function PinModal({ isOpen, onConfirm, onCancel, actionLabel }) {
   const [digits, setDigits] = useState(() => Array(PIN_LENGTH).fill(''))
   const [error, setError] = useState(null)
   const [verifying, setVerifying] = useState(false)
   const [lockMs, setLockMs] = useState(0)
-  const [attempts, setAttempts] = useState(0)
+  const [attemptsLeft, setAttemptsLeft] = useState(MAX_ATTEMPTS)
+  const [noPin, setNoPin] = useState(false)
+  const [checking, setChecking] = useState(true)
   const refs = useRef([])
 
-  // Reset internal state every time the modal opens.
+  // On open: reset, then ask the server whether a PIN exists for this account.
   useEffect(() => {
     if (!isOpen) return
+    let cancelled = false
     setDigits(Array(PIN_LENGTH).fill(''))
     setError(null)
     setVerifying(false)
-    setAttempts(getAttempts())
-    setLockMs(getLockoutRemainingMs())
-    // Autofocus the first input after the modal mounts.
-    const t = setTimeout(() => refs.current[0]?.focus(), 50)
-    return () => clearTimeout(t)
+    setLockMs(0)
+    setAttemptsLeft(MAX_ATTEMPTS)
+    setNoPin(false)
+    setChecking(true)
+    isPinSet()
+      .then((set) => {
+        if (cancelled) return
+        setNoPin(!set)
+        setChecking(false)
+        if (set) setTimeout(() => refs.current[0]?.focus(), 50)
+      })
+      .catch((e) => {
+        if (cancelled) return
+        // DEFAULT-DENY on error: keep the gate closed, surface the problem.
+        setChecking(false)
+        setError(e.message || 'Could not reach the PIN service.')
+      })
+    return () => { cancelled = true }
   }, [isOpen])
 
   // Tick the lockout countdown every second.
   useEffect(() => {
     if (!isOpen || lockMs <= 0) return
     const t = setInterval(() => {
-      const next = getLockoutRemainingMs()
-      setLockMs(next)
-      if (next <= 0) {
-        setError(null)
-        setAttempts(0)
-      }
+      setLockMs((prev) => {
+        const next = prev - 1000
+        if (next <= 0) {
+          setError(null)
+          setAttemptsLeft(MAX_ATTEMPTS)
+          return 0
+        }
+        return next
+      })
     }, 1000)
     return () => clearInterval(t)
   }, [isOpen, lockMs])
@@ -92,7 +107,7 @@ export default function PinModal({ isOpen, onConfirm, onCancel, actionLabel }) {
   }
 
   const attemptVerify = async () => {
-    if (verifying) return
+    if (verifying || lockMs > 0 || noPin) return
     const pin = digits.join('')
     if (pin.length !== PIN_LENGTH) {
       setError(`Please enter all ${PIN_LENGTH} digits.`)
@@ -105,9 +120,9 @@ export default function PinModal({ isOpen, onConfirm, onCancel, actionLabel }) {
       onConfirm()
     } catch (e) {
       setError(e.message)
-      setAttempts(getAttempts())
-      setLockMs(getLockoutRemainingMs())
-      // Clear digits + refocus first box so user can retry without manual clearing.
+      if (typeof e.lockedMs === 'number' && e.lockedMs > 0) setLockMs(e.lockedMs)
+      if (typeof e.attemptsLeft === 'number') setAttemptsLeft(e.attemptsLeft)
+      if (e.noPin) setNoPin(true)
       setDigits(Array(PIN_LENGTH).fill(''))
       setTimeout(() => refs.current[0]?.focus(), 0)
     } finally {
@@ -118,7 +133,6 @@ export default function PinModal({ isOpen, onConfirm, onCancel, actionLabel }) {
   const lockSeconds = Math.ceil(lockMs / 1000)
   const lockMm = Math.floor(lockSeconds / 60)
   const lockSs = String(lockSeconds % 60).padStart(2, '0')
-  const noPin = !isPinSet()
 
   return (
     <div
@@ -146,10 +160,15 @@ export default function PinModal({ isOpen, onConfirm, onCancel, actionLabel }) {
           </div>
         </div>
 
-        {noPin ? (
+        {checking ? (
+          <div className="my-6 flex items-center justify-center">
+            <div className="h-7 w-7 animate-spin rounded-full border-4 border-[#024628] border-t-transparent" />
+          </div>
+        ) : noPin ? (
           <div className="my-4 rounded-lg border border-amber-700/40 bg-amber-500/10 px-3 py-3 text-sm text-amber-200">
-            No dashboard PIN has been set on this device. Ask an admin to set one
-            in <span className="font-semibold">Profile → Dashboard Security PIN</span>.
+            No dashboard PIN has been set for this account. An admin must set one
+            in <span className="font-semibold">Profile → Dashboard Security PIN</span> before
+            this action can be approved.
           </div>
         ) : (
           <>
@@ -183,7 +202,8 @@ export default function PinModal({ isOpen, onConfirm, onCancel, actionLabel }) {
             )}
 
             <p className="mb-4 text-center text-[11px] text-slate-500">
-              {MAX_ATTEMPTS} wrong attempts = 5 min lockout · {attempts > 0 && lockMs === 0 ? `${attempts} attempted` : 'enter PIN'}
+              {MAX_ATTEMPTS} wrong attempts = 5 min lockout
+              {lockMs === 0 && attemptsLeft < MAX_ATTEMPTS ? ` · ${attemptsLeft} left` : ''}
             </p>
           </>
         )}
@@ -199,7 +219,7 @@ export default function PinModal({ isOpen, onConfirm, onCancel, actionLabel }) {
           <button
             type="button"
             onClick={attemptVerify}
-            disabled={noPin || lockMs > 0 || verifying}
+            disabled={checking || noPin || lockMs > 0 || verifying}
             className="flex-1 rounded-lg bg-[#024628] px-4 py-2 text-sm font-semibold text-[#fbf3d4] transition hover:bg-[#035c36] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {verifying ? 'Verifying…' : 'Confirm'}
