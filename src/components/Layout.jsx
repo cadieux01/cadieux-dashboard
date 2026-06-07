@@ -11,6 +11,7 @@ import {
   UserPlus,
   Inbox,
   Package,
+  Boxes,
   Home,
   LogOut,
   Shield,
@@ -63,6 +64,7 @@ const adminNavigation = [
   { name: 'Team', href: '/admin/team', Icon: Users },
   { name: 'Change Requests', href: '/admin/change-requests', badge: 'pendingRequests', Icon: ClipboardCheck },
   { name: 'Requests', href: '/admin/partner-requests', Icon: Inbox },
+  { name: 'Allot', href: '/admin/allot', Icon: Boxes },
   { name: 'Audit', href: '/admin/audit-logs', Icon: FileText },
   { name: 'Profile', href: '/admin/profile', Icon: User },
 ]

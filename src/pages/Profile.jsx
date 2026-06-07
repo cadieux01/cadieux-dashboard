@@ -18,6 +18,7 @@ import {
 import RefreshButton from '../components/RefreshButton'
 import RefreshStatus from '../components/RefreshStatus'
 import AgentUnits from '../components/AgentUnits'
+import AllotmentInbox from '../components/AllotmentInbox'
 import useRefreshable from '../lib/useRefreshable'
 import { isPinSet, setPin, changePin, removePin, PIN_LENGTH } from '../lib/pinSecurity'
 
@@ -439,6 +440,11 @@ export default function Profile() {
           </form>
         )}
       </div>
+
+      {/* Allotments — stock an admin has handed this exec to accept/reject */}
+      {profile.role === 'sales' && !isDemo && (
+        <AllotmentInbox agentId={profile.id} />
+      )}
 
       {/* Units — agent's live inventory ledger (manageable: deliver / return) */}
       {profile.role === 'sales' && !isDemo && (
