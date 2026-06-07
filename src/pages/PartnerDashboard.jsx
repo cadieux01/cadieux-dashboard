@@ -611,6 +611,18 @@ export default function PartnerDashboard() {
       bucket.revenue += saleRevenue(sale)
     }
 
+    // Stock delivered to this partner through the agent/admin workflow
+    // (partner_assignments: agent delivery, proactive assign, or an accepted
+    // request) is credited PER VARIANT here too — so the Multi-Grain/Plain
+    // Assigned & Left cards (and day-cards below) reflect it, exactly like the
+    // big "Available Units" number already does. This never writes to sales, so
+    // the admin Overview ASSIGNED KPI is left untouched (by design).
+    for (const a of assignments) {
+      if (a.status !== 'pending' && a.status !== 'confirmed') continue
+      const bucket = a.variant === 'plain' ? variants.plain : variants.multigrain
+      bucket.assigned += a.units || 0
+    }
+
     variants.multigrain.left = Math.max(0, variants.multigrain.assigned - variants.multigrain.sold)
     variants.plain.left = Math.max(0, variants.plain.assigned - variants.plain.sold)
 
@@ -622,15 +634,22 @@ export default function PartnerDashboard() {
       sale.date_of_assignment || sale.purchase_date || (sale.created_at ? sale.created_at.slice(0, 10) : null)
 
     const oldestAssignDate = { multigrain: null, plain: null }
+    const noteOldest = (key, d) => {
+      if (!d) return
+      if (!oldestAssignDate[key] || d < oldestAssignDate[key]) oldestAssignDate[key] = d
+    }
     for (const sale of sales) {
       const d = assignDateOf(sale)
       if (!d) continue
-      if ((sale.multigrain_assigned || 0) > 0 && (!oldestAssignDate.multigrain || d < oldestAssignDate.multigrain)) {
-        oldestAssignDate.multigrain = d
-      }
-      if ((sale.plain_assigned || 0) > 0 && (!oldestAssignDate.plain || d < oldestAssignDate.plain)) {
-        oldestAssignDate.plain = d
-      }
+      if ((sale.multigrain_assigned || 0) > 0) noteOldest('multigrain', d)
+      if ((sale.plain_assigned || 0) > 0) noteOldest('plain', d)
+    }
+    // Workflow deliveries count toward the at-risk oldest batch too.
+    for (const a of assignments) {
+      if (a.status !== 'pending' && a.status !== 'confirmed') continue
+      if ((a.units || 0) <= 0) continue
+      const d = (a.confirmed_at || a.assigned_at || a.created_at || '')?.slice(0, 10) || null
+      noteOldest(a.variant === 'plain' ? 'plain' : 'multigrain', d)
     }
 
     const now = new Date()
@@ -660,28 +679,22 @@ export default function PartnerDashboard() {
       variants,
       shelf: { multigrain: shelfFor('multigrain'), plain: shelfFor('plain') },
     }
-  }, [sales])
+  }, [sales, assignments])
 
-  // Units delivered to this partner via the agent/admin workflow
-  // (partner_assignments). 'pending' = delivered but not yet confirmed,
-  // 'confirmed' = receipt confirmed — both are stock the partner holds.
-  const deliveredViaAssignments = useMemo(
+  // Available = everything delivered to the partner minus everything sold.
+  // summary.variants[*].assigned already folds in both delivery sources — the
+  // legacy sales *_assigned rows AND partner_assignments (agent delivery /
+  // proactive assign / accepted request) — so we derive the headline number
+  // straight from the per-variant cards. This keeps the big number and the
+  // cards in lock-step (no double counting).
+  const availableUnits = useMemo(
     () =>
-      assignments
-        .filter((a) => a.status === 'pending' || a.status === 'confirmed')
-        .reduce((sum, a) => sum + (a.units || 0), 0),
-    [assignments],
+      Math.max(
+        0,
+        summary.variants.multigrain.left + summary.variants.plain.left,
+      ),
+    [summary],
   )
-
-  // Available = everything delivered to the partner (legacy sales *_assigned
-  // rows + partner_assignments) minus everything they've sold (sales.units_sold,
-  // i.e. summary.totalUnits). Reuses the dashboard's existing remaining/unsold
-  // math and just adds partner_assignments as a second delivery source.
-  const availableUnits = useMemo(() => {
-    const assignedFromSales =
-      summary.variants.multigrain.assigned + summary.variants.plain.assigned
-    return Math.max(0, assignedFromSales + deliveredViaAssignments - summary.totalUnits)
-  }, [summary, deliveredViaAssignments])
 
   // Active/open orders = the partner's requests not yet fully delivered
   // (displayStatus is 'pending' | 'accepted' | 'delivered').

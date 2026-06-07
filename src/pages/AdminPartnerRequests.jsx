@@ -67,11 +67,27 @@ export default function AdminPartnerRequests() {
   }, [isDemo, isAdmin])
 
   // --- Accept -------------------------------------------------------------
+  // Accepting now ALSO credits the partner immediately: it flips the request to
+  // 'accepted' AND creates the partner_assignment (the same record the Supply
+  // "Assign" step used to create), so the partner's Home — big Available number
+  // and the per-variant Assigned/Left + day-cards — reflects the units right
+  // away (per variant) without a manual reload. Because the assignment now
+  // exists at accept time, the Supply tab skips straight to the Confirm step, so
+  // no second assignment is ever created (no double counting). This stays within
+  // partner_assignments and never writes sales, so Overview ASSIGNED is untouched.
   const doAccept = async (req, salespersonId) => {
     setBusyId(req.id)
     try {
       await acceptRequest({ requestId: req.id, salespersonId })
-      showToast('Request accepted')
+      await createAssignment({
+        partnerId: req.partner_id,
+        salespersonId,
+        variant: req.variant,
+        units: req.units_requested,
+        sourceRequestId: req.id,
+        assignedBy: profile.id,
+      })
+      showToast('Request accepted — units credited')
       await load()
     } catch (err) {
       console.error('acceptRequest failed:', err)
