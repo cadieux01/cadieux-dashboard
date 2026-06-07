@@ -1,4 +1,9 @@
 {
+  "git": {
+    "deploymentEnabled": {
+      "gh-pages": false
+    }
+  },
   "rewrites": [
     { "source": "/dashboard/assets/:path*", "destination": "/assets/:path*" },
     { "source": "/dashboard/(.*)", "destination": "/index.html" }
