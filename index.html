@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" href="/sunny/favicon.ico" />
+    <link rel="icon" href="/dashboard/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Cadieux | Core Element — Operations</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -11,13 +11,13 @@
     <script>
       // GitHub Pages SPA redirect handler
       // This script handles the redirect from 404.html
-      // It converts /sunny/?/path back to /sunny/path
+      // It converts /dashboard/?/path back to /dashboard/path
       (function() {
         var search = window.location.search;
         if (search && search.indexOf('?/') === 0) {
           var path = search.slice(2).replace(/~and~/g, '&');
           var hash = window.location.hash;
-          var newPath = '/sunny/' + path + hash;
+          var newPath = '/dashboard/' + path + hash;
           window.history.replaceState(null, null, newPath);
         }
       })();
