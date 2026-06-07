@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { VARIANTS } from '../lib/demoData'
 import { formatDateTimeDDMMYY } from '../lib/date'
+import UnitWheel from './UnitWheel'
 import {
   getAgentInventory,
   deliverToPartner,
@@ -175,30 +176,26 @@ export default function AgentUnits({ agentId, canManage = false }) {
                   <option key={p.id} value={p.id}>{p.full_name || p.phone || 'Partner'}</option>
                 ))}
               </select>
-              <div className="grid grid-cols-2 gap-2">
-                <select
-                  value={form.variant}
-                  onChange={(e) => setForm({ ...form, variant: e.target.value })}
-                  className="dashboard-select"
-                >
-                  <option value="multigrain">{VARIANTS.multigrain.short}</option>
-                  <option value="plain">{VARIANTS.plain.short}</option>
-                </select>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={form.units}
-                  onChange={(e) => setForm({ ...form, units: e.target.value.replace(/[^0-9]/g, '') })}
-                  placeholder="Units"
-                  className="dashboard-input"
-                />
-              </div>
-              {mode === 'deliver' && (
-                <p className="text-xs text-slate-400">
-                  Available {form.variant === 'plain' ? VARIANTS.plain.short : VARIANTS.multigrain.short}:{' '}
-                  {byVariant[form.variant]?.available || 0}
-                </p>
-              )}
+              <select
+                value={form.variant}
+                onChange={(e) => setForm({ ...form, variant: e.target.value })}
+                className="dashboard-select"
+              >
+                <option value="multigrain">{VARIANTS.multigrain.short}</option>
+                <option value="plain">{VARIANTS.plain.short}</option>
+              </select>
+              <UnitWheel
+                label="Units"
+                value={parseInt(form.units) || 0}
+                max={mode === 'deliver' ? byVariant[form.variant]?.available || 0 : 100}
+                onChange={(n) => setForm({ ...form, units: n })}
+                hint={
+                  mode === 'deliver'
+                    ? `Available ${form.variant === 'plain' ? VARIANTS.plain.short : VARIANTS.multigrain.short}: ${byVariant[form.variant]?.available || 0}`
+                    : undefined
+                }
+                emptyMessage="0 available"
+              />
               {err && <p className="text-sm font-semibold text-rose-400">{err}</p>}
               <div className="flex gap-2">
                 <button

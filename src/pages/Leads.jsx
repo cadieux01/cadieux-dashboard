@@ -5,6 +5,7 @@ import DataTable from '../components/DataTable'
 import AlertBanner from '../components/AlertBanner'
 import Modal from '../components/Modal'
 import FormField from '../components/FormField'
+import UnitWheel from '../components/UnitWheel'
 import RefreshButton from '../components/RefreshButton'
 import RefreshStatus from '../components/RefreshStatus'
 import useRefreshable from '../lib/useRefreshable'
@@ -42,50 +43,18 @@ function combineDateTime(dateStr, timeStr) {
   return Number.isNaN(dt.getTime()) ? new Date().toISOString() : dt.toISOString()
 }
 
-// Unit entry stepper — no native arrows, never negative, capped at max.
+// Unit entry — iOS-style scroll-wheel picker (UnitWheel). Thin wrapper that
+// keeps the original prop signature so every call site is unchanged.
 function NumberStepper({ label, hint, value, onChange, min = 0, max = 100 }) {
-  const num = parseInt(value) || 0
-  const clamp = (n) => Math.max(min, Math.min(max, n))
   return (
-    <div className="rounded-lg border border-[#E8E0D4] bg-[#F0EBE3] p-3">
-      {label && <p className="mb-2 text-center text-xs font-semibold text-[#3C4A40]">{label}</p>}
-      <div className="flex items-center justify-center gap-4">
-        <button
-          type="button"
-          onClick={() => onChange(clamp(num - 1))}
-          disabled={num <= min}
-          aria-label="Decrease"
-          className="flex h-11 w-11 items-center justify-center rounded-full bg-[#024628] text-2xl font-bold leading-none text-[#FBF3D4] transition hover:bg-[#035c36] disabled:opacity-40"
-        >
-          −
-        </button>
-        <span className="min-w-[2.5rem] text-center font-display text-[28px] font-bold leading-none text-[#1A2B1F]">{num}</span>
-        <button
-          type="button"
-          onClick={() => onChange(clamp(num + 1))}
-          disabled={num >= max}
-          aria-label="Increase"
-          className="flex h-11 w-11 items-center justify-center rounded-full bg-[#024628] text-2xl font-bold leading-none text-[#FBF3D4] transition hover:bg-[#035c36] disabled:opacity-40"
-        >
-          +
-        </button>
-      </div>
-      <div className="mt-2 flex items-center justify-center gap-2">
-        <span className="text-xs text-[#5C6D62]">or type:</span>
-        <input
-          type="text"
-          inputMode="numeric"
-          value={value === '' || value == null ? '' : String(num)}
-          onChange={(e) => {
-            const digits = e.target.value.replace(/[^0-9]/g, '')
-            if (digits === '') { onChange(''); return }
-            onChange(clamp(parseInt(digits, 10)))
-          }}
-          className="w-16 rounded-lg border border-[#E8E0D4] bg-white px-2 py-1 text-center text-sm font-semibold text-[#1A2B1F] focus:outline-none focus:ring-2 focus:ring-[#024628]"
-        />
-      </div>
-      {hint && <p className="mt-1.5 text-center text-xs text-[#5C6D62]">{hint}</p>}
-    </div>
+    <UnitWheel
+      label={label}
+      hint={hint}
+      value={parseInt(value) || 0}
+      onChange={onChange}
+      min={min}
+      max={max}
+    />
   )
 }
 

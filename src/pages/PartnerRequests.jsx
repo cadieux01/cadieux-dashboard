@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Plus, X } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { formatDateDDMMYY } from '../lib/date'
+import UnitWheel from '../components/UnitWheel'
 import {
   WORKFLOW_VARIANT_OPTIONS,
   variantLabel,
@@ -116,14 +117,11 @@ export default function PartnerRequests() {
             </select>
           </div>
           <div className="mb-4">
-            <label className="mb-1 block text-xs font-semibold text-slate-300">Units</label>
-            <input
-              type="number"
-              min={1}
-              value={units}
-              onChange={(e) => setUnits(e.target.value)}
-              placeholder="How many units?"
-              className="dashboard-input"
+            <UnitWheel
+              label="Units"
+              value={parseInt(units) || 0}
+              max={100}
+              onChange={(n) => setUnits(n)}
             />
           </div>
           <button

@@ -6,6 +6,7 @@ import AlertBanner from '../components/AlertBanner'
 import DismissibleInfo from '../components/DismissibleInfo'
 import Modal from '../components/Modal'
 import FormField from '../components/FormField'
+import UnitWheel from '../components/UnitWheel'
 import { logAuditEvent } from '../lib/audit'
 import { formatDateDDMMYY } from '../lib/date'
 import { createUser, deactivateUser, deleteUser, reactivateUser } from '../lib/adminApi'
@@ -846,14 +847,11 @@ export default function Partners() {
               </select>
             </div>
             <div className="mb-3">
-              <label className="mb-1 block text-xs font-semibold text-slate-300">Units</label>
-              <input
-                type="number"
-                min={1}
-                value={assignForm.units}
-                onChange={(e) => setAssignForm((f) => ({ ...f, units: e.target.value }))}
-                placeholder="How many units?"
-                className="dashboard-input"
+              <UnitWheel
+                label="Units"
+                value={parseInt(assignForm.units) || 0}
+                max={100}
+                onChange={(n) => setAssignForm((f) => ({ ...f, units: n }))}
               />
             </div>
             {isAdmin && (

@@ -149,6 +149,17 @@ body {
   background: transparent;
 }
 
+/* UnitWheel scroll-wheel: hide the scrollbar so the picker reads as a dial. */
+.hide-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.hide-scrollbar::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
 input,
 select,
 textarea,

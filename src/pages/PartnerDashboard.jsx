@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import Modal from '../components/Modal'
 import FormField from '../components/FormField'
+import UnitWheel from '../components/UnitWheel'
 import KPICard from '../components/KPICard'
 import RefreshButton from '../components/RefreshButton'
 import RefreshStatus from '../components/RefreshStatus'
@@ -22,49 +23,6 @@ import {
 } from '../lib/shelfLife'
 
 const QUICK_SALE_DEFAULTS = { mg_units: 0, plain_units: 0, customer_name: '', customer_phone: '' }
-
-// Mobile-friendly stepper for the Quick Sale unit counts. The buttons are the
-// only way to change the value, so a partner can never enter more than the
-// available stock. When nothing is available the control is disabled.
-function QuantityStepper({ value, available, onChange }) {
-  if (available <= 0) {
-    return <p className="py-2 text-center text-sm font-medium text-slate-500">0 available</p>
-  }
-  const atMin = value <= 0
-  const atMax = value >= available
-  const btn =
-    'flex h-11 w-11 items-center justify-center rounded-full border text-2xl leading-none text-slate-200 transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-30'
-  const btnEnabled = 'border-slate-700 hover:border-emerald-500 hover:bg-emerald-500/10'
-  return (
-    <div className="flex items-center justify-center gap-4">
-      <button
-        type="button"
-        aria-label="Decrease"
-        onClick={() => onChange(Math.max(0, value - 1))}
-        disabled={atMin}
-        className={`${btn} ${atMin ? 'border-slate-800' : btnEnabled}`}
-      >
-        −
-      </button>
-      <span
-        className={`min-w-[2ch] text-center text-[28px] font-bold tabular-nums ${
-          value > 0 ? 'text-emerald-400' : 'text-slate-500'
-        }`}
-      >
-        {value}
-      </span>
-      <button
-        type="button"
-        aria-label="Increase"
-        onClick={() => onChange(Math.min(available, value + 1))}
-        disabled={atMax}
-        className={`${btn} ${atMax ? 'border-slate-800' : btnEnabled}`}
-      >
-        +
-      </button>
-    </div>
-  )
-}
 
 const VARIANTS = {
   multigrain: { name: 'Multi-Grain High Protein Bread', short: 'Multigrain', price: 149 },
@@ -681,6 +639,20 @@ export default function PartnerDashboard() {
     }
   }, [sales, assignments])
 
+  // Caps for the Add/Edit Customer wheels: the partner can't sell more than is
+  // available for that variant. In edit mode the sale being edited already
+  // counts as "sold" (so it's excluded from .left); add its own units back so
+  // the wheel can still show — and not clamp down — the value being edited.
+  const editingSale = editingSaleId ? sales.find((s) => s.id === editingSaleId) : null
+  const editVariantKey = editingSale
+    ? editingSale.product_variant && VARIANTS[editingSale.product_variant]
+      ? editingSale.product_variant
+      : Object.keys(VARIANTS).find((k) => VARIANTS[k].name === editingSale.product_variant) || ''
+    : ''
+  const editUnits = editingSale ? editingSale.units_sold || 0 : 0
+  const mgLeft = summary.variants.multigrain.left + (editVariantKey === 'multigrain' ? editUnits : 0)
+  const plLeft = summary.variants.plain.left + (editVariantKey === 'plain' ? editUnits : 0)
+
   // Available = everything delivered to the partner minus everything sold.
   // summary.variants[*].assigned already folds in both delivery sources — the
   // legacy sales *_assigned rows AND partner_assignments (agent delivery /
@@ -1144,29 +1116,33 @@ export default function PartnerDashboard() {
           </div>
 
           {customerFormData.mg_selected && (
-            <FormField
-              label="Multigrain units"
-              type="number"
-              value={customerFormData.mg_units}
-              onChange={(value) => setCustomerFormData({ ...customerFormData, mg_units: value })}
-              placeholder="Enter Multigrain units"
-              required
-              minLength={1}
-              error={formErrors.mg_units}
-            />
+            <div className="mb-4">
+              <UnitWheel
+                label="Multigrain units"
+                value={mgUnits}
+                max={mgLeft}
+                onChange={(n) => setCustomerFormData({ ...customerFormData, mg_units: n })}
+                hint={`Avail: ${mgLeft}`}
+              />
+              {formErrors.mg_units && (
+                <p className="mt-1.5 text-xs text-rose-400">{formErrors.mg_units}</p>
+              )}
+            </div>
           )}
 
           {customerFormData.pl_selected && (
-            <FormField
-              label="Plain units"
-              type="number"
-              value={customerFormData.pl_units}
-              onChange={(value) => setCustomerFormData({ ...customerFormData, pl_units: value })}
-              placeholder="Enter Plain units"
-              required
-              minLength={1}
-              error={formErrors.pl_units}
-            />
+            <div className="mb-4">
+              <UnitWheel
+                label="Plain units"
+                value={plUnits}
+                max={plLeft}
+                onChange={(n) => setCustomerFormData({ ...customerFormData, pl_units: n })}
+                hint={`Avail: ${plLeft}`}
+              />
+              {formErrors.pl_units && (
+                <p className="mt-1.5 text-xs text-rose-400">{formErrors.pl_units}</p>
+              )}
+            </div>
           )}
 
           <div className="mb-4">
@@ -1309,9 +1285,9 @@ export default function PartnerDashboard() {
                       ₹149 · Avail: <span className="font-semibold text-slate-100">{mgLeft}</span>
                     </p>
                     <div className="mt-3">
-                      <QuantityStepper
+                      <UnitWheel
                         value={quickMgUnits}
-                        available={mgLeft}
+                        max={mgLeft}
                         onChange={(n) => setQuickSaleData({ ...quickSaleData, mg_units: n })}
                       />
                     </div>
@@ -1325,9 +1301,9 @@ export default function PartnerDashboard() {
                       ₹109 · Avail: <span className="font-semibold text-slate-100">{plLeft}</span>
                     </p>
                     <div className="mt-3">
-                      <QuantityStepper
+                      <UnitWheel
                         value={quickPlUnits}
-                        available={plLeft}
+                        max={plLeft}
                         onChange={(n) => setQuickSaleData({ ...quickSaleData, plain_units: n })}
                       />
                     </div>
