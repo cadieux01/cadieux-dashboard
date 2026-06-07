@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { NavLink, Outlet, Link } from 'react-router-dom'
 import {
   LayoutDashboard,
@@ -94,15 +94,40 @@ export default function Layout() {
 
   // Pending change-request count for the sidebar badge. RLS scopes it:
   // admin gets the global count; sales gets only pending partner requests.
-  useEffect(() => {
-    if (isDemo) return
-    if (role !== 'admin' && role !== 'sales') return
-    let active = true
+  // It reads the SAME table/filter (profile_change_requests, status='pending')
+  // the Change Requests page lists, so the number and the list always agree.
+  const refreshPending = useCallback(() => {
+    if (isDemo || (role !== 'admin' && role !== 'sales')) {
+      setPendingRequests(0)
+      return
+    }
     fetchPendingCount()
-      .then((n) => { if (active) setPendingRequests(n) })
+      .then((n) => setPendingRequests(n))
       .catch(() => {})
-    return () => { active = false }
   }, [role, isDemo])
+
+  // Keep the badge live (same pattern the data pages use): fetch on mount,
+  // re-fetch when the tab regains focus/visibility and on an 8s poll, and
+  // immediately after an approve/reject (the page fires `change-requests:updated`).
+  // The badge only renders when the count is > 0, so it disappears at 0.
+  useEffect(() => {
+    refreshPending()
+    const onFocus = () => refreshPending()
+    const onVisible = () => { if (document.visibilityState === 'visible') refreshPending() }
+    const onUpdated = () => refreshPending()
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('change-requests:updated', onUpdated)
+    const id = setInterval(() => {
+      if (document.visibilityState === 'visible') refreshPending()
+    }, 8000)
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('change-requests:updated', onUpdated)
+      clearInterval(id)
+    }
+  }, [refreshPending])
 
   const badgeCounts = { pendingRequests }
 

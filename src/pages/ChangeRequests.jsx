@@ -65,6 +65,9 @@ export default function ChangeRequests() {
       setLoading(true)
       const rows = await fetchManagedRequests()
       setRequests(rows)
+      // Tell the sidebar badge to re-sync from the same pending source, so
+      // approving/rejecting here drops the badge immediately (no reload).
+      window.dispatchEvent(new Event('change-requests:updated'))
     } catch (e) {
       console.error('Failed to load change requests:', e)
       setBanner({ type: 'error', title: 'Failed to load requests', message: e.message })
