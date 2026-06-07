@@ -5,6 +5,10 @@ import { supabase } from '../lib/supabase'
 import { isValidPhone, normalizePhone, buildLoginEmail } from '../lib/phone'
 import { matchDemoAccount, setDemoSession } from '../lib/demoData'
 
+// One message for every login failure so we never reveal whether a given
+// name/phone exists or which field was wrong.
+const GENERIC_LOGIN_ERROR = 'Invalid name/phone or password.'
+
 export default function Login() {
   const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
@@ -59,25 +63,18 @@ export default function Login() {
           { search_name: trimmed },
         )
         console.log('[login] name lookup', { search_name: trimmed, matches, lookupErr })
-        if (lookupErr) {
-          setError('Could not look up that name. Try phone or email instead.')
-          setLoading(false)
-          return
-        }
-        if (!matches || matches.length === 0) {
-          setError('No account found for that name')
-          setLoading(false)
-          return
-        }
-        if (matches.length > 1) {
-          setError('Multiple matches — use phone number instead')
+        // Generic failures only: never reveal whether a given name exists.
+        // A lookup error, no match, an ambiguous match, or a name with no
+        // phone on file all collapse to the same "invalid credentials" reply.
+        if (lookupErr || !matches || matches.length !== 1) {
+          setError(GENERIC_LOGIN_ERROR)
           setLoading(false)
           return
         }
         const match = matches[0]
         const phone = normalizePhone(match.phone || '')
         if (!isValidPhone(phone)) {
-          setError('That account has no phone on file. Use email instead.')
+          setError(GENERIC_LOGIN_ERROR)
           setLoading(false)
           return
         }
@@ -103,7 +100,9 @@ export default function Login() {
       }
 
       if (error || !data) {
-        setError(error?.message || 'Invalid credentials')
+        // Wrong password (or wrong phone/name that still produced a candidate
+        // email) — keep it generic so we never disclose which part was wrong.
+        setError(GENERIC_LOGIN_ERROR)
         setLoading(false)
         return
       }

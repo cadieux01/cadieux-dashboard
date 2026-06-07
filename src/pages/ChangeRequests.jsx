@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase'
 import { logAuditEvent } from '../lib/audit'
 import { formatDateDDMMYY } from '../lib/date'
 import { changePassword, changePhone } from '../lib/adminApi'
-import { fetchManagedRequests, REQUEST_TYPE_LABELS } from '../lib/changeRequests'
+import { fetchManagedRequests, isNameTaken, REQUEST_TYPE_LABELS } from '../lib/changeRequests'
 import Modal from '../components/Modal'
 import AlertBanner from '../components/AlertBanner'
 import DEMO_DATA, { demoBlock } from '../lib/demoData'
@@ -109,11 +109,28 @@ export default function ChangeRequests() {
     setBanner(null)
     try {
       if (request.request_type === 'name') {
+        // Names are unique. Re-check at approval time (the name may have been
+        // taken since the request was filed) and surface a clear message
+        // instead of a raw unique-violation if the DB index rejects it.
+        if (await isNameTaken(request.requested_value, request.requester_id)) {
+          setBanner({
+            type: 'error',
+            title: 'Name already taken',
+            message: `"${request.requested_value}" is already used by another account. Ask ${request.requester_name} to pick a different name.`,
+          })
+          setBusyId(null)
+          return
+        }
         const { error } = await supabase
           .from('profiles')
           .update({ full_name: request.requested_value })
           .eq('id', request.requester_id)
-        if (error) throw error
+        if (error) {
+          if (error.code === '23505') {
+            throw new Error('That name is already taken by another account.')
+          }
+          throw error
+        }
       } else if (request.request_type === 'phone') {
         await changePhone({
           userId: request.requester_id,

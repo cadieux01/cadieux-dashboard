@@ -4,6 +4,7 @@ import Modal from '../components/Modal'
 import FormField from '../components/FormField'
 import { logAuditEvent } from '../lib/audit'
 import { createUser } from '../lib/adminApi'
+import { isNameTaken } from '../lib/changeRequests'
 import { isValidPhone, normalizePhone } from '../lib/phone'
 import ShareCredentials from '../components/ShareCredentials'
 
@@ -208,6 +209,12 @@ export default function Onboarding() {
 
     setLoading(true)
     try {
+      // Names must be unique — reject a taken name before provisioning.
+      if (await isNameTaken(formData.full_name)) {
+        setFormErrors({ full_name: 'That name is already taken. Please choose a different name.' })
+        setLoading(false)
+        return
+      }
       const phone = normalizePhone(formData.phone)
       const result = await createUser({
         phone,

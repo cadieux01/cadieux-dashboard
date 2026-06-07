@@ -5,6 +5,7 @@ import { formatDateDDMMYY } from '../lib/date'
 import {
   submitChangeRequest,
   fetchMyRequests,
+  isNameTaken,
   PASSWORD_PLACEHOLDER,
   REQUEST_TYPE_LABELS,
 } from '../lib/changeRequests'
@@ -128,11 +129,24 @@ export default function Profile() {
     }
   }
 
-  const handleNameSubmit = (e) => {
+  const handleNameSubmit = async (e) => {
     e.preventDefault()
     const next = nameValue.trim()
     if (!next) {
       setError('Please enter a new name.')
+      return
+    }
+    setError(null)
+    setSubmitting(true)
+    try {
+      if (await isNameTaken(next, profile?.id)) {
+        setError('That name is already taken. Please choose a different name.')
+        setSubmitting(false)
+        return
+      }
+    } catch {
+      setError('Could not verify the name right now. Please try again.')
+      setSubmitting(false)
       return
     }
     submit('name', profile?.full_name || '', next)

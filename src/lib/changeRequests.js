@@ -50,6 +50,30 @@ export async function submitChangeRequest({ profile, requestType, currentValue, 
   return data
 }
 
+/**
+ * True when `name` (case-insensitive, trimmed) is already used by another
+ * profile. Backed by the SECURITY DEFINER `name_is_taken` RPC so the caller
+ * never reads the profiles table directly. `excludeId` lets a user keep their
+ * own current name. Fails CLOSED (treats the name as taken) on RPC error so a
+ * transient failure never lets a duplicate slip through.
+ *
+ * @param {string} name
+ * @param {string|null} [excludeId]  profile id to ignore (the user themself)
+ */
+export async function isNameTaken(name, excludeId = null) {
+  const trimmed = (name || '').trim()
+  if (!trimmed) return false
+  const { data, error } = await supabase.rpc('name_is_taken', {
+    p_name: trimmed,
+    p_exclude: excludeId,
+  })
+  if (error) {
+    console.error('[changeRequests] name_is_taken failed:', error)
+    return true
+  }
+  return data === true
+}
+
 /** The requester's own history, newest first. */
 export async function fetchMyRequests(userId) {
   const { data, error } = await supabase
