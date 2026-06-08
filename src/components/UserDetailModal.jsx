@@ -5,9 +5,11 @@ import FormField from './FormField'
 import AlertBanner from './AlertBanner'
 import { logAuditEvent } from '../lib/audit'
 import { formatDateDDMMYY } from '../lib/date'
-import { changePassword, changePhone } from '../lib/adminApi'
+import { adminSetPassword, changePhone } from '../lib/adminApi'
 import { displayLogin, isValidPhone, normalizePhone } from '../lib/phone'
 import { demoBlock } from '../lib/demoData'
+import { useAuth } from '../context/AuthContext'
+import usePinGate from '../lib/usePinGate'
 import { Pencil, KeyRound, Send } from 'lucide-react'
 
 // Real phone for a profile: prefer the dedicated column, then the legacy
@@ -69,6 +71,9 @@ export default function UserDetailModal({
   refreshList,
   setBanner,
 }) {
+  const { isAdmin } = useAuth()
+  const { gate, PinGateElement } = usePinGate()
+
   const [current, setCurrent] = useState(user)
   const [mode, setMode] = useState(initialMode)
 
@@ -81,6 +86,7 @@ export default function UserDetailModal({
   const [editError, setEditError] = useState(null)
 
   const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [resetting, setResetting] = useState(false)
   const [resetError, setResetError] = useState(null)
 
@@ -170,39 +176,56 @@ export default function UserDetailModal({
     }
   }
 
-  const handleReset = async () => {
+  // Validate the form, then PIN-gate the actual password set. Admin-only:
+  // the modal hides this control for non-admins and the Edge Function also
+  // rejects any non-admin caller.
+  const handleReset = () => {
     if (isDemo) return demoBlock()
+    if (!isAdmin) {
+      setResetError('Only an admin can change a password.')
+      return
+    }
     setResetError(null)
     if (!newPassword || newPassword.length < 6) {
       setResetError('Password must be at least 6 characters.')
       return
     }
+    if (newPassword !== confirmPassword) {
+      setResetError('Passwords do not match. Please re-enter them.')
+      return
+    }
+    gate(doReset, `change ${current.full_name || phone}'s password`)
+  }
+
+  const doReset = async () => {
+    setResetError(null)
     setResetting(true)
     try {
-      await changePassword(current.id, newPassword)
+      await adminSetPassword(current.id, newPassword)
       await logAuditEvent({
         actionType: 'UPDATE',
         entityType: 'user',
         entityId: current.id,
-        description: `Reset password for ${roleLabel}: ${current.full_name || phone} (${phone})`,
+        description: `Admin changed password for ${roleLabel}: ${current.full_name || phone} (${phone})`,
       })
       const pw = newPassword
       setNewPassword('')
+      setConfirmPassword('')
       setMode('view')
       setBanner({
         type: 'success',
-        title: 'Password reset successfully',
-        message: `A new password was set for ${current.full_name || phone}.`,
+        title: 'Password changed successfully',
+        message: `A new password was set for ${current.full_name || phone}. They can log in with it now.`,
       })
-      onShareNewPassword({
+      onShareNewPassword?.({
         name: current.full_name || '',
         phone,
         password: pw,
         role,
       })
     } catch (err) {
-      console.error('Error resetting password:', err)
-      setResetError(err.message || 'Failed to reset password.')
+      console.error('Error changing password:', err)
+      setResetError(err.message || 'Failed to change password.')
     } finally {
       setResetting(false)
     }
@@ -211,7 +234,7 @@ export default function UserDetailModal({
   const titleByMode = {
     view: `${roleLabel} Details`,
     edit: `Edit ${roleLabel}`,
-    reset: 'Reset Password',
+    reset: 'Change Password',
   }
 
   return (
@@ -237,13 +260,15 @@ export default function UserDetailModal({
             >
               <Pencil size={16} /> Edit Details
             </button>
-            <button
-              type="button"
-              onClick={() => { setResetError(null); setNewPassword(''); setMode('reset') }}
-              className="flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-[#fbf3d4] transition-colors hover:bg-indigo-500"
-            >
-              <KeyRound size={16} /> Reset Password
-            </button>
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => { setResetError(null); setNewPassword(''); setConfirmPassword(''); setMode('reset') }}
+                className="flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-[#fbf3d4] transition-colors hover:bg-indigo-500"
+              >
+                <KeyRound size={16} /> Change Password
+              </button>
+            )}
             <button
               type="button"
               onClick={() => onShareLogin(current)}
@@ -329,13 +354,13 @@ export default function UserDetailModal({
         </div>
       )}
 
-      {mode === 'reset' && (
+      {mode === 'reset' && isAdmin && (
         <div>
           {resetError && (
             <div className="mb-4">
               <AlertBanner
                 type="error"
-                title="Could not reset password"
+                title="Could not change password"
                 message={resetError}
                 onDismiss={() => setResetError(null)}
               />
@@ -355,11 +380,20 @@ export default function UserDetailModal({
             minLength={6}
             required
           />
+          <FormField
+            label="Confirm New Password"
+            type="password"
+            value={confirmPassword}
+            onChange={setConfirmPassword}
+            placeholder="Re-enter the new password"
+            minLength={6}
+            required
+          />
 
           <div className="mt-6 flex gap-3">
             <button
               type="button"
-              onClick={() => { setMode('view'); setResetError(null); setNewPassword('') }}
+              onClick={() => { setMode('view'); setResetError(null); setNewPassword(''); setConfirmPassword('') }}
               className="flex-1 rounded-lg bg-slate-800 px-4 py-2 text-slate-100 transition-colors hover:bg-slate-700"
               disabled={resetting}
             >
@@ -371,11 +405,13 @@ export default function UserDetailModal({
               className="flex-1 rounded-lg bg-indigo-600 px-4 py-2 font-medium text-[#fbf3d4] transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={resetting}
             >
-              {resetting ? 'Resetting...' : 'Reset Password'}
+              {resetting ? 'Saving...' : 'Change Password'}
             </button>
           </div>
         </div>
       )}
+
+      {PinGateElement}
     </Modal>
   )
 }

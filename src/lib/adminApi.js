@@ -191,6 +191,27 @@ export async function changePassword(userId, newPassword) {
 }
 
 /**
+ * Admin directly sets a user's password from the Edit Partner modal.
+ * Stricter than changePassword: the Edge Function rejects anyone who is not
+ * an `admin` (sales/agents cannot use this path). Service-role op, so it goes
+ * through the Edge Function — the new password is never set from the browser.
+ *
+ * @param {string} userId        target profiles.id / auth user id
+ * @param {string} newPassword   >= 6 chars
+ */
+export async function adminSetPassword(userId, newPassword) {
+  if (!userId) throw new Error('User id is required')
+  if (!newPassword || newPassword.length < 6) {
+    throw new Error('Password must be at least 6 characters')
+  }
+  return await callManagePartner({
+    action: 'admin-set-password',
+    user_id: userId,
+    new_password: newPassword,
+  })
+}
+
+/**
  * Change a user's phone (approving a 'phone' change request). Rewrites the
  * synthetic auth email `<phone>@cadieux.<role>` and the profile phone, so
  * it must run server-side with the service-role key.
