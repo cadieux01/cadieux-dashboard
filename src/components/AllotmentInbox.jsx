@@ -44,6 +44,21 @@ export default function AllotmentInbox({ agentId }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentId])
 
+  // Live updates: refetch on focus/visibility and a 30s poll while visible, so
+  // a new allotment from the admin appears without a manual reload.
+  useEffect(() => {
+    const refresh = () => { if (document.visibilityState === 'visible') load() }
+    window.addEventListener('focus', refresh)
+    document.addEventListener('visibilitychange', refresh)
+    const id = setInterval(refresh, 30000)
+    return () => {
+      window.removeEventListener('focus', refresh)
+      document.removeEventListener('visibilitychange', refresh)
+      clearInterval(id)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agentId])
+
   const act = async (id, kind) => {
     setErr(null)
     setBusyId(id)

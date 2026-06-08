@@ -11,6 +11,7 @@ import {
   UserPlus,
   Inbox,
   Package,
+  PackageCheck,
   Boxes,
   Home,
   LogOut,
@@ -76,6 +77,7 @@ const salesNavigation = [
   { name: 'Team', href: '/admin/team', Icon: Users },
   { name: 'Partner Requests', href: '/admin/change-requests', badge: 'pendingRequests', Icon: ClipboardCheck },
   { name: 'Requests', href: '/admin/partner-requests', Icon: Inbox },
+  { name: 'Allotment', href: '/admin/allotment', Icon: PackageCheck },
   { name: 'Profile', href: '/admin/profile', Icon: User },
 ]
 
