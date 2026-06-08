@@ -45,20 +45,30 @@ export default function AgentUnits({ agentId, canManage = false }) {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState(null)
 
-  const load = async () => {
-    setLoading(true)
+  const load = async (background = false) => {
+    if (!background) setLoading(true)
     try {
       const data = await getAgentInventory(agentId)
       setInv(data)
     } catch (e) {
       console.warn('getAgentInventory failed:', e.message)
     } finally {
-      setLoading(false)
+      if (!background) setLoading(false)
     }
   }
 
   useEffect(() => {
     load()
+    const onFocus = () => load(true)
+    const onVisible = () => { if (document.visibilityState === 'visible') load(true) }
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisible)
+    const id = setInterval(() => load(true), 30000)
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisible)
+      clearInterval(id)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentId])
 
@@ -92,7 +102,7 @@ export default function AgentUnits({ agentId, canManage = false }) {
         await recordReturn({ agentId, partnerId: form.partner_id, variant: form.variant, units })
       }
       resetForm()
-      await load()
+      await load(true)
     } catch (e2) {
       setErr(e2.message)
     } finally {
@@ -108,7 +118,6 @@ export default function AgentUnits({ agentId, canManage = false }) {
     )
   }
 
-  const totals = inv?.totals || { received: 0, delivered: 0, returned: 0 }
   const available = inv?.available || 0
   const byVariant = inv?.byVariant || {}
   const history = inv?.history || []
@@ -127,11 +136,21 @@ export default function AgentUnits({ agentId, canManage = false }) {
         </p>
       </div>
 
-      {/* Breakdown */}
-      <div className="mb-4 grid grid-cols-3 gap-2">
-        <Stat label="Received" value={totals.received} accent="text-emerald-400" />
-        <Stat label="Delivered" value={totals.delivered} accent="text-amber-400" />
-        <Stat label="Returned" value={totals.returned} accent="text-sky-400" />
+      {/* Per-variant breakdown (Multigrain / Plain shown separately) */}
+      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {['multigrain', 'plain'].map((key) => {
+          const v = byVariant[key] || { available: 0, delivered: 0, returned: 0 }
+          return (
+            <div key={key} className="rounded-xl border border-slate-800 bg-slate-950/40 p-3">
+              <p className="mb-2 text-sm font-semibold text-slate-200">{VARIANTS[key].short}</p>
+              <div className="grid grid-cols-3 gap-2">
+                <Stat label="Available" value={v.available} accent="text-emerald-400" />
+                <Stat label="Active Sales" value={v.delivered} accent="text-amber-400" />
+                <Stat label="Retracted" value={v.returned} accent="text-sky-400" />
+              </div>
+            </div>
+          )
+        })}
       </div>
 
       {/* Manage actions (agent only) */}

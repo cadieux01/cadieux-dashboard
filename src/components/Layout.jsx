@@ -78,6 +78,7 @@ const salesNavigation = [
   { name: 'Partner Requests', href: '/admin/change-requests', badge: 'pendingRequests', Icon: ClipboardCheck },
   { name: 'Requests', href: '/admin/partner-requests', Icon: Inbox },
   { name: 'Allotment', href: '/admin/allotment', Icon: PackageCheck },
+  { name: 'Units', href: '/admin/units', Icon: Boxes },
   { name: 'Profile', href: '/admin/profile', Icon: User },
 ]
 

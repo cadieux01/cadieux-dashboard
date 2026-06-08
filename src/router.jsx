@@ -19,6 +19,7 @@ const Profile = lazy(() => import('./pages/Profile'))
 const ChangeRequests = lazy(() => import('./pages/ChangeRequests'))
 const Allot = lazy(() => import('./pages/Allot'))
 const Allotment = lazy(() => import('./pages/Allotment'))
+const Units = lazy(() => import('./pages/Units'))
 const Onboarding = lazy(() => import('./pages/Onboarding'))
 const OverviewPartners   = lazy(() => import('./pages/admin/OverviewPartners'))
 const OverviewAssigned   = lazy(() => import('./pages/admin/OverviewAssigned'))
@@ -138,6 +139,10 @@ export const router = createBrowserRouter([
       {
         path: 'allotment',
         element: <ProtectedRoute allowedRoles={['admin', 'sales']}>{withSuspense(Allotment)}</ProtectedRoute>,
+      },
+      {
+        path: 'units',
+        element: <ProtectedRoute allowedRoles={['admin', 'sales']}>{withSuspense(Units)}</ProtectedRoute>,
       },
       {
         path: 'audit-logs',
