@@ -81,6 +81,7 @@ export default function PartnerDashboard() {
   const [isQuickSaleOpen, setIsQuickSaleOpen] = useState(false)
   const [quickSaleData, setQuickSaleData] = useState(QUICK_SALE_DEFAULTS)
   const [quickToast, setQuickToast] = useState(null)
+  const [savedToast, setSavedToast] = useState(null)
   // Live Home: auto-refetch on focus/visibility + a short poll so an accepted
   // request or a changed assignment status from an agent shows up on its own,
   // without a manual reload (Supabase realtime is not enabled on the logistics
@@ -206,7 +207,9 @@ export default function PartnerDashboard() {
     }
   }
 
-  const handleSaveCustomer = async () => {
+  // keepOpen=true ("Save and Next"): after a successful save, clear the form
+  // but leave the modal open so the partner can log another customer in a row.
+  const handleSaveCustomer = async (keepOpen = false) => {
     if (isDemo) return demoBlock()
 
     const errors = validateCustomerForm()
@@ -365,13 +368,22 @@ export default function PartnerDashboard() {
         })
       }
 
-      // Reset form and refresh
+      // Reset the form ready for the next entry (clears variants, units,
+      // revenue, buyer, notes, picture; date back to today's default).
       setCustomerFormData(emptyCustomerForm())
       setEditingSaleId(null)
       setIsDateEditable(false)
-      setIsCustomerModalOpen(false)
+      setFormErrors({})
+      if (keepOpen && !editingSaleId) {
+        // "Save and Next" — confirm, keep the modal open for the next customer.
+        setSavedToast('Saved ✓')
+        setTimeout(() => setSavedToast(null), 2500)
+      } else {
+        setIsCustomerModalOpen(false)
+      }
       await fetchSales(currentTrainerId)
     } catch (error) {
+      // Save failed: leave the form data intact so nothing is lost.
       console.error('Error saving customer:', error)
       alert(`Failed to save customer: ${error.message || 'Please try again.'}`)
     }
@@ -1047,7 +1059,8 @@ export default function PartnerDashboard() {
         <form
           onSubmit={(e) => {
             e.preventDefault()
-            handleSaveCustomer()
+            // New entries use "Save and Next" (keep open); editing closes.
+            handleSaveCustomer(!editingSaleId)
           }}
           className="space-y-4"
         >
@@ -1231,6 +1244,13 @@ export default function PartnerDashboard() {
             placeholder="Add any notes about this customer..."
           />
 
+          {/* Inline confirmation after a "Save and Next" save */}
+          {savedToast && !editingSaleId && (
+            <div className="rounded-lg border border-emerald-400/30 bg-emerald-500/15 px-3 py-2 text-center text-sm font-semibold text-emerald-200">
+              {savedToast}
+            </div>
+          )}
+
           <div className="flex flex-col sm:flex-row gap-3 mt-6">
             {editingSaleId && (
               <button
@@ -1246,7 +1266,7 @@ export default function PartnerDashboard() {
               disabled={!isCustomerFormValid}
               className={`dashboard-button dashboard-button-primary disabled:cursor-not-allowed disabled:opacity-50 ${editingSaleId ? 'flex-1' : 'w-full'}`}
             >
-              {editingSaleId ? 'Done' : 'Save Customer'}
+              {editingSaleId ? 'Done' : 'Save and Next'}
             </button>
           </div>
         </form>
