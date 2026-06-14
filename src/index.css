@@ -645,3 +645,45 @@ button {
     transform: none;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Dough cursor (desktop only) — matches cadieux.in
+   A gold dot drawn on a fixed overlay (see DoughCursor.jsx) replaces the
+   native pointer. The OS cursor is hidden EVERYWHERE so the hand/arrow never
+   leaks through links/buttons, but the I-beam is kept on real text entry so
+   typing still reads correctly. Gated to fine-pointer + no-reduced-motion;
+   the component only adds `dough-cursor` to <html> under those conditions, so
+   touch / reduced-motion users keep their native cursor untouched. The dot is
+   pointer-events:none, so it never intercepts clicks, inputs, or dropdowns.
+   --------------------------------------------------------------------------- */
+.dough-cursor-dot {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #c9922e;
+  pointer-events: none;
+  z-index: 99999;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  will-change: transform, opacity;
+}
+
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  html.dough-cursor,
+  html.dough-cursor * {
+    cursor: none !important;
+  }
+
+  /* Keep the I-beam on real text entry ONLY, so typing still works. These
+     selectors are more specific than the universal rule, so they win even
+     against its !important. */
+  html.dough-cursor input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+  html.dough-cursor textarea,
+  html.dough-cursor [contenteditable="true"],
+  html.dough-cursor [contenteditable=""] {
+    cursor: text !important;
+  }
+}

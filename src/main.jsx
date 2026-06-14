@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { RouterProvider } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import DoughCursor from './components/DoughCursor'
 import { router } from './router'
 import './index.css'
 
@@ -15,6 +16,7 @@ if (!rootElement) {
 createRoot(rootElement).render(
   <StrictMode>
     <ErrorBoundary>
+      <DoughCursor />
       <AuthProvider>
         <RouterProvider router={router} />
       </AuthProvider>
