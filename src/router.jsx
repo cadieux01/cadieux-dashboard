@@ -11,12 +11,11 @@ const CTA = lazy(() => import('./pages/CTA'))
 const AuditLogs = lazy(() => import('./pages/AuditLogs'))
 const PartnerDashboard = lazy(() => import('./pages/PartnerDashboard'))
 const PartnerRequests = lazy(() => import('./pages/PartnerRequests'))
-const AdminPartnerRequests = lazy(() => import('./pages/AdminPartnerRequests'))
 const Partners = lazy(() => import('./pages/Partners'))
 const SalesExec = lazy(() => import('./pages/SalesExec'))
 const Team = lazy(() => import('./pages/Team'))
 const Profile = lazy(() => import('./pages/Profile'))
-const ChangeRequests = lazy(() => import('./pages/ChangeRequests'))
+const Requests = lazy(() => import('./pages/Requests'))
 const Allot = lazy(() => import('./pages/Allot'))
 const CentralStock = lazy(() => import('./pages/CentralStock'))
 const Allotment = lazy(() => import('./pages/Allotment'))
@@ -120,14 +119,19 @@ export const router = createBrowserRouter([
         element: <ProtectedRoute allowedRoles={['admin', 'sales']}>{withSuspense(Onboarding)}</ProtectedRoute>,
       },
       {
-        // Admin manages ALL requests; sales sees only partner requests
-        // (RLS scopes the rows). One component, role-aware labelling.
+        // Combined queue: partner stock requests + profile change approvals,
+        // each in a tab. Replaces the two separate nav items.
+        path: 'requests',
+        element: <ProtectedRoute allowedRoles={['admin', 'sales']}>{withSuspense(Requests)}</ProtectedRoute>,
+      },
+      {
+        // Legacy redirects: the two queues merged into /admin/requests.
         path: 'change-requests',
-        element: <ProtectedRoute allowedRoles={['admin', 'sales']}>{withSuspense(ChangeRequests)}</ProtectedRoute>,
+        element: <Navigate to="/admin/requests" replace />,
       },
       {
         path: 'partner-requests',
-        element: <ProtectedRoute allowedRoles={['admin', 'sales']}>{withSuspense(AdminPartnerRequests)}</ProtectedRoute>,
+        element: <Navigate to="/admin/requests" replace />,
       },
       {
         path: 'profile',

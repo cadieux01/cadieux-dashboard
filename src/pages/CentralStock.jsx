@@ -3,12 +3,14 @@ import { VARIANTS } from '../lib/demoData'
 import { useAuth } from '../context/AuthContext'
 import { formatDateTimeDDMMYY } from '../lib/date'
 import RefreshButton from '../components/RefreshButton'
+import WheelDateTime from '../components/WheelDateTime'
 import {
   getShelfLife,
   updateShelfLife,
   listBatches,
   createBatch,
   editBatch,
+  fmtBatchLeft,
   VARIANT_KEYS,
 } from '../lib/batches'
 
@@ -22,41 +24,6 @@ import {
 // ============================================================================
 
 const CARD = 'rounded-xl border border-slate-800 bg-slate-900 p-4 sm:p-6 mb-6'
-
-// Format a millisecond remaining span as "Xd Yh left" / "Yh Zm left" / "Zm left".
-function fmtLeft(ms) {
-  if (ms <= 0) return 'Expired'
-  const s = Math.floor(ms / 1000)
-  const d = Math.floor(s / 86400)
-  const h = Math.floor((s % 86400) / 3600)
-  const m = Math.floor((s % 3600) / 60)
-  if (d > 0) return `${d}d ${h}h left`
-  if (h > 0) return `${h}h ${m}m left`
-  return `${m}m left`
-}
-
-// Date -> { date:'YYYY-MM-DD', time:'HH:MM' } in LOCAL time (separate inputs).
-function toLocalParts(value) {
-  const dt = value ? new Date(value) : new Date()
-  if (Number.isNaN(dt.getTime())) return { date: '', time: '' }
-  const pad = (n) => String(n).padStart(2, '0')
-  return {
-    date: `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`,
-    time: `${pad(dt.getHours())}:${pad(dt.getMinutes())}`,
-  }
-}
-
-// Separate local date + time -> ISO (UTC) for the RPC. Both blank -> null
-// (= server now()); if only one is blank, fill it from the current moment.
-function partsToISO(date, time) {
-  if (!date && !time) return null
-  const now = new Date()
-  const pad = (n) => String(n).padStart(2, '0')
-  const d = date || `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
-  const t = time || `${pad(now.getHours())}:${pad(now.getMinutes())}`
-  const dt = new Date(`${d}T${t}`)
-  return Number.isNaN(dt.getTime()) ? null : dt.toISOString()
-}
 
 export default function CentralStock() {
   const { isDemo } = useAuth()
@@ -74,14 +41,14 @@ export default function CentralStock() {
   const [shelfBusy, setShelfBusy] = useState(false)
   const [shelfErr, setShelfErr] = useState(null)
 
-  // Create batch
-  const [createForm, setCreateForm] = useState({ variant: 'multigrain', quantity: '', date: '', time: '' })
+  // Create batch (when = the batch-start clock; defaults to now)
+  const [createForm, setCreateForm] = useState({ variant: 'multigrain', quantity: '', when: new Date() })
   const [createBusy, setCreateBusy] = useState(false)
   const [createErr, setCreateErr] = useState(null)
 
   // Edit batch
   const [editId, setEditId] = useState(null)
-  const [editForm, setEditForm] = useState({ quantity: '', date: '', time: '' })
+  const [editForm, setEditForm] = useState({ quantity: '', when: new Date() })
   const [editBusy, setEditBusy] = useState(false)
   const [editErr, setEditErr] = useState(null)
 
@@ -165,9 +132,9 @@ export default function CentralStock() {
       await createBatch({
         variant: createForm.variant,
         quantity,
-        createdAt: partsToISO(createForm.date, createForm.time),
+        createdAt: createForm.when instanceof Date ? createForm.when.toISOString() : null,
       })
-      setCreateForm({ variant: createForm.variant, quantity: '', date: '', time: '' })
+      setCreateForm({ variant: createForm.variant, quantity: '', when: new Date() })
       await load(true)
     } catch (e2) {
       setCreateErr(e2.message)
@@ -178,8 +145,8 @@ export default function CentralStock() {
 
   const openEdit = (b) => {
     setEditId(b.id)
-    const parts = toLocalParts(b.created_at)
-    setEditForm({ quantity: String(b.quantity), date: parts.date, time: parts.time })
+    const when = b.created_at ? new Date(b.created_at) : new Date()
+    setEditForm({ quantity: String(b.quantity), when: Number.isNaN(when.getTime()) ? new Date() : when })
     setEditErr(null)
   }
 
@@ -193,7 +160,7 @@ export default function CentralStock() {
       await editBatch({
         batchId: editId,
         quantity,
-        createdAt: partsToISO(editForm.date, editForm.time),
+        createdAt: editForm.when instanceof Date ? editForm.when.toISOString() : null,
       })
       setEditId(null)
       await load(true)
@@ -246,24 +213,11 @@ export default function CentralStock() {
                 className="dashboard-input"
                 placeholder="Quantity"
               />
-              <div>
-                <label className="mb-1 block text-xs text-slate-400">Batch start (clock). Leave blank for now.</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <input
-                    type="date"
-                    value={createForm.date}
-                    onChange={(e) => setCreateForm({ ...createForm, date: e.target.value })}
-                    className="dashboard-input"
-                  />
-                  <input
-                    type="time"
-                    step="60"
-                    value={createForm.time}
-                    onChange={(e) => setCreateForm({ ...createForm, time: e.target.value })}
-                    className="dashboard-input"
-                  />
-                </div>
-              </div>
+              <WheelDateTime
+                label="Batch start (clock)"
+                value={createForm.when}
+                onChange={(dt) => setCreateForm({ ...createForm, when: dt })}
+              />
               {createErr && <p className="text-sm font-semibold text-rose-400">{createErr}</p>}
               <button type="submit" disabled={createBusy} className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-[#fbf3d4] hover:bg-emerald-500 disabled:opacity-50">
                 {createBusy ? '…' : 'Create batch'}
@@ -374,7 +328,7 @@ export default function CentralStock() {
                             </td>
                             <td className="py-2.5 pr-3 text-slate-400">{formatDateTimeDDMMYY(b.created_at)}</td>
                             <td className={`py-2.5 pr-3 font-semibold ${expired ? 'text-rose-400' : 'text-emerald-400'}`}>
-                              {ms == null ? '—' : fmtLeft(ms)}
+                              {ms == null ? '—' : fmtBatchLeft(ms)}
                             </td>
                             <td className="py-2.5 text-right">
                               <button
@@ -400,24 +354,11 @@ export default function CentralStock() {
                                       className="dashboard-input"
                                     />
                                   </div>
-                                  <div>
-                                    <label className="mb-1 block text-xs text-slate-400">Batch start (clock)</label>
-                                    <div className="grid grid-cols-2 gap-2">
-                                      <input
-                                        type="date"
-                                        value={editForm.date}
-                                        onChange={(e) => setEditForm({ ...editForm, date: e.target.value })}
-                                        className="dashboard-input"
-                                      />
-                                      <input
-                                        type="time"
-                                        step="60"
-                                        value={editForm.time}
-                                        onChange={(e) => setEditForm({ ...editForm, time: e.target.value })}
-                                        className="dashboard-input"
-                                      />
-                                    </div>
-                                  </div>
+                                  <WheelDateTime
+                                    label="Batch start (clock)"
+                                    value={editForm.when}
+                                    onChange={(dt) => setEditForm({ ...editForm, when: dt })}
+                                  />
                                   {editErr && <p className="text-sm font-semibold text-rose-400">{editErr}</p>}
                                   <div className="flex gap-2">
                                     <button type="submit" disabled={editBusy} className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-[#fbf3d4] hover:bg-emerald-500 disabled:opacity-50">

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { VARIANTS } from '../lib/demoData'
 import { formatDateTimeDDMMYY } from '../lib/date'
@@ -9,6 +9,7 @@ import {
   recordReturn,
   variantLabel,
 } from '../lib/agentInventory'
+import { getBatchFreshnessMap, batchMsLeft, fmtBatchLeft } from '../lib/batches'
 
 // ============================================================================
 // AgentUnits — live inventory ledger for one agent (salesperson).
@@ -44,12 +45,18 @@ export default function AgentUnits({ agentId, canManage = false }) {
   const [form, setForm] = useState({ partner_id: '', variant: 'multigrain', units: '' })
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState(null)
+  // Live batch-expiry clock for history rows that carry a batch_id.
+  const [freshness, setFreshness] = useState({})
+  const [now, setNow] = useState(Date.now())
+  const tickRef = useRef(null)
 
   const load = async (background = false) => {
     if (!background) setLoading(true)
     try {
       const data = await getAgentInventory(agentId)
       setInv(data)
+      const batchIds = (data?.history || []).map((h) => h.batch_id).filter(Boolean)
+      setFreshness(batchIds.length ? await getBatchFreshnessMap(batchIds) : {})
     } catch (e) {
       console.warn('getAgentInventory failed:', e.message)
     } finally {
@@ -64,10 +71,12 @@ export default function AgentUnits({ agentId, canManage = false }) {
     window.addEventListener('focus', onFocus)
     document.addEventListener('visibilitychange', onVisible)
     const id = setInterval(() => load(true), 30000)
+    tickRef.current = setInterval(() => setNow(Date.now()), 1000)
     return () => {
       window.removeEventListener('focus', onFocus)
       document.removeEventListener('visibilitychange', onVisible)
       clearInterval(id)
+      clearInterval(tickRef.current)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentId])
@@ -245,6 +254,9 @@ export default function AgentUnits({ agentId, canManage = false }) {
         <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
           {history.map((h) => {
             const meta = ENTRY_META[h.entry_type] || { label: h.entry_type, cls: 'text-slate-300', sign: '' }
+            const batch = h.batch_id ? freshness[h.batch_id] : null
+            const ms = batch ? batchMsLeft(batch.expiry_at, now) : null
+            const expired = ms != null && ms <= 0
             return (
               <div
                 key={h.id}
@@ -259,6 +271,15 @@ export default function AgentUnits({ agentId, canManage = false }) {
                   <p className="text-xs text-slate-500">
                     {formatDateTimeDDMMYY(h.created_at)} · by {h.actor_name}
                   </p>
+                  {h.batch_id ? (
+                    batch ? (
+                      <p className={`mt-0.5 text-xs font-semibold ${expired ? 'text-rose-400' : ms != null && ms <= 86400000 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                        Batch #{batch.batch_number} · {fmtBatchLeft(ms)}
+                      </p>
+                    ) : null
+                  ) : (
+                    <p className="mt-0.5 text-xs text-slate-500">No batch · no expiry</p>
+                  )}
                 </div>
                 <span className={`flex-shrink-0 font-mono text-sm font-semibold ${meta.cls}`}>
                   {meta.sign}{h.units}

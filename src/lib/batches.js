@@ -134,17 +134,22 @@ export function batchMsLeft(expiryAt, nowMs) {
   return new Date(expiryAt).getTime() - nowMs
 }
 
-// "Xd Yh left" / "Yh Zm left" / "Zm left" / "Expired" — matches Central Stock.
+// Live countdown to expiry, ticking down to the SECOND:
+//   "2d 3h 14m 22s" / "3h 14m 22s" / "14m 22s" / "22s" / "Expired".
+// null when there is no expiry (NULL batch_id). Consumers tick a `now` state
+// every 1s so the seconds visibly decrement.
 export function fmtBatchLeft(ms) {
   if (ms == null) return null
   if (ms <= 0) return 'Expired'
-  const totalMin = Math.floor(ms / 60000)
-  const d = Math.floor(totalMin / 1440)
-  const h = Math.floor((totalMin % 1440) / 60)
-  const m = totalMin % 60
-  if (d > 0) return `${d}d ${h}h left`
-  if (h > 0) return `${h}h ${m}m left`
-  return `${m}m left`
+  const s = Math.floor(ms / 1000)
+  const d = Math.floor(s / 86400)
+  const h = Math.floor((s % 86400) / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  const sec = s % 60
+  if (d > 0) return `${d}d ${h}h ${m}m ${sec}s`
+  if (h > 0) return `${h}h ${m}m ${sec}s`
+  if (m > 0) return `${m}m ${sec}s`
+  return `${sec}s`
 }
 
 export { VARIANT_KEYS }

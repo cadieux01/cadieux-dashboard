@@ -23,7 +23,7 @@ function timeAgo(dateStr) {
   return formatDateDDMMYY(dateStr)
 }
 
-export default function AdminPartnerRequests() {
+export default function AdminPartnerRequests({ embedded = false }) {
   const { profile, isAdmin, isDemo } = useAuth()
   const [tab, setTab] = useState('request')
   const [pending, setPending] = useState([])
@@ -164,17 +164,19 @@ export default function AdminPartnerRequests() {
   )
 
   return (
-    <div className="dashboard-page pb-24 sm:pb-8">
+    <div className={embedded ? '' : 'dashboard-page pb-24 sm:pb-8'}>
       {toast && (
         <div className="fixed bottom-24 right-4 z-[60] rounded-lg bg-[#024628] px-4 py-2.5 text-sm font-semibold text-[#fbf3d4] shadow-lg md:bottom-6">
           {toast}
         </div>
       )}
 
-      <div className="relative z-10 mb-4">
-        <span className="dashboard-kicker">Operations</span>
-        <h1 className="dashboard-title mt-2">Partner Requests</h1>
-      </div>
+      {!embedded && (
+        <div className="relative z-10 mb-4">
+          <span className="dashboard-kicker">Operations</span>
+          <h1 className="dashboard-title mt-2">Partner Requests</h1>
+        </div>
+      )}
 
       {isDemo && (
         <div className="mb-4 rounded-[16px] border border-amber-300/30 bg-amber-400/10 px-4 py-2.5 text-xs text-amber-700">

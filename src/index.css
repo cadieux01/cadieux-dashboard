@@ -672,16 +672,33 @@ button {
 }
 
 @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  /* Hide the OS cursor on every element AND in every interaction state —
+     hover, mousedown/active, focus, focus-within, and during text-selection
+     drags — plus on generated content. This stops the native arrow / hand /
+     I-beam from flashing back when an element is clicked, pressed, focused,
+     or selected. (Native popups like an open <select> list are drawn by the
+     OS outside the page, so their cursor can't be suppressed here.) */
   html.dough-cursor,
-  html.dough-cursor * {
+  html.dough-cursor *,
+  html.dough-cursor *::before,
+  html.dough-cursor *::after,
+  html.dough-cursor *:hover,
+  html.dough-cursor *:active,
+  html.dough-cursor *:focus,
+  html.dough-cursor *:focus-visible,
+  html.dough-cursor *:focus-within {
     cursor: none !important;
   }
 
-  /* Keep the I-beam on real text entry ONLY, so typing still works. These
-     selectors are more specific than the universal rule, so they win even
-     against its !important. */
-  html.dough-cursor input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+  /* Keep the I-beam on real text entry ONLY (including while focused/active),
+     so typing still reads correctly. The attribute-heavy selectors are more
+     specific than the universal state rules above, so they always win. */
+  html.dough-cursor input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="image"]),
+  html.dough-cursor input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="image"]):focus,
+  html.dough-cursor input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="image"]):active,
   html.dough-cursor textarea,
+  html.dough-cursor textarea:focus,
+  html.dough-cursor textarea:active,
   html.dough-cursor [contenteditable="true"],
   html.dough-cursor [contenteditable=""] {
     cursor: text !important;

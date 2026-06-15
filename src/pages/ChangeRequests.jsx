@@ -33,7 +33,7 @@ function StatusBadge({ status }) {
   )
 }
 
-export default function ChangeRequests() {
+export default function ChangeRequests({ embedded = false }) {
   const { profile, isAdmin, isDemo } = useAuth()
   const { gate, PinGateElement } = usePinGate()
 
@@ -266,18 +266,26 @@ export default function ChangeRequests() {
   }
 
   return (
-    <div className="dashboard-page">
-      <div className="dashboard-page-header">
-        <div className="min-w-0">
-          <h1 className="dashboard-title">{title}</h1>
-          <p className="dashboard-subtitle hidden truncate sm:block">
-            {isAdmin
-              ? 'Review and approve name, phone, and password change requests.'
-              : 'Review and approve change requests from your partners.'}
-          </p>
+    <div className={embedded ? '' : 'dashboard-page'}>
+      {!embedded && (
+        <div className="dashboard-page-header">
+          <div className="min-w-0">
+            <h1 className="dashboard-title">{title}</h1>
+            <p className="dashboard-subtitle hidden truncate sm:block">
+              {isAdmin
+                ? 'Review and approve name, phone, and password change requests.'
+                : 'Review and approve change requests from your partners.'}
+            </p>
+          </div>
+          <RefreshButton onRefresh={refresh} loading={refreshing} />
         </div>
-        <RefreshButton onRefresh={refresh} loading={refreshing} />
-      </div>
+      )}
+
+      {embedded && (
+        <div className="mb-4 flex justify-end">
+          <RefreshButton onRefresh={refresh} loading={refreshing} />
+        </div>
+      )}
 
       {banner && (
         <div className="mb-6">
