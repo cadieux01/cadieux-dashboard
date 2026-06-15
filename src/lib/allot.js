@@ -98,9 +98,46 @@ export async function setStockTotal({ variant, total }) {
 
 // --- Allotments ------------------------------------------------------------
 
+// FIFO batch pick for an allotment: the OLDEST non-expired batch of this variant
+// whose UNRESERVED remaining covers the units. Unreserved = quantity_remaining −
+// Σ(pending allotments already stamped on that batch), because a pending
+// allotment carries a batch_id but only draws the batch down on accept. Returns
+// a batch id, or null when no batch qualifies (allot still proceeds, carrying no
+// clock — backward compatible).
+async function pickFifoBatchId(variant, units) {
+  const { data: batches, error: bErr } = await supabase
+    .from('central_stock_batches')
+    .select('id, quantity_remaining, expiry_at, created_at, batch_number')
+    .eq('variant', variant)
+    .order('created_at', { ascending: true })
+    .order('batch_number', { ascending: true })
+  if (bErr || !batches?.length) return null
+
+  const { data: pend, error: pErr } = await supabase
+    .from('allotments')
+    .select('batch_id, units')
+    .eq('variant', variant)
+    .eq('status', 'pending')
+    .not('batch_id', 'is', null)
+  const reserved = {}
+  if (!pErr) {
+    for (const r of pend || []) reserved[r.batch_id] = (reserved[r.batch_id] || 0) + (r.units || 0)
+  }
+
+  const nowMs = Date.now()
+  for (const b of batches) {
+    if (b.expiry_at && new Date(b.expiry_at).getTime() <= nowMs) continue // skip expired
+    const unreserved = (b.quantity_remaining || 0) - (reserved[b.id] || 0)
+    if (unreserved >= units) return b.id
+  }
+  return null
+}
+
 // Admin allots units from the pool to an exec. The DB guard blocks over-allot.
+// We FIFO-stamp the oldest non-expired batch so the clock carries on accept.
 export async function allot({ execId, variant, units, note = null }) {
   const { data: { user } } = await supabase.auth.getUser()
+  const batchId = await pickFifoBatchId(variant, units)
   const { data, error } = await supabase
     .from('allotments')
     .insert({
@@ -109,6 +146,7 @@ export async function allot({ execId, variant, units, note = null }) {
       units,
       status: 'pending',
       allotted_by: user?.id || null,
+      batch_id: batchId,
       note,
     })
     .select()

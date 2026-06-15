@@ -1,6 +1,7 @@
 import { supabase } from './supabase'
 import { logAuditEvent } from './audit'
 import { VARIANTS } from './demoData'
+import { getBatchFreshnessMap } from './batches'
 
 // ============================================================================
 // TWO-TIER INVENTORY: ADMIN → AGENT → PARTNER
@@ -112,6 +113,60 @@ export async function getAgentBalance(agentId) {
   const rows = await listAgentLedger(agentId)
   const { available, byVariant } = summarize(rows)
   return { available, byVariant }
+}
+
+// Agent's in-hand stock broken down BY BATCH (FIFO, oldest first), each lot
+// carrying the originating batch so the UI can show its live expiry countdown.
+//
+// 'received' rows carry batch_id (Stage 3 accept). Consumption ('delivered'
+// net of 'returned') is not yet batch-tagged, so we deplete it FIFO against the
+// oldest received lots — the standard first-in-first-out reading. Pre-batch
+// 'received' rows (NULL batch_id) show as a "no batch / no expiry" lot.
+// Returns an array of { variant, variant_label, units, batch|null } with
+// units > 0, ordered oldest-first within each variant.
+export async function getAgentHoldingsByBatch(agentId) {
+  const rows = await listAgentLedger(agentId)
+
+  const received = rows.filter((r) => r.entry_type === 'received')
+  const consumed = { multigrain: 0, plain: 0 } // net delivered − returned
+  for (const r of rows) {
+    if (r.entry_type === 'delivered') consumed[r.variant] = (consumed[r.variant] || 0) + (r.units || 0)
+    else if (r.entry_type === 'returned') consumed[r.variant] = (consumed[r.variant] || 0) - (r.units || 0)
+  }
+
+  const batchMap = await getBatchFreshnessMap(received.map((r) => r.batch_id))
+
+  const holdings = []
+  for (const variant of ['multigrain', 'plain']) {
+    let toConsume = Math.max(0, consumed[variant] || 0)
+    const lots = received
+      .filter((r) => r.variant === variant)
+      .map((r) => {
+        const batch = r.batch_id ? batchMap[r.batch_id] || null : null
+        // FIFO key: the batch's own clock-start when known, else the ledger row.
+        const sortKey = batch?.created_at || r.created_at
+        return { units: r.units || 0, batch, sortKey }
+      })
+      .sort((a, b) => new Date(a.sortKey) - new Date(b.sortKey))
+
+    for (const lot of lots) {
+      let remaining = lot.units
+      if (toConsume > 0) {
+        const take = Math.min(remaining, toConsume)
+        remaining -= take
+        toConsume -= take
+      }
+      if (remaining > 0) {
+        holdings.push({
+          variant,
+          variant_label: variantLabel(variant),
+          units: remaining,
+          batch: lot.batch,
+        })
+      }
+    }
+  }
+  return holdings
 }
 
 // --- Writes ----------------------------------------------------------------

@@ -1,11 +1,11 @@
 import { useAuth } from '../context/AuthContext'
-import AgentUnits from '../components/AgentUnits'
+import AgentAllotmentArea from '../components/AgentAllotmentArea'
 
 // ============================================================================
-// Units (exec) — dedicated page showing this agent's own inventory ledger:
-// per variant (Multigrain / Plain) Total Available, Active Sales (delivered),
-// and Total Retracted (returned). All numbers come from agent_inventory_ledger
-// via AgentUnits. Demo accounts have no real inventory, so it's hidden in demo.
+// Units (exec) — the agent's stock area, opening on the Units tab: live ledger
+// totals per variant (Available / Active Sales / Retracted) plus a FIFO batch
+// breakdown with freshness countdowns. The same tabbed area also hosts the
+// Allotment tab. Demo accounts have no real inventory, so it's hidden in demo.
 // ============================================================================
 
 export default function Units() {
@@ -23,7 +23,7 @@ export default function Units() {
       </div>
 
       {profile && !isDemo ? (
-        <AgentUnits agentId={profile.id} canManage />
+        <AgentAllotmentArea agentId={profile.id} defaultTab="units" />
       ) : (
         <div className="rounded-xl border border-slate-800 bg-slate-900 p-4 sm:p-6">
           <p className="text-sm text-slate-400">Units are not available in demo mode.</p>

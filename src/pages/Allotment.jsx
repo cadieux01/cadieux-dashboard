@@ -1,11 +1,12 @@
 import { useAuth } from '../context/AuthContext'
-import AllotmentInbox from '../components/AllotmentInbox'
+import AgentAllotmentArea from '../components/AgentAllotmentArea'
 
 // ============================================================================
-// Allotment (exec) — dedicated page for stock an admin has allotted to this
-// exec. Hosts the AllotmentInbox (Accept credits the agent ledger, Reject
-// returns units to the central pool). Demo accounts have no real inventory, so
-// the inbox is hidden in demo mode.
+// Allotment (exec) — the agent's stock area, opening on the Allotment tab:
+// totals + incoming allotments to Accept (credits the agent ledger, carrying
+// the batch clock) or Reject (returns units to the central pool), each with a
+// live batch countdown. The same tabbed area also hosts the Units tab. Demo
+// accounts have no real inventory, so it's hidden in demo mode.
 // ============================================================================
 
 export default function Allotment() {
@@ -23,7 +24,7 @@ export default function Allotment() {
       </div>
 
       {profile && !isDemo ? (
-        <AllotmentInbox agentId={profile.id} />
+        <AgentAllotmentArea agentId={profile.id} defaultTab="allotment" />
       ) : (
         <div className="rounded-xl border border-slate-800 bg-slate-900 p-4 sm:p-6">
           <p className="text-sm text-slate-400">Allotments are not available in demo mode.</p>

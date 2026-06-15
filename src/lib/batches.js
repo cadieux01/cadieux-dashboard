@@ -107,4 +107,44 @@ export async function editBatch({ batchId, quantity = null, createdAt = null }) 
   return data
 }
 
+// --- Batch freshness helpers (shared by the agent Units / Allotment tabs) ---
+
+// Look up a few freshness fields for a set of batch ids straight from the base
+// table (sales can read it via RLS). We compute the countdown client-side from
+// expiry_at + a ticking `now`, so this is fetched rarely, not per-second.
+// Returns { [batchId]: { id, batch_number, variant, created_at, expiry_at } }.
+export async function getBatchFreshnessMap(batchIds) {
+  const unique = [...new Set((batchIds || []).filter(Boolean))]
+  if (unique.length === 0) return {}
+  const { data, error } = await supabase
+    .from('central_stock_batches')
+    .select('id, batch_number, variant, created_at, expiry_at')
+    .in('id', unique)
+  if (error) {
+    console.warn('Batch freshness lookup failed:', error.message)
+    return {}
+  }
+  return Object.fromEntries((data || []).map((b) => [b.id, b]))
+}
+
+// Milliseconds left until a batch expires, given a ticking `nowMs`. null when
+// the batch has no expiry (e.g. pre-batch / NULL batch_id).
+export function batchMsLeft(expiryAt, nowMs) {
+  if (!expiryAt) return null
+  return new Date(expiryAt).getTime() - nowMs
+}
+
+// "Xd Yh left" / "Yh Zm left" / "Zm left" / "Expired" — matches Central Stock.
+export function fmtBatchLeft(ms) {
+  if (ms == null) return null
+  if (ms <= 0) return 'Expired'
+  const totalMin = Math.floor(ms / 60000)
+  const d = Math.floor(totalMin / 1440)
+  const h = Math.floor((totalMin % 1440) / 60)
+  const m = totalMin % 60
+  if (d > 0) return `${d}d ${h}h left`
+  if (h > 0) return `${h}h ${m}m left`
+  return `${m}m left`
+}
+
 export { VARIANT_KEYS }
