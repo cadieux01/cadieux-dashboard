@@ -215,16 +215,20 @@ export default function Leads() {
 
       if (salesError) throw salesError
 
-      // Fetch partners for filter/forms (kept in trainer-shaped object for UI compatibility)
+      // Fetch partners for filter/forms (kept in trainer-shaped object for UI compatibility).
+      // Removed (soft-deleted) partners are excluded so you can't assign new
+      // stock to them; their past sales still render from the sales rows.
       const { data: partnersData, error: trainersError } = await supabase
         .from('profiles')
-        .select('id, email, full_name, phone_number, notes, created_at')
+        .select('id, email, full_name, phone_number, notes, created_at, status')
         .eq('role', 'partner')
         .order('full_name', { ascending: true, nullsFirst: false })
 
       if (trainersError) throw trainersError
 
-      const normalizedPartners = (partnersData || []).map((partner) => ({
+      const normalizedPartners = (partnersData || [])
+        .filter((partner) => partner.status !== 'deleted')
+        .map((partner) => ({
         id: partner.id,
         name: partner.full_name || partner.email || 'N/A',
         contact: partner.phone_number || '',

@@ -16,8 +16,7 @@ const SalesExec = lazy(() => import('./pages/SalesExec'))
 const Team = lazy(() => import('./pages/Team'))
 const Profile = lazy(() => import('./pages/Profile'))
 const Requests = lazy(() => import('./pages/Requests'))
-const Allot = lazy(() => import('./pages/Allot'))
-const CentralStock = lazy(() => import('./pages/CentralStock'))
+const Stock = lazy(() => import('./pages/Stock'))
 const Allotment = lazy(() => import('./pages/Allotment'))
 const Units = lazy(() => import('./pages/Units'))
 const Records = lazy(() => import('./pages/Records'))
@@ -140,12 +139,17 @@ export const router = createBrowserRouter([
         element: <ProtectedRoute allowedRoles={['admin', 'sales']}>{withSuspense(Profile)}</ProtectedRoute>,
       },
       {
-        path: 'allot',
-        element: <ProtectedRoute requiredRole="admin">{withSuspense(Allot)}</ProtectedRoute>,
+        path: 'stock',
+        element: <ProtectedRoute requiredRole="admin">{withSuspense(Stock)}</ProtectedRoute>,
       },
       {
+        // Legacy redirects: Batches + Allot merged into /admin/stock.
         path: 'central-stock',
-        element: <ProtectedRoute requiredRole="admin">{withSuspense(CentralStock)}</ProtectedRoute>,
+        element: <Navigate to="/admin/stock" replace />,
+      },
+      {
+        path: 'allot',
+        element: <Navigate to="/admin/stock?tab=allot" replace />,
       },
       {
         path: 'allotment',

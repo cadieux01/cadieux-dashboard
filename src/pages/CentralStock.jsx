@@ -25,7 +25,7 @@ import {
 
 const CARD = 'rounded-xl border border-slate-800 bg-slate-900 p-4 sm:p-6 mb-6'
 
-export default function CentralStock() {
+export default function CentralStock({ embedded = false }) {
   const { isDemo } = useAuth()
 
   const [shelf, setShelf] = useState({ multigrain: 3, plain: 6 })
@@ -172,16 +172,22 @@ export default function CentralStock() {
   }
 
   return (
-    <div className="dashboard-page">
-      <div className="dashboard-page-header">
-        <div className="min-w-0">
-          <h1 className="dashboard-title">Batches</h1>
-          <p className="dashboard-subtitle hidden truncate sm:block">
-            Production batches with a live shelf-life countdown. Oldest first (FIFO).
-          </p>
+    <div className={embedded ? '' : 'dashboard-page'}>
+      {embedded ? (
+        <div className="mb-4 flex justify-end">
+          <RefreshButton onRefresh={() => load(true)} loading={refreshing} />
         </div>
-        <RefreshButton onRefresh={() => load(true)} loading={refreshing} />
-      </div>
+      ) : (
+        <div className="dashboard-page-header">
+          <div className="min-w-0">
+            <h1 className="dashboard-title">Batches</h1>
+            <p className="dashboard-subtitle hidden truncate sm:block">
+              Production batches with a live shelf-life countdown. Oldest first (FIFO).
+            </p>
+          </div>
+          <RefreshButton onRefresh={() => load(true)} loading={refreshing} />
+        </div>
+      )}
 
       {isDemo ? (
         <div className={CARD}>

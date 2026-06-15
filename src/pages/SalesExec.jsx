@@ -26,6 +26,7 @@ export default function SalesExec() {
   const [stats, setStats] = useState({})
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
+  const [showRemoved, setShowRemoved] = useState(false)
   const [isAddExecModalOpen, setIsAddExecModalOpen] = useState(false)
   const [creatingExec, setCreatingExec] = useState(false)
   const [banner, setBanner] = useState(null)
@@ -132,18 +133,20 @@ export default function SalesExec() {
   const execPhone = (exec) => exec.phone || exec.phone_number || displayLogin(exec.email) || 'N/A'
 
   const filteredExecs = useMemo(() => {
-    if (!searchQuery.trim()) return execs
-    const query = searchQuery.toLowerCase()
+    const query = searchQuery.trim().toLowerCase()
     return execs.filter((exec) => {
+      if (!showRemoved && exec.status === 'deleted') return false
+      if (!query) return true
       const matchesName = exec.full_name?.toLowerCase().includes(query)
       const matchesPhone = execPhone(exec).toLowerCase().includes(query)
       const matchesNotes = exec.notes?.toLowerCase().includes(query)
       return matchesName || matchesPhone || matchesNotes
     })
-  }, [execs, searchQuery])
+  }, [execs, searchQuery, showRemoved])
 
   const activeExecs = execs.filter((exec) => (exec.status || 'active') === 'active').length
   const inactiveExecs = execs.filter((exec) => exec.status === 'inactive').length
+  const removedExecs = execs.filter((exec) => exec.status === 'deleted').length
 
   const handleCloseAddExecModal = () => {
     setIsAddExecModalOpen(false)
@@ -315,10 +318,10 @@ export default function SalesExec() {
     if (isDemo) return demoBlock()
     const phone = exec.phone || exec.phone_number || normalizePhone(displayLogin(exec.email))
     if (!isValidPhone(phone)) {
-      setBanner({ type: 'error', title: 'Cannot delete', message: 'No valid phone on file for this exec.' })
+      setBanner({ type: 'error', title: 'Cannot remove', message: 'No valid phone on file for this exec.' })
       return
     }
-    if (!confirm(`Delete login for "${exec.full_name || phone}"?\n\nThis removes their login but KEEPS all their data and history.`)) return
+    if (!confirm(`Remove "${exec.full_name || phone}"?\n\nThis blocks their login and hides them from active lists, but KEEPS all their data and history. You can restore them later with Reactivate.`)) return
 
     setBusyId(exec.id)
     setBanner(null)
@@ -328,18 +331,18 @@ export default function SalesExec() {
         actionType: 'DELETE',
         entityType: 'user',
         entityId: exec.id,
-        description: `Deleted login for Agent: ${exec.full_name || phone} (${phone})`,
+        description: `Removed login for Agent: ${exec.full_name || phone} (${phone})`,
         oldValues: {
           phone,
           full_name: exec.full_name || null,
           role: 'sales',
         },
       })
-      setBanner({ type: 'success', title: 'Login deleted', message: `${exec.full_name || phone}'s login was removed. Data kept.` })
+      setBanner({ type: 'success', title: 'Agent removed', message: `${exec.full_name || phone}'s login is blocked and hidden. Data kept; restore with Reactivate.` })
       await fetchExecs()
     } catch (error) {
-      console.error('Error deleting sales exec:', error)
-      setBanner({ type: 'error', title: 'Failed to delete', message: error.message })
+      console.error('Error removing sales exec:', error)
+      setBanner({ type: 'error', title: 'Failed to remove', message: error.message })
     } finally {
       setBusyId(null)
     }
@@ -407,15 +410,7 @@ export default function SalesExec() {
         >
           <Send size={16} />
         </button>
-        {status === 'inactive' ? (
-          <button
-            onClick={() => handleReactivate(exec)}
-            disabled={busy}
-            className="rounded bg-emerald-500/20 px-3 py-1 text-xs text-emerald-400 transition-colors hover:bg-emerald-500/30 disabled:opacity-50"
-          >
-            {busy ? '...' : 'Reactivate'}
-          </button>
-        ) : status === 'active' ? (
+        {status === 'active' && (
           <button
             onClick={() => handleDeactivate(exec)}
             disabled={busy}
@@ -423,14 +418,25 @@ export default function SalesExec() {
           >
             {busy ? '...' : 'Deactivate'}
           </button>
-        ) : null}
-        <button
-          onClick={() => handleDelete(exec)}
-          disabled={busy}
-          className="rounded bg-rose-500/20 px-3 py-1 text-xs text-rose-400 transition-colors hover:bg-rose-500/30 disabled:opacity-50"
-        >
-          {busy ? '...' : 'Delete'}
-        </button>
+        )}
+        {(status === 'inactive' || status === 'deleted') && (
+          <button
+            onClick={() => handleReactivate(exec)}
+            disabled={busy}
+            className="rounded bg-emerald-500/20 px-3 py-1 text-xs text-emerald-400 transition-colors hover:bg-emerald-500/30 disabled:opacity-50"
+          >
+            {busy ? '...' : 'Reactivate'}
+          </button>
+        )}
+        {status !== 'deleted' && (
+          <button
+            onClick={() => handleDelete(exec)}
+            disabled={busy}
+            className="rounded bg-rose-500/20 px-3 py-1 text-xs text-rose-400 transition-colors hover:bg-rose-500/30 disabled:opacity-50"
+          >
+            {busy ? '...' : 'Remove'}
+          </button>
+        )}
       </div>
     )
   }
@@ -543,6 +549,15 @@ export default function SalesExec() {
               />
             </div>
           </div>
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-400">
+            <input
+              type="checkbox"
+              checked={showRemoved}
+              onChange={(e) => setShowRemoved(e.target.checked)}
+              className="h-4 w-4 rounded border-slate-700 bg-slate-800 text-emerald-600 focus:ring-emerald-500"
+            />
+            Show removed{removedExecs > 0 ? ` (${removedExecs})` : ''}
+          </label>
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}

@@ -44,14 +44,16 @@ async function fetchProfileMap(ids) {
 }
 
 // Salespeople (+ admins) available for the admin "pick a salesperson" picker.
+// Only active accounts — removed/deactivated users are excluded so you can't
+// assign new stock to them (their history elsewhere is untouched).
 export async function listSalespeople() {
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, full_name, phone, role')
+    .select('id, full_name, phone, role, status')
     .in('role', ['sales', 'admin'])
     .order('full_name', { ascending: true })
   if (error) throw error
-  return data || []
+  return (data || []).filter((p) => (p.status || 'active') === 'active')
 }
 
 // --- Requests ---------------------------------------------------------------

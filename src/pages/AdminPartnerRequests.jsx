@@ -186,7 +186,7 @@ export default function AdminPartnerRequests({ embedded = false }) {
 
       <div className="mb-5 flex flex-wrap gap-2">
         <TabBtn id="request" label="Request" count={pending.length} />
-        <TabBtn id="supply" label="Supply" count={supply.filter((s) => !s.assignment || s.assignment.status === 'pending').length} />
+        <TabBtn id="supply" label="Supply" count={supply.filter((s) => s.assignment && s.assignment.status === 'pending').length} />
         {isAdmin && <TabBtn id="tracking" label="Tracking" count={0} />}
       </div>
 

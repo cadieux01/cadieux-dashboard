@@ -3,8 +3,13 @@ import { useCallback, useEffect, useRef } from 'react'
 // ============================================================================
 // WheelDateTime — iOS Clock-style scroll-wheel date + time picker.
 // ----------------------------------------------------------------------------
-// Five spinning columns: Year · Month · Day · Hour : Minute. The centred row
-// in each column is the selected value (highlight band + top/bottom fade).
+// Five clearly-separated spinning columns, each with a small label above it:
+//   Month · Date · Hour · Minute · AM/PM   (12-hour clock).
+// There is NO year wheel — the year is fixed to the value's year (current year
+// when seeded with `new Date()`), so the picker never lets you scroll off into
+// a wrong year. The centred row in each column is the selected value (shared
+// highlight band + top/bottom fade).
+//
 // Controlled: `value` is a JS Date; `onChange(Date)` fires whenever a wheel
 // settles. Auto-fills to "now" when value is missing/invalid (the parent seeds
 // it with new Date()). No native <input type=date/time> → no OS popup, so the
@@ -74,7 +79,7 @@ function Column({ items, index, onIndex, ariaLabel }) {
       role="spinbutton"
       aria-label={ariaLabel}
       aria-valuetext={String(items[index]?.label ?? '')}
-      className="hide-scrollbar flex-1 select-none overflow-y-scroll focus:outline-none"
+      className="hide-scrollbar flex-1 select-none overflow-y-scroll rounded-lg bg-white/40 focus:outline-none focus:ring-2 focus:ring-[#024628]/30"
       style={{
         height: ITEM_H * 5,
         scrollSnapType: 'y mandatory',
@@ -102,64 +107,82 @@ function Column({ items, index, onIndex, ariaLabel }) {
 
 export default function WheelDateTime({ value, onChange, label, hint }) {
   const d = value instanceof Date && !Number.isNaN(value.getTime()) ? value : new Date()
-  const baseYear = new Date().getFullYear()
 
-  const years = []
-  for (let y = baseYear - 1; y <= baseYear + 2; y++) years.push(y)
-
+  // Year is fixed (no wheel) — taken from the value so editing an existing
+  // batch keeps its year; a fresh `new Date()` gives the current year.
   const year = d.getFullYear()
   const monthIdx = d.getMonth()
   const day = d.getDate()
-  const hour = d.getHours()
+  const hour24 = d.getHours()
   const minute = d.getMinutes()
+
+  const isPM = hour24 >= 12
+  const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12
 
   const dim = daysInMonth(year, monthIdx)
 
-  const yearItems = years.map((y) => ({ key: y, label: String(y) }))
   const monthItems = MONTHS.map((m, i) => ({ key: i, label: m }))
   const dayItems = Array.from({ length: dim }, (_, i) => ({ key: i + 1, label: pad2(i + 1) }))
-  const hourItems = Array.from({ length: 24 }, (_, i) => ({ key: i, label: pad2(i) }))
+  const hourItems = Array.from({ length: 12 }, (_, i) => ({ key: i + 1, label: pad2(i + 1) }))
   const minuteItems = Array.from({ length: 60 }, (_, i) => ({ key: i, label: pad2(i) }))
+  const ampmItems = [{ key: 'AM', label: 'AM' }, { key: 'PM', label: 'PM' }]
 
-  const yearIndex = Math.max(0, years.indexOf(year))
-
-  // Build a new Date from the parts, clamping the day to the chosen month.
-  const emit = (y, mo, dy, hh, mm) => {
-    const safeDay = Math.min(dy, daysInMonth(y, mo))
-    onChange(new Date(y, mo, safeDay, hh, mm, 0, 0))
+  // Build a new Date from the parts, clamping the day to the chosen month and
+  // folding 12-hour + AM/PM back into a 24-hour value.
+  const emit = (mo, dy, h12, mm, pm) => {
+    const safeDay = Math.min(dy, daysInMonth(year, mo))
+    const h24 = (h12 % 12) + (pm ? 12 : 0)
+    onChange(new Date(year, mo, safeDay, h24, mm, 0, 0))
   }
 
-  const Sep = ({ children }) => (
-    <span className="flex items-center px-0.5 font-display text-lg font-bold text-[#024628]/40">{children}</span>
-  )
+  const COLS = [
+    { key: 'month', heading: 'Month', items: monthItems, index: monthIdx,
+      onIndex: (i) => emit(i, day, hour12, minute, isPM), aria: 'Month' },
+    { key: 'date', heading: 'Date', items: dayItems, index: day - 1,
+      onIndex: (i) => emit(monthIdx, i + 1, hour12, minute, isPM), aria: 'Date' },
+    { key: 'hour', heading: 'Hour', items: hourItems, index: hour12 - 1,
+      onIndex: (i) => emit(monthIdx, day, i + 1, minute, isPM), aria: 'Hour' },
+    { key: 'minute', heading: 'Min', items: minuteItems, index: minute,
+      onIndex: (i) => emit(monthIdx, day, hour12, i, isPM), aria: 'Minute' },
+    { key: 'ampm', heading: 'AM/PM', items: ampmItems, index: isPM ? 1 : 0,
+      onIndex: (i) => emit(monthIdx, day, hour12, minute, i === 1), aria: 'AM or PM' },
+  ]
 
   return (
     <div>
       {label && <p className="mb-1 block text-xs text-slate-400">{label}</p>}
-      <div className="relative rounded-xl border border-[#E8E0D4] bg-[#F0EBE3] px-2 py-2">
-        {/* centre highlight band */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-x-2 top-1/2 z-0 -translate-y-1/2 rounded-lg border-y-2 border-[#024628]/30 bg-[#024628]/5"
-          style={{ height: ITEM_H }}
-        />
-        {/* top/bottom fade */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 z-20"
-          style={{
-            background:
-              'linear-gradient(to bottom, #F0EBE3 0%, rgba(240,235,227,0) 38%, rgba(240,235,227,0) 62%, #F0EBE3 100%)',
-          }}
-        />
-        <div className="relative z-10 flex items-stretch">
-          <Column items={yearItems} index={yearIndex} onIndex={(i) => emit(years[i], monthIdx, day, hour, minute)} ariaLabel="Year" />
-          <Column items={monthItems} index={monthIdx} onIndex={(i) => emit(year, i, day, hour, minute)} ariaLabel="Month" />
-          <Column items={dayItems} index={day - 1} onIndex={(i) => emit(year, monthIdx, i + 1, hour, minute)} ariaLabel="Day" />
-          <Sep> </Sep>
-          <Column items={hourItems} index={hour} onIndex={(i) => emit(year, monthIdx, day, i, minute)} ariaLabel="Hour" />
-          <Sep>:</Sep>
-          <Column items={minuteItems} index={minute} onIndex={(i) => emit(year, monthIdx, day, hour, i)} ariaLabel="Minute" />
+      <div className="rounded-xl border border-[#E8E0D4] bg-[#F0EBE3] px-2 pb-2 pt-1.5">
+        {/* per-column labels */}
+        <div className="mb-1 flex gap-1.5">
+          {COLS.map((c) => (
+            <span key={c.key} className="flex-1 text-center text-[10px] font-semibold uppercase tracking-wide text-[#5C6D62]">
+              {c.heading}
+            </span>
+          ))}
+        </div>
+
+        {/* wheels */}
+        <div className="relative">
+          {/* centre highlight band */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 top-1/2 z-0 -translate-y-1/2 rounded-lg border-y-2 border-[#024628]/30 bg-[#024628]/5"
+            style={{ height: ITEM_H }}
+          />
+          {/* top/bottom fade */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 z-20"
+            style={{
+              background:
+                'linear-gradient(to bottom, #F0EBE3 0%, rgba(240,235,227,0) 38%, rgba(240,235,227,0) 62%, #F0EBE3 100%)',
+            }}
+          />
+          <div className="relative z-10 flex gap-1.5">
+            {COLS.map((c) => (
+              <Column key={c.key} items={c.items} index={c.index} onIndex={c.onIndex} ariaLabel={c.aria} />
+            ))}
+          </div>
         </div>
       </div>
       <p className="mt-1 text-center text-[11px] text-[#5C6D62]">scroll the wheels · defaults to now</p>

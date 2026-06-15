@@ -43,6 +43,7 @@ export default function Partners() {
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
+  const [showRemoved, setShowRemoved] = useState(false)
   const [isAddPartnerModalOpen, setIsAddPartnerModalOpen] = useState(false)
   const [creatingPartner, setCreatingPartner] = useState(false)
   const [banner, setBanner] = useState(null)
@@ -138,6 +139,7 @@ export default function Partners() {
   const filteredPartners = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
     return partners.filter((partner) => {
+      if (!showRemoved && partner.status === 'deleted') return false
       if (typeFilter !== 'all' && (partner.partner_type || '') !== typeFilter) return false
       if (!query) return true
       const matchesName = partner.full_name?.toLowerCase().includes(query)
@@ -146,10 +148,11 @@ export default function Partners() {
       const matchesType = (PARTNER_TYPE_LABELS[partner.partner_type] || '').toLowerCase().includes(query)
       return matchesName || matchesPhone || matchesNotes || matchesType
     })
-  }, [partners, searchQuery, typeFilter])
+  }, [partners, searchQuery, typeFilter, showRemoved])
 
   const activePartners = partners.filter((p) => (p.status || 'active') === 'active').length
   const inactivePartners = partners.filter((p) => p.status === 'inactive').length
+  const removedPartners = partners.filter((p) => p.status === 'deleted').length
 
   const handleCloseAddPartnerModal = () => {
     setIsAddPartnerModalOpen(false)
@@ -336,10 +339,10 @@ export default function Partners() {
     if (isDemo) return demoBlock()
     const phone = partner.phone || partner.phone_number || normalizePhone(displayLogin(partner.email))
     if (!isValidPhone(phone)) {
-      setBanner({ type: 'error', title: 'Cannot delete', message: 'No valid phone on file for this partner.' })
+      setBanner({ type: 'error', title: 'Cannot remove', message: 'No valid phone on file for this partner.' })
       return
     }
-    if (!confirm(`Delete login for "${partner.full_name || phone}"?\n\nThis removes their login but KEEPS all their data and history.`)) return
+    if (!confirm(`Remove "${partner.full_name || phone}"?\n\nThis blocks their login and hides them from active lists, but KEEPS all their data and history. You can restore them later with Reactivate.`)) return
 
     setBusyId(partner.id)
     setBanner(null)
@@ -349,18 +352,18 @@ export default function Partners() {
         actionType: 'DELETE',
         entityType: 'user',
         entityId: partner.id,
-        description: `Deleted login for partner: ${partner.full_name || phone} (${phone})`,
+        description: `Removed login for partner: ${partner.full_name || phone} (${phone})`,
         oldValues: {
           phone,
           full_name: partner.full_name || null,
           role: 'partner',
         },
       })
-      setBanner({ type: 'success', title: 'Login deleted', message: `${partner.full_name || phone}'s login was removed. Data kept.` })
+      setBanner({ type: 'success', title: 'Partner removed', message: `${partner.full_name || phone}'s login is blocked and hidden. Data kept; restore with Reactivate.` })
       await fetchPartners()
     } catch (error) {
-      console.error('Error deleting partner:', error)
-      setBanner({ type: 'error', title: 'Failed to delete', message: error.message })
+      console.error('Error removing partner:', error)
+      setBanner({ type: 'error', title: 'Failed to remove', message: error.message })
     } finally {
       setBusyId(null)
     }
@@ -480,15 +483,7 @@ export default function Partners() {
         >
           <Send size={16} />
         </button>
-        {status === 'inactive' ? (
-          <button
-            onClick={() => handleReactivate(partner)}
-            disabled={busy}
-            className="rounded bg-emerald-500/20 px-3 py-1 text-xs text-emerald-400 transition-colors hover:bg-emerald-500/30 disabled:opacity-50"
-          >
-            {busy ? '...' : 'Reactivate'}
-          </button>
-        ) : status === 'active' ? (
+        {status === 'active' && (
           <button
             onClick={() => handleDeactivate(partner)}
             disabled={busy}
@@ -496,14 +491,25 @@ export default function Partners() {
           >
             {busy ? '...' : 'Deactivate'}
           </button>
-        ) : null}
-        <button
-          onClick={() => handleDelete(partner)}
-          disabled={busy}
-          className="rounded bg-rose-500/20 px-3 py-1 text-xs text-rose-400 transition-colors hover:bg-rose-500/30 disabled:opacity-50"
-        >
-          {busy ? '...' : 'Delete'}
-        </button>
+        )}
+        {(status === 'inactive' || status === 'deleted') && (
+          <button
+            onClick={() => handleReactivate(partner)}
+            disabled={busy}
+            className="rounded bg-emerald-500/20 px-3 py-1 text-xs text-emerald-400 transition-colors hover:bg-emerald-500/30 disabled:opacity-50"
+          >
+            {busy ? '...' : 'Reactivate'}
+          </button>
+        )}
+        {status !== 'deleted' && (
+          <button
+            onClick={() => handleDelete(partner)}
+            disabled={busy}
+            className="rounded bg-rose-500/20 px-3 py-1 text-xs text-rose-400 transition-colors hover:bg-rose-500/30 disabled:opacity-50"
+          >
+            {busy ? '...' : 'Remove'}
+          </button>
+        )}
       </div>
     )
   }
@@ -629,6 +635,15 @@ export default function Partners() {
               <option key={t.value} value={t.value}>{t.label}</option>
             ))}
           </select>
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-400">
+            <input
+              type="checkbox"
+              checked={showRemoved}
+              onChange={(e) => setShowRemoved(e.target.checked)}
+              className="h-4 w-4 rounded border-slate-700 bg-slate-800 text-emerald-600 focus:ring-emerald-500"
+            />
+            Show removed{removedPartners > 0 ? ` (${removedPartners})` : ''}
+          </label>
           {(searchQuery || typeFilter !== 'all') && (
             <button
               onClick={() => { setSearchQuery(''); setTypeFilter('all') }}

@@ -39,7 +39,7 @@ function PoolCard({ variant, total, available }) {
   )
 }
 
-export default function Allot() {
+export default function Allot({ embedded = false }) {
   const [pool, setPool] = useState(null)
   const [execs, setExecs] = useState([])
   const [allotments, setAllotments] = useState([])
@@ -70,10 +70,10 @@ export default function Allot() {
     load()
     supabase
       .from('profiles')
-      .select('id, full_name, phone')
+      .select('id, full_name, phone, status')
       .eq('role', 'sales')
       .order('full_name', { ascending: true })
-      .then(({ data }) => setExecs(data || []))
+      .then(({ data }) => setExecs((data || []).filter((e) => (e.status || 'active') === 'active')))
   }, [])
 
   const submitAllot = async (e) => {
@@ -97,16 +97,22 @@ export default function Allot() {
   const availForVariant = pool?.[allotForm.variant]?.available || 0
 
   return (
-    <div className="dashboard-page">
-      <div className="dashboard-page-header">
-        <div className="min-w-0">
-          <h1 className="dashboard-title">Allot</h1>
-          <p className="dashboard-subtitle hidden truncate sm:block">
-            Hold central stock and allot units to your execs. They accept into their own inventory.
-          </p>
+    <div className={embedded ? '' : 'dashboard-page'}>
+      {embedded ? (
+        <div className="mb-4 flex justify-end">
+          <RefreshButton onRefresh={() => load(true)} loading={refreshing} />
         </div>
-        <RefreshButton onRefresh={() => load(true)} loading={refreshing} />
-      </div>
+      ) : (
+        <div className="dashboard-page-header">
+          <div className="min-w-0">
+            <h1 className="dashboard-title">Allot</h1>
+            <p className="dashboard-subtitle hidden truncate sm:block">
+              Hold central stock and allot units to your execs. They accept into their own inventory.
+            </p>
+          </div>
+          <RefreshButton onRefresh={() => load(true)} loading={refreshing} />
+        </div>
+      )}
 
       {loading ? (
         <div className={CARD}>
