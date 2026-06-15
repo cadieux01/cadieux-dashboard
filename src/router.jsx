@@ -17,7 +17,6 @@ const Team = lazy(() => import('./pages/Team'))
 const Profile = lazy(() => import('./pages/Profile'))
 const Requests = lazy(() => import('./pages/Requests'))
 const Stock = lazy(() => import('./pages/Stock'))
-const Allotment = lazy(() => import('./pages/Allotment'))
 const Units = lazy(() => import('./pages/Units'))
 const Records = lazy(() => import('./pages/Records'))
 const Payments = lazy(() => import('./pages/Payments'))
@@ -153,8 +152,9 @@ export const router = createBrowserRouter([
         element: <Navigate to="/admin/stock?tab=allot" replace />,
       },
       {
+        // Legacy redirect: Allotment folded into the single Stock page.
         path: 'allotment',
-        element: <ProtectedRoute allowedRoles={['admin', 'sales']}>{withSuspense(Allotment)}</ProtectedRoute>,
+        element: <Navigate to="/admin/units" replace />,
       },
       {
         path: 'units',

@@ -11,6 +11,8 @@ import RefreshStatus from '../components/RefreshStatus'
 import useRefreshable from '../lib/useRefreshable'
 import { logAuditEvent, createAuditDescription } from '../lib/audit'
 import { getBatchFreshnessMap, batchMsLeft, fmtBatchLeft } from '../lib/batches'
+import { getAgentBalance } from '../lib/agentInventory'
+import { verifyPayment, getProofSignedUrl } from '../lib/payments'
 import { formatDateDDMMYY, formatDateTimeDDMMYY } from '../lib/date'
 import { useAuth } from '../context/AuthContext'
 import { demoBlock, demoLeads, demoLeadSales, demoLeadTrainers, VARIANTS } from '../lib/demoData'
@@ -66,8 +68,11 @@ const STATUS_OPTIONS = [
 ]
 
 export default function Leads() {
-  const { isDemo, user, isAdmin } = useAuth()
+  const { isDemo, user, isAdmin, profile } = useAuth()
   const [leads, setLeads] = useState([])
+  const [agentBalance, setAgentBalance] = useState(null)
+  const [proofMap, setProofMap] = useState({})
+  const [verifyingId, setVerifyingId] = useState(null)
   const [sales, setSales] = useState([])
   const [trainers, setTrainers] = useState([])
   const [loading, setLoading] = useState(true)
@@ -228,7 +233,7 @@ export default function Leads() {
       if (trainersError) throw trainersError
 
       const normalizedPartners = (partnersData || [])
-        .filter((partner) => partner.status !== 'deleted')
+        .filter((partner) => partner.status !== 'deleted' && partner.status !== 'inactive')
         .map((partner) => ({
         id: partner.id,
         name: partner.full_name || partner.email || 'N/A',
@@ -252,6 +257,37 @@ export default function Leads() {
         setBatchMap(map)
       } catch (e) {
         console.warn('getBatchFreshnessMap failed:', e.message)
+      }
+
+      // Logged-in agent's in-hand stock balance (admin → agent → partner ledger).
+      try {
+        if (user?.id) setAgentBalance(await getAgentBalance(user.id))
+      } catch (e) {
+        console.warn('getAgentBalance failed:', e.message)
+      }
+
+      // Payment proofs for credit assignments awaiting verification, so the agent
+      // can view the partner's proof and verify (pending/awaiting → paid).
+      try {
+        const creditSaleIds = (salesData || [])
+          .filter((s) => s.payment_status === 'awaiting_verification')
+          .map((s) => s.id)
+        if (creditSaleIds.length) {
+          const { data: confs } = await supabase
+            .from('payment_confirmations')
+            .select('sale_id, proof_file_path, status, requested_at')
+            .in('sale_id', creditSaleIds)
+            .order('requested_at', { ascending: false })
+          const map = {}
+          for (const c of confs || []) {
+            if (!map[c.sale_id]) map[c.sale_id] = c // newest first → keep latest
+          }
+          setProofMap(map)
+        } else {
+          setProofMap({})
+        }
+      } catch (e) {
+        console.warn('payment_confirmations fetch failed:', e.message)
       }
     } catch (error) {
       console.error('Error fetching data:', error)
@@ -817,6 +853,31 @@ export default function Leads() {
     } catch (error) {
       console.error('Error saving sale:', error)
       alert('Error saving sale: ' + error.message)
+    }
+  }
+
+  // Agent/admin marks a credit assignment paid after seeing the partner's proof.
+  // verify_payment is admin/sales gated server-side; sets payment_status = 'paid'.
+  const handleVerifyPayment = async (sale) => {
+    if (isDemo) return demoBlock()
+    setVerifyingId(sale.id)
+    try {
+      await verifyPayment(sale.id)
+      await fetchData()
+    } catch (error) {
+      console.error('Verify payment failed:', error)
+      alert('Could not mark as paid: ' + (error.message || error))
+    } finally {
+      setVerifyingId(null)
+    }
+  }
+
+  const viewProof = async (path) => {
+    try {
+      const url = await getProofSignedUrl(path, 120)
+      if (url) window.open(url, '_blank', 'noopener,noreferrer')
+    } catch (e) {
+      console.error('Proof URL failed:', e)
     }
   }
 
@@ -1463,7 +1524,7 @@ export default function Leads() {
             </div>
             <RefreshButton onRefresh={refresh} loading={refreshing} />
           </div>
-          <div className="grid grid-cols-3 gap-2 w-full lg:w-auto">
+          <div className="grid grid-cols-4 gap-2 w-full lg:w-auto">
             <button
               onClick={() => setIsAddSaleModalOpen(true)}
               className="flex h-8 items-center justify-center gap-1.5 px-3 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-[#fbf3d4] text-xs font-medium rounded-lg shadow-lg transition-all"
@@ -1480,7 +1541,16 @@ export default function Leads() {
               <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
-              <span className="hidden sm:inline">Add Sale</span>
+              <span className="hidden sm:inline">Sale</span>
+            </button>
+            <button
+              onClick={() => setIsAddModalOpen(true)}
+              className="flex h-8 items-center justify-center gap-1.5 px-3 bg-gradient-to-r from-sky-600 to-sky-500 hover:from-sky-500 hover:to-sky-400 text-[#fbf3d4] text-xs font-medium rounded-lg shadow-lg transition-all"
+            >
+              <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+              <span className="hidden sm:inline">Add Customer</span>
             </button>
             <button
               onClick={() => setIsAddRetractModalOpen(true)}
@@ -1489,12 +1559,37 @@ export default function Leads() {
               <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
               </svg>
-              <span className="hidden sm:inline">Add Retract</span>
+              <span className="hidden sm:inline">Retract</span>
             </button>
           </div>
         </div>
       </div>
 
+
+      {/* Available units — the agent's own in-hand stock (admin → agent ledger).
+          This is what's available to assign to partners right now. */}
+      {agentBalance && (
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 sm:p-6 mb-6">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-slate-100">Available units</h2>
+            <span className="text-xs text-slate-500">Your in-hand stock</span>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2.5">
+              <p className="text-[11px] uppercase tracking-wide text-slate-500">Total</p>
+              <p className="font-mono text-2xl font-bold text-emerald-300">{agentBalance.available}</p>
+            </div>
+            <div className="rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2.5">
+              <p className="text-[11px] uppercase tracking-wide text-slate-500">Multi-Grain</p>
+              <p className="font-mono text-2xl font-bold text-slate-100">{agentBalance.byVariant?.multigrain?.available ?? 0}</p>
+            </div>
+            <div className="rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2.5">
+              <p className="text-[11px] uppercase tracking-wide text-slate-500">Plain</p>
+              <p className="font-mono text-2xl font-bold text-slate-100">{agentBalance.byVariant?.plain?.available ?? 0}</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* BOX 1 — Active Sales (assignments whose batch clock hasn't expired) */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 sm:p-6 mb-6">
@@ -1548,6 +1643,44 @@ export default function Leads() {
                       <span className="text-slate-200">{sale.product_variant || 'Mixed'}</span>
                     </div>
                   </div>
+
+                  {/* Credit / payment — agent can view proof and mark paid */}
+                  {sale.payment_status && (() => {
+                    const proof = proofMap[sale.id]
+                    const meta = {
+                      pending: { label: 'On credit', cls: 'border-amber-700 bg-amber-500/10 text-amber-300' },
+                      awaiting_verification: { label: 'Awaiting verification', cls: 'border-sky-700 bg-sky-500/10 text-sky-300' },
+                      paid: { label: 'Paid', cls: 'border-emerald-700 bg-emerald-500/10 text-emerald-300' },
+                    }[sale.payment_status] || { label: sale.payment_status, cls: 'border-slate-700 bg-slate-800 text-slate-300' }
+                    return (
+                      <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-slate-800 pt-2">
+                        <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${meta.cls}`}>
+                          {meta.label}
+                        </span>
+                        {sale.amount_owed != null && sale.payment_status !== 'paid' && (
+                          <span className="font-mono text-xs text-amber-300">₹{Number(sale.amount_owed).toLocaleString('en-IN')} owed</span>
+                        )}
+                        {proof?.proof_file_path && (
+                          <button
+                            onClick={() => viewProof(proof.proof_file_path)}
+                            className="rounded bg-sky-500/20 px-2.5 py-1 text-xs font-medium text-sky-200 transition-colors hover:bg-sky-500/30"
+                          >
+                            View proof
+                          </button>
+                        )}
+                        {sale.payment_status !== 'paid' && (
+                          <button
+                            onClick={() => handleVerifyPayment(sale)}
+                            disabled={verifyingId === sale.id}
+                            className="rounded bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-[#fbf3d4] transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {verifyingId === sale.id ? 'Saving…' : 'Mark paid'}
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })()}
+
                   <div className="mt-2 flex items-center justify-between gap-3">
                     <p className="text-xs text-slate-500">
                       {sale.date_of_assignment ? formatDateTimeDDMMYY(sale.date_of_assignment) : 'N/A'}
@@ -1635,34 +1768,8 @@ export default function Leads() {
 
       {/* Customers Table */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden mb-8">
-        <div className="px-4 sm:px-6 py-4 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="px-4 sm:px-6 py-4 border-b border-slate-800">
           <h3 className="text-lg font-semibold text-slate-100">Customers</h3>
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
-            <button
-              onClick={() => setIsAddModalOpen(true)}
-              className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-[#fbf3d4] font-medium rounded-lg shadow-lg transition-all"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Add Customer
-            </button>
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-              <span className="text-sm text-slate-400">Items per page:</span>
-              <select
-                value={customersItemsPerPage}
-                onChange={(e) => setCustomersItemsPerPage(Number(e.target.value))}
-                className="px-2 py-1 bg-slate-800 border border-slate-700 rounded text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value={10}>10</option>
-                <option value={20}>20</option>
-                <option value={50}>50</option>
-              </select>
-            </div>
-            <span className="text-sm text-slate-500">
-              Showing {customerCountStart}-{customerCountEnd} of {filteredLeads.length} customers
-            </span>
-          </div>
         </div>
         <div className="sm:hidden p-4 space-y-3">
           {paginatedCustomers.length === 0 ? (
@@ -1674,9 +1781,25 @@ export default function Leads() {
         <div className="hidden sm:block max-h-[600px] overflow-y-auto">
           <DataTable columns={columns} data={paginatedCustomers} />
         </div>
-        {customersTotalPages > 1 && (
-          <div className="px-4 sm:px-6 py-4 border-t border-slate-800 flex justify-center sm:justify-start">
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+        {/* Bottom bar — items-per-page + showing count + pager (below the table) */}
+        <div className="px-4 sm:px-6 py-4 border-t border-slate-800 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-slate-400">Items per page:</span>
+            <select
+              value={customersItemsPerPage}
+              onChange={(e) => setCustomersItemsPerPage(Number(e.target.value))}
+              className="px-2 py-1 bg-slate-800 border border-slate-700 rounded text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+            </select>
+            <span className="text-sm text-slate-500">
+              Showing {customerCountStart}-{customerCountEnd} of {filteredLeads.length}
+            </span>
+          </div>
+          {customersTotalPages > 1 && (
+            <div className="flex items-center gap-2">
               <button
                 onClick={() => setCustomersPage(Math.max(1, customersPage - 1))}
                 disabled={customersPage === 1}
@@ -1695,8 +1818,8 @@ export default function Leads() {
                 Next
               </button>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Add/Edit Lead Modal */}

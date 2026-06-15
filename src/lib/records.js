@@ -42,3 +42,42 @@ export async function getAgentRecords(agentId) {
   if (error) throw error
   return data || []
 }
+
+// Fetch the customers (leads) belonging to the partners this agent supplies.
+// There is no agent_id on leads, so we derive the agent's partner set from
+// their sales rows, then pull every lead recorded against those partners.
+export async function getAgentCustomers(agentId) {
+  if (!agentId) return []
+
+  const { data: salesRows, error: salesErr } = await supabase
+    .from('sales')
+    .select('trainer_id')
+    .eq('agent_id', agentId)
+  if (salesErr) throw salesErr
+
+  const partnerIds = Array.from(
+    new Set((salesRows || []).map((r) => r.trainer_id).filter(Boolean)),
+  )
+  if (partnerIds.length === 0) return []
+
+  const { data, error } = await supabase
+    .from('leads')
+    .select(`
+      id,
+      trainer_id,
+      buyer_name,
+      buyer_contact,
+      status,
+      created_at,
+      trainers:profiles (
+        id,
+        name:full_name,
+        contact:phone_number
+      )
+    `)
+    .in('trainer_id', partnerIds)
+    .order('created_at', { ascending: false })
+
+  if (error) throw error
+  return data || []
+}

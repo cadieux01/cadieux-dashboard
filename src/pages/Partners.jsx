@@ -43,7 +43,8 @@ export default function Partners() {
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
-  const [showRemoved, setShowRemoved] = useState(false)
+  // 'active' (default) shows live partners; 'inactive' shows deactivated/removed.
+  const [statusFilter, setStatusFilter] = useState('active')
   const [isAddPartnerModalOpen, setIsAddPartnerModalOpen] = useState(false)
   const [creatingPartner, setCreatingPartner] = useState(false)
   const [banner, setBanner] = useState(null)
@@ -139,7 +140,9 @@ export default function Partners() {
   const filteredPartners = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
     return partners.filter((partner) => {
-      if (!showRemoved && partner.status === 'deleted') return false
+      const status = partner.status || 'active'
+      // Active view = live partners; Inactive view = deactivated + removed.
+      if (statusFilter === 'active' ? status !== 'active' : status === 'active') return false
       if (typeFilter !== 'all' && (partner.partner_type || '') !== typeFilter) return false
       if (!query) return true
       const matchesName = partner.full_name?.toLowerCase().includes(query)
@@ -148,7 +151,7 @@ export default function Partners() {
       const matchesType = (PARTNER_TYPE_LABELS[partner.partner_type] || '').toLowerCase().includes(query)
       return matchesName || matchesPhone || matchesNotes || matchesType
     })
-  }, [partners, searchQuery, typeFilter, showRemoved])
+  }, [partners, searchQuery, typeFilter, statusFilter])
 
   const activePartners = partners.filter((p) => (p.status || 'active') === 'active').length
   const inactivePartners = partners.filter((p) => p.status === 'inactive').length
@@ -635,18 +638,17 @@ export default function Partners() {
               <option key={t.value} value={t.value}>{t.label}</option>
             ))}
           </select>
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-400">
-            <input
-              type="checkbox"
-              checked={showRemoved}
-              onChange={(e) => setShowRemoved(e.target.checked)}
-              className="h-4 w-4 rounded border-slate-700 bg-slate-800 text-emerald-600 focus:ring-emerald-500"
-            />
-            Show removed{removedPartners > 0 ? ` (${removedPartners})` : ''}
-          </label>
-          {(searchQuery || typeFilter !== 'all') && (
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          >
+            <option value="active">Active{activePartners > 0 ? ` (${activePartners})` : ''}</option>
+            <option value="inactive">Inactive{inactivePartners + removedPartners > 0 ? ` (${inactivePartners + removedPartners})` : ''}</option>
+          </select>
+          {(searchQuery || typeFilter !== 'all' || statusFilter !== 'active') && (
             <button
-              onClick={() => { setSearchQuery(''); setTypeFilter('all') }}
+              onClick={() => { setSearchQuery(''); setTypeFilter('all'); setStatusFilter('active') }}
               className="px-4 py-2 text-sm text-slate-400 hover:text-slate-100 transition-colors"
             >
               Clear filters

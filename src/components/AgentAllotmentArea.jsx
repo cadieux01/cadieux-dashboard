@@ -19,8 +19,13 @@ const TABS = [
   { key: 'allotment', label: 'Allotment' },
 ]
 
-export default function AgentAllotmentArea({ agentId, defaultTab = 'units' }) {
-  const [tab, setTab] = useState(defaultTab === 'allotment' ? 'allotment' : 'units')
+export default function AgentAllotmentArea({ agentId, defaultTab = 'units', allotmentOnly = false }) {
+  const [tab, setTab] = useState(allotmentOnly || defaultTab === 'allotment' ? 'allotment' : 'units')
+
+  // Agent Stock page is allotment-only: show just the inbox, no tab switcher.
+  if (allotmentOnly) {
+    return <AllotmentInbox agentId={agentId} />
+  }
 
   return (
     <div>

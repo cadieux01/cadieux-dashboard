@@ -10,7 +10,6 @@ import {
   UserPlus,
   Inbox,
   Package,
-  PackageCheck,
   Boxes,
   History,
   Wallet,
@@ -75,14 +74,12 @@ const adminNavigation = [
 
 const salesNavigation = [
   { name: 'Overview', href: '/admin/overview', Icon: LayoutDashboard },
+  { name: 'Stock', href: '/admin/units', Icon: Boxes },
   { name: 'Assignment', href: '/admin/sales', Icon: TrendingUp },
   { name: 'CTA', href: '/admin/cta', Icon: Megaphone },
-  { name: 'Team', href: '/admin/team', Icon: Users },
   { name: 'Requests', href: '/admin/requests', badge: 'pendingRequests', Icon: Inbox },
-  { name: 'Allotment', href: '/admin/allotment', Icon: PackageCheck },
-  { name: 'Stock', href: '/admin/units', Icon: Boxes },
   { name: 'Records', href: '/admin/records', Icon: History },
-  { name: 'Payments', href: '/admin/payments', Icon: Wallet },
+  { name: 'Team & Payment', href: '/admin/team', Icon: Users },
   { name: 'Profile', href: '/admin/profile', Icon: User },
 ]
 

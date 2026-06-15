@@ -93,10 +93,11 @@ export default function AgentUnits({ agentId, canManage = false }) {
     if (!canManage) return
     supabase
       .from('profiles')
-      .select('id, full_name, phone')
+      .select('id, full_name, phone, status')
       .eq('role', 'partner')
       .order('full_name', { ascending: true })
-      .then(({ data }) => setPartners(data || []))
+      // Exclude deactivated / removed partners — can't deliver new stock to them.
+      .then(({ data }) => setPartners((data || []).filter((p) => p.status !== 'deleted' && p.status !== 'inactive')))
   }, [canManage])
 
   const resetForm = () => {
@@ -187,7 +188,7 @@ export default function AgentUnits({ agentId, canManage = false }) {
               <button
                 type="button"
                 onClick={() => { resetForm(); setMode('return') }}
-                className="rounded-lg bg-sky-500/20 px-3 py-1.5 text-sm font-semibold text-sky-200 hover:bg-sky-500/30"
+                className="rounded-lg border border-sky-500 bg-sky-600 px-3 py-1.5 text-sm font-semibold text-[#fbf3d4] hover:bg-sky-500"
               >
                 Record return
               </button>
