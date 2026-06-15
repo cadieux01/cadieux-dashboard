@@ -5,6 +5,7 @@ import { formatDateTimeDDMMYY } from '../lib/date'
 import UnitWheel from './UnitWheel'
 import {
   getAgentInventory,
+  getAgentHoldingsByBatch,
   deliverToPartner,
   recordReturn,
   variantLabel,
@@ -26,6 +27,7 @@ const ENTRY_META = {
   received: { label: 'Received', cls: 'text-emerald-400', sign: '+' },
   delivered: { label: 'Delivered', cls: 'text-amber-400', sign: '−' },
   returned: { label: 'Returned', cls: 'text-sky-400', sign: '+' },
+  expired: { label: 'Expired (unsold)', cls: 'text-rose-400', sign: '−' },
 }
 
 function Stat({ label, value, accent }) {
@@ -41,8 +43,11 @@ export default function AgentUnits({ agentId, canManage = false }) {
   const [inv, setInv] = useState(null)
   const [loading, setLoading] = useState(true)
   const [partners, setPartners] = useState([])
+  // In-hand batch lots, used to offer a source batch when recording a return
+  // so the returned row can keep that batch's expiry clock.
+  const [holdings, setHoldings] = useState([])
   const [mode, setMode] = useState(null) // 'deliver' | 'return' | null
-  const [form, setForm] = useState({ partner_id: '', variant: 'multigrain', units: '' })
+  const [form, setForm] = useState({ partner_id: '', variant: 'multigrain', units: '', batch_id: '' })
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState(null)
   // Live batch-expiry clock for history rows that carry a batch_id.
@@ -57,6 +62,9 @@ export default function AgentUnits({ agentId, canManage = false }) {
       setInv(data)
       const batchIds = (data?.history || []).map((h) => h.batch_id).filter(Boolean)
       setFreshness(batchIds.length ? await getBatchFreshnessMap(batchIds) : {})
+      if (canManage) {
+        try { setHoldings(await getAgentHoldingsByBatch(agentId)) } catch { /* non-fatal */ }
+      }
     } catch (e) {
       console.warn('getAgentInventory failed:', e.message)
     } finally {
@@ -93,7 +101,7 @@ export default function AgentUnits({ agentId, canManage = false }) {
 
   const resetForm = () => {
     setMode(null)
-    setForm({ partner_id: '', variant: 'multigrain', units: '' })
+    setForm({ partner_id: '', variant: 'multigrain', units: '', batch_id: '' })
     setErr(null)
   }
 
@@ -108,7 +116,7 @@ export default function AgentUnits({ agentId, canManage = false }) {
       if (mode === 'deliver') {
         await deliverToPartner({ agentId, partnerId: form.partner_id, variant: form.variant, units })
       } else {
-        await recordReturn({ agentId, partnerId: form.partner_id, variant: form.variant, units })
+        await recordReturn({ agentId, partnerId: form.partner_id, variant: form.variant, units, batchId: form.batch_id || null })
       }
       resetForm()
       await load(true)
@@ -206,12 +214,32 @@ export default function AgentUnits({ agentId, canManage = false }) {
               </select>
               <select
                 value={form.variant}
-                onChange={(e) => setForm({ ...form, variant: e.target.value })}
+                onChange={(e) => setForm({ ...form, variant: e.target.value, batch_id: '' })}
                 className="dashboard-select"
               >
                 <option value="multigrain">{VARIANTS.multigrain.short}</option>
                 <option value="plain">{VARIANTS.plain.short}</option>
               </select>
+              {mode === 'return' && (() => {
+                // Optional source batch so the returned lot keeps its expiry clock.
+                const seen = new Set()
+                const opts = holdings
+                  .filter((h) => h.variant === form.variant && h.batch && !seen.has(h.batch.id) && seen.add(h.batch.id))
+                  .map((h) => h.batch)
+                if (opts.length === 0) return null
+                return (
+                  <select
+                    value={form.batch_id}
+                    onChange={(e) => setForm({ ...form, batch_id: e.target.value })}
+                    className="dashboard-select"
+                  >
+                    <option value="">Source batch (optional)…</option>
+                    {opts.map((b) => (
+                      <option key={b.id} value={b.id}>Batch #{b.batch_number}</option>
+                    ))}
+                  </select>
+                )
+              })()}
               <UnitWheel
                 label="Units"
                 value={parseInt(form.units) || 0}

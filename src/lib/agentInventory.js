@@ -57,14 +57,16 @@ async function fetchProfileMap(ids) {
   return Object.fromEntries((data || []).map((p) => [p.id, p]))
 }
 
-const SIGN = { received: 1, returned: 1, delivered: -1 }
+// 'expired' is a negative consumer (Stage 5): expired-in-hand units recorded as
+// unsold leave the agent's available balance, just like a delivery.
+const SIGN = { received: 1, returned: 1, delivered: -1, expired: -1 }
 
 // Roll a list of ledger rows into totals + per-variant balances.
 function summarize(rows) {
-  const totals = { received: 0, delivered: 0, returned: 0 }
+  const totals = { received: 0, delivered: 0, returned: 0, expired: 0 }
   const byVariant = {
-    multigrain: { received: 0, delivered: 0, returned: 0, available: 0 },
-    plain: { received: 0, delivered: 0, returned: 0, available: 0 },
+    multigrain: { received: 0, delivered: 0, returned: 0, expired: 0, available: 0 },
+    plain: { received: 0, delivered: 0, returned: 0, expired: 0, available: 0 },
   }
   for (const r of rows) {
     const u = r.units || 0
@@ -74,9 +76,9 @@ function summarize(rows) {
   }
   for (const key of Object.keys(byVariant)) {
     const v = byVariant[key]
-    v.available = v.received - v.delivered + v.returned
+    v.available = v.received - v.delivered + v.returned - v.expired
   }
-  const available = totals.received - totals.delivered + totals.returned
+  const available = totals.received - totals.delivered + totals.returned - totals.expired
   return { totals, byVariant, available }
 }
 
@@ -129,9 +131,13 @@ export async function getAgentHoldingsByBatch(agentId) {
 
   const received = rows.filter((r) => r.entry_type === 'received')
   const consumed = { multigrain: 0, plain: 0 } // net delivered − returned
+  // 'expired' is batch-tagged (Stage 5), so deplete it from its OWN batch lot
+  // exactly rather than FIFO — keeps multi-batch expiry attribution correct.
+  const expiredByBatch = {}
   for (const r of rows) {
     if (r.entry_type === 'delivered') consumed[r.variant] = (consumed[r.variant] || 0) + (r.units || 0)
     else if (r.entry_type === 'returned') consumed[r.variant] = (consumed[r.variant] || 0) - (r.units || 0)
+    else if (r.entry_type === 'expired' && r.batch_id) expiredByBatch[r.batch_id] = (expiredByBatch[r.batch_id] || 0) + (r.units || 0)
   }
 
   const batchMap = await getBatchFreshnessMap(received.map((r) => r.batch_id))
@@ -145,13 +151,20 @@ export async function getAgentHoldingsByBatch(agentId) {
         const batch = r.batch_id ? batchMap[r.batch_id] || null : null
         // FIFO key: the batch's own clock-start when known, else the ledger row.
         const sortKey = batch?.created_at || r.created_at
-        return { units: r.units || 0, batch, sortKey }
+        return { units: r.units || 0, batch, batchId: r.batch_id || null, sortKey }
       })
       .sort((a, b) => new Date(a.sortKey) - new Date(b.sortKey))
 
     for (const lot of lots) {
       let remaining = lot.units
-      if (toConsume > 0) {
+      // 1) Exact: remove units of THIS batch already recorded as expired/unsold.
+      if (lot.batchId && (expiredByBatch[lot.batchId] || 0) > 0) {
+        const take = Math.min(remaining, expiredByBatch[lot.batchId])
+        remaining -= take
+        expiredByBatch[lot.batchId] -= take
+      }
+      // 2) FIFO: deplete net delivered (delivered − returned) oldest-first.
+      if (toConsume > 0 && remaining > 0) {
         const take = Math.min(remaining, toConsume)
         remaining -= take
         toConsume -= take
@@ -269,6 +282,7 @@ export async function recordReturn({
   variant,
   units,
   assignmentId = null,
+  batchId = null,
   note = null,
 }) {
   const { data: { user } } = await supabase.auth.getUser()
@@ -281,6 +295,9 @@ export async function recordReturn({
       units,
       partner_id: partnerId,
       assignment_id: assignmentId,
+      // Preserve the originating batch so the returned lot keeps its expiry
+      // clock (an expired return still reads as expired — clock not reset).
+      batch_id: batchId,
       created_by: user?.id || null,
       note,
     })
@@ -295,6 +312,50 @@ export async function recordReturn({
     category: 'partner',
     description: `Partner returned ${units} × ${variantLabel(variant)} to agent`,
     newValues: { agent_id: agentId, partner_id: partnerId, variant, units, entry_type: 'returned' },
+  })
+  return data
+}
+
+// --- Unsold / expired lifecycle (Stage 5, agent side) ----------------------
+
+// The agent's recorded unsold units (their wasted-stock responsibility list).
+// Enriched with the originating batch's number + expiry so the UI can mark it
+// EXPIRED — the clock is NOT reset (the row keeps its original batch timeline).
+export async function getAgentUnsold(agentId) {
+  const { data, error } = await supabase
+    .from('unsold_units')
+    .select('*')
+    .eq('holder_type', 'agent')
+    .eq('holder_id', agentId)
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  const rows = data || []
+  const batchMap = await getBatchFreshnessMap(rows.map((r) => r.batch_id))
+  return rows.map((r) => ({
+    ...r,
+    variant_label: variantLabel(r.variant),
+    batch: r.batch_id ? batchMap[r.batch_id] || null : null,
+  }))
+}
+
+// Move expired in-hand units of one batch into the agent's unsold list. The RPC
+// (admin/sales gated, SECURITY DEFINER) validates the batch is expired, caps the
+// count to what the agent still holds from it, consumes them from the ledger
+// ('expired' −), and records the unsold row. No monetary charge.
+export async function recordAgentUnsoldExpired({ agentId, batchId, units, variant }) {
+  const { data, error } = await supabase.rpc('record_agent_unsold_expired', {
+    p_agent: agentId,
+    p_batch_id: batchId,
+    p_units: units,
+  })
+  if (error) throw error
+  await logAuditEvent({
+    actionType: 'UPDATE',
+    entityType: 'agent_inventory',
+    entityId: data?.id || batchId,
+    category: 'partner',
+    description: `Recorded ${units} × ${variantLabel(variant)} expired in hand as unsold`,
+    newValues: { agent_id: agentId, batch_id: batchId, units, reason: 'expired' },
   })
   return data
 }

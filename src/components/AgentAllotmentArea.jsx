@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import AgentUnits from './AgentUnits'
 import BatchHoldings from './BatchHoldings'
+import AgentUnsold from './AgentUnsold'
 import AllotmentInbox from './AllotmentInbox'
 
 // ============================================================================
@@ -44,6 +45,7 @@ export default function AgentAllotmentArea({ agentId, defaultTab = 'units' }) {
         <>
           <AgentUnits agentId={agentId} canManage />
           <BatchHoldings agentId={agentId} />
+          <AgentUnsold agentId={agentId} canManage />
         </>
       ) : (
         <AllotmentInbox agentId={agentId} />
