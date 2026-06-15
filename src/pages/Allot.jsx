@@ -6,7 +6,6 @@ import UnitWheel from '../components/UnitWheel'
 import RefreshButton from '../components/RefreshButton'
 import {
   getStockPool,
-  setStockTotal,
   allot,
   listAllAllotments,
 } from '../lib/allot'
@@ -30,19 +29,12 @@ const STATUS_META = {
   rejected: { label: 'Rejected', cls: 'text-rose-400' },
 }
 
-function PoolCard({ variant, total, available, onEdit }) {
+function PoolCard({ variant, total, available }) {
   return (
     <div className="rounded-xl border border-slate-800 bg-slate-950/40 px-4 py-4">
       <p className="text-xs uppercase tracking-wide text-slate-400">{VARIANTS[variant]?.short || variant}</p>
       <p className="mt-1 font-display text-4xl font-bold text-slate-100">{available}</p>
       <p className="mt-0.5 text-xs text-slate-500">available · {total} total</p>
-      <button
-        type="button"
-        onClick={onEdit}
-        className="mt-3 rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-slate-700"
-      >
-        Set total
-      </button>
     </div>
   )
 }
@@ -58,12 +50,6 @@ export default function Allot() {
   const [allotForm, setAllotForm] = useState({ exec_id: '', variant: 'multigrain', units: '' })
   const [allotBusy, setAllotBusy] = useState(false)
   const [allotErr, setAllotErr] = useState(null)
-
-  // Set-total form
-  const [editVariant, setEditVariant] = useState(null)
-  const [editValue, setEditValue] = useState('')
-  const [editBusy, setEditBusy] = useState(false)
-  const [editErr, setEditErr] = useState(null)
 
   const load = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true)
@@ -108,34 +94,6 @@ export default function Allot() {
     }
   }
 
-  const openEdit = (variant) => {
-    setEditVariant(variant)
-    setEditValue(String(pool?.[variant]?.total ?? 0))
-    setEditErr(null)
-  }
-
-  const submitEdit = async (e) => {
-    e.preventDefault()
-    setEditErr(null)
-    const total = parseInt(editValue)
-    if (isNaN(total) || total < 0) { setEditErr('Enter a valid total (0 or more).'); return }
-    const reserved = (pool?.[editVariant]?.total ?? 0) - (pool?.[editVariant]?.available ?? 0)
-    if (total < reserved) {
-      setEditErr(`Total can't be below ${reserved} — that many units are already allotted.`)
-      return
-    }
-    setEditBusy(true)
-    try {
-      await setStockTotal({ variant: editVariant, total })
-      setEditVariant(null)
-      await load(true)
-    } catch (e2) {
-      setEditErr(e2.message)
-    } finally {
-      setEditBusy(false)
-    }
-  }
-
   const availForVariant = pool?.[allotForm.variant]?.available || 0
 
   return (
@@ -166,43 +124,12 @@ export default function Allot() {
                   variant={v}
                   total={pool?.[v]?.total || 0}
                   available={pool?.[v]?.available || 0}
-                  onEdit={() => openEdit(v)}
                 />
               ))}
             </div>
-
-            {editVariant && (
-              <form onSubmit={submitEdit} className="mt-4 space-y-3 rounded-lg border border-slate-800 bg-slate-950/40 p-3">
-                <p className="text-sm font-semibold text-slate-200">
-                  Set central total — {VARIANTS[editVariant]?.short || editVariant}
-                </p>
-                <input
-                  type="number"
-                  min="0"
-                  value={editValue}
-                  onChange={(e) => setEditValue(e.target.value)}
-                  className="dashboard-input"
-                  placeholder="Total units in central stock"
-                />
-                {editErr && <p className="text-sm font-semibold text-rose-400">{editErr}</p>}
-                <div className="flex gap-2">
-                  <button
-                    type="submit"
-                    disabled={editBusy}
-                    className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-[#fbf3d4] hover:bg-emerald-500 disabled:opacity-50"
-                  >
-                    {editBusy ? '…' : 'Save total'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEditVariant(null)}
-                    className="rounded-lg bg-slate-800 px-3 py-2 text-sm text-slate-300 hover:bg-slate-700"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            )}
+            <p className="mt-3 text-xs text-slate-500">
+              Central stock is the live total of non-expired batch units. Add or edit stock from the Batches page.
+            </p>
           </div>
 
           {/* Allot to exec */}

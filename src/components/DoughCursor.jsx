@@ -56,10 +56,10 @@ export default function DoughCursor() {
     const tick = () => {
       const dx = px - rx
       const dy = py - ry
-      rx += dx * 0.32
-      ry += dy * 0.32
+      rx += dx * 0.62
+      ry += dy * 0.62
       const speed = Math.hypot(dx, dy)
-      const stretch = Math.min(speed * 0.022, 0.85)
+      const stretch = Math.min(speed * 0.05, 0.85)
       const tx = 1 + stretch // along movement
       const ty = 1 - stretch * 0.6 // perpendicular squish
       sx += (tx - sx) * 0.25

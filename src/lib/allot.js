@@ -72,30 +72,6 @@ export async function getStockPool() {
   return out
 }
 
-// Admin sets the authoritative central total for a variant (absolute value).
-export async function setStockTotal({ variant, total }) {
-  const { data: { user } } = await supabase.auth.getUser()
-  const { data, error } = await supabase
-    .from('stock_pool')
-    .upsert(
-      { variant, total_stock: total, updated_at: new Date().toISOString(), updated_by: user?.id || null },
-      { onConflict: 'variant' },
-    )
-    .select()
-    .single()
-  if (error) throw error
-
-  await logAuditEvent({
-    actionType: 'UPDATE',
-    entityType: 'stock_pool',
-    entityId: null,
-    category: 'partner',
-    description: `Set central stock for ${variantLabel(variant)} to ${total}`,
-    newValues: { variant, total_stock: total },
-  })
-  return data
-}
-
 // --- Allotments ------------------------------------------------------------
 
 // FIFO batch pick for an allotment: the OLDEST non-expired batch of this variant

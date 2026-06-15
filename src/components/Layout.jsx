@@ -66,7 +66,7 @@ const adminNavigation = [
   { name: 'Change Requests', href: '/admin/change-requests', badge: 'pendingRequests', Icon: ClipboardCheck },
   { name: 'Requests', href: '/admin/partner-requests', Icon: Inbox },
   { name: 'Allot', href: '/admin/allot', Icon: Boxes },
-  { name: 'Central Stock', href: '/admin/central-stock', Icon: Package },
+  { name: 'Batches', href: '/admin/central-stock', Icon: Package },
   { name: 'Audit', href: '/admin/audit-logs', Icon: FileText },
   { name: 'Profile', href: '/admin/profile', Icon: User },
 ]
