@@ -95,7 +95,7 @@ export default function Partners() {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, email, full_name, phone, phone_number, partner_type, notes, status, created_at, role')
+        .select('id, email, full_name, phone, phone_number, partner_type, notes, status, created_at, role, margin_percent, margin_percent_multigrain, margin_percent_plain, payout_days')
         .eq('role', 'partner')
         .order('created_at', { ascending: false })
 

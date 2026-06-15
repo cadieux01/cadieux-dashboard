@@ -221,7 +221,7 @@ export default function Leads() {
       // stock to them; their past sales still render from the sales rows.
       const { data: partnersData, error: trainersError } = await supabase
         .from('profiles')
-        .select('id, email, full_name, phone_number, notes, created_at, status, margin_percent')
+        .select('id, email, full_name, phone_number, notes, created_at, status, margin_percent, margin_percent_multigrain, margin_percent_plain')
         .eq('role', 'partner')
         .order('full_name', { ascending: true, nullsFirst: false })
 
@@ -237,6 +237,8 @@ export default function Leads() {
         notes: partner.notes || '',
         created_at: partner.created_at,
         margin_percent: partner.margin_percent,
+        margin_percent_multigrain: partner.margin_percent_multigrain,
+        margin_percent_plain: partner.margin_percent_plain,
       }))
 
       setLeads(leadsData || [])
@@ -1853,8 +1855,15 @@ export default function Leads() {
             const pl = parseInt(saleFormData.plain_assigned) || 0
             const gross = mg * VARIANTS.multigrain.price + pl * VARIANTS.plain.price
             const partner = trainers.find((t) => t.id === saleFormData.trainer_id)
-            const margin = Math.min(100, Math.max(0, Number(partner?.margin_percent) || 0))
-            const owed = Math.round(gross * (100 - margin)) / 100
+            const clampPct = (v) => Math.min(100, Math.max(0, Number(v) || 0))
+            const mgMargin = clampPct(partner?.margin_percent_multigrain ?? partner?.margin_percent)
+            const plMargin = clampPct(partner?.margin_percent_plain ?? partner?.margin_percent)
+            const mgSet = partner?.margin_percent_multigrain != null || partner?.margin_percent != null
+            const plSet = partner?.margin_percent_plain != null || partner?.margin_percent != null
+            const owed = Math.round(
+              mg * VARIANTS.multigrain.price * (100 - mgMargin) +
+              pl * VARIANTS.plain.price * (100 - plMargin)
+            ) / 100
             const isCredit = saleFormData.payment_method !== 'paid'
             return (
               <div className="mb-4">
@@ -1885,12 +1894,18 @@ export default function Leads() {
                 </div>
                 {isCredit && (
                   <div className="mt-2 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2.5 text-sm">
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-300">Partner margin</span>
-                      <span className="font-semibold text-slate-100">
-                        {partner?.margin_percent == null ? '0% (not set)' : `${margin}%`}
-                      </span>
-                    </div>
+                    {mg > 0 && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-300">Multi-Grain margin</span>
+                        <span className="font-semibold text-slate-100">{mgSet ? `${mgMargin}%` : '0% (not set)'}</span>
+                      </div>
+                    )}
+                    {pl > 0 && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-300">Plain margin</span>
+                        <span className="font-semibold text-slate-100">{plSet ? `${plMargin}%` : '0% (not set)'}</span>
+                      </div>
+                    )}
                     <div className="mt-1 flex items-center justify-between">
                       <span className="text-slate-300">Owed to company</span>
                       <span className="font-mono font-semibold text-amber-300">₹{owed.toLocaleString()}</span>

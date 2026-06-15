@@ -6,7 +6,7 @@ import AlertBanner from './AlertBanner'
 import { logAuditEvent } from '../lib/audit'
 import { formatDateDDMMYY } from '../lib/date'
 import { adminSetPassword, changePhone } from '../lib/adminApi'
-import { setPartnerMargin } from '../lib/payments'
+import { setPartnerMargins } from '../lib/payments'
 import { displayLogin, isValidPhone, normalizePhone } from '../lib/phone'
 import { demoBlock } from '../lib/demoData'
 import { useAuth } from '../context/AuthContext'
@@ -81,11 +81,14 @@ export default function UserDetailModal({
   // Partner margin % is admin-editable only and meaningful for partners only.
   const canEditMargin = isAdmin && role === 'partner'
 
+  const str = (v) => (v == null ? '' : String(v))
   const [form, setForm] = useState({
     full_name: user.full_name || '',
     phone: phoneOf(user),
     notes: user.notes || '',
-    margin: user.margin_percent == null ? '' : String(user.margin_percent),
+    margin_mg: str(user.margin_percent_multigrain ?? user.margin_percent),
+    margin_plain: str(user.margin_percent_plain ?? user.margin_percent),
+    payout_days: str(user.payout_days),
   })
   const [saving, setSaving] = useState(false)
   const [editError, setEditError] = useState(null)
@@ -104,7 +107,9 @@ export default function UserDetailModal({
       full_name: current.full_name || '',
       phone: phoneOf(current),
       notes: current.notes || '',
-      margin: current.margin_percent == null ? '' : String(current.margin_percent),
+      margin_mg: str(current.margin_percent_multigrain ?? current.margin_percent),
+      margin_plain: str(current.margin_percent_plain ?? current.margin_percent),
+      payout_days: str(current.payout_days),
     })
     setMode('edit')
   }
@@ -130,18 +135,37 @@ export default function UserDetailModal({
     const profileChanged =
       name !== (current.full_name || '') || nextNotes !== (current.notes || '')
 
-    // Margin: admin-only, partner-only. Blank clears it.
-    let nextMargin = current.margin_percent ?? null
+    // Margins + payout: admin-only, partner-only. Blank clears each.
+    let nextMg = current.margin_percent_multigrain ?? null
+    let nextPlain = current.margin_percent_plain ?? null
+    let nextPayout = current.payout_days ?? null
     let marginChanged = false
     if (canEditMargin) {
-      const raw = String(form.margin).trim()
-      const parsed = raw === '' ? null : Number(raw)
-      if (parsed != null && (Number.isNaN(parsed) || parsed < 0 || parsed > 100)) {
-        setEditError('Margin must be a number between 0 and 100.')
+      const parsePct = (raw, label) => {
+        const s = String(raw).trim()
+        if (s === '') return null
+        const n = Number(s)
+        if (Number.isNaN(n) || n < 0 || n > 100) throw new Error(`${label} must be a number between 0 and 100.`)
+        return n
+      }
+      try {
+        nextMg = parsePct(form.margin_mg, 'Multi-Grain margin')
+        nextPlain = parsePct(form.margin_plain, 'Plain margin')
+        const ds = String(form.payout_days).trim()
+        if (ds === '') nextPayout = null
+        else {
+          const dn = Number(ds)
+          if (Number.isNaN(dn) || dn < 1 || !Number.isInteger(dn)) throw new Error('Payout days must be a whole number of at least 1.')
+          nextPayout = dn
+        }
+      } catch (e) {
+        setEditError(e.message)
         return
       }
-      nextMargin = parsed
-      marginChanged = (current.margin_percent ?? null) !== parsed
+      marginChanged =
+        (current.margin_percent_multigrain ?? null) !== nextMg ||
+        (current.margin_percent_plain ?? null) !== nextPlain ||
+        (current.payout_days ?? null) !== nextPayout
     }
 
     setSaving(true)
@@ -157,7 +181,7 @@ export default function UserDetailModal({
         await changePhone({ userId: current.id, oldPhone, newPhone })
       }
       if (marginChanged) {
-        await setPartnerMargin(current.id, nextMargin)
+        await setPartnerMargins(current.id, { multigrain: nextMg, plain: nextPlain, payoutDays: nextPayout })
       }
 
       await logAuditEvent({
@@ -182,7 +206,10 @@ export default function UserDetailModal({
         full_name: name,
         notes: nextNotes || null,
         phone: phoneChanged ? normalizePhone(newPhone) : current.phone,
-        margin_percent: canEditMargin ? nextMargin : current.margin_percent,
+        margin_percent: canEditMargin ? nextMg : current.margin_percent,
+        margin_percent_multigrain: canEditMargin ? nextMg : current.margin_percent_multigrain,
+        margin_percent_plain: canEditMargin ? nextPlain : current.margin_percent_plain,
+        payout_days: canEditMargin ? nextPayout : current.payout_days,
       }
       setCurrent(updated)
       setMode('view')
@@ -271,7 +298,17 @@ export default function UserDetailModal({
             <DetailRow label="Status"><StatusPill status={status} /></DetailRow>
             {role === 'partner' && (
               <DetailRow label="Margin">
-                {current.margin_percent == null ? '—' : `${Number(current.margin_percent)}%`}
+                {(() => {
+                  const mg = current.margin_percent_multigrain ?? current.margin_percent
+                  const pl = current.margin_percent_plain ?? current.margin_percent
+                  if (mg == null && pl == null) return '—'
+                  return `Multi-Grain ${mg == null ? '—' : Number(mg) + '%'} · Plain ${pl == null ? '—' : Number(pl) + '%'}`
+                })()}
+              </DetailRow>
+            )}
+            {role === 'partner' && (
+              <DetailRow label="Payout cycle">
+                {current.payout_days == null ? '—' : `${Number(current.payout_days)} days`}
               </DetailRow>
             )}
             <DetailRow label="Notes">{current.notes || '—'}</DetailRow>
@@ -355,13 +392,31 @@ export default function UserDetailModal({
             required
           />
           {canEditMargin && (
-            <FormField
-              label="Margin (%)"
-              type="number"
-              value={form.margin}
-              onChange={(value) => setForm((p) => ({ ...p, margin: value }))}
-              placeholder="0–100 (blank to clear)"
-            />
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <FormField
+                  label="Multi-Grain margin (%)"
+                  type="number"
+                  value={form.margin_mg}
+                  onChange={(value) => setForm((p) => ({ ...p, margin_mg: value }))}
+                  placeholder="0–100 (blank clears)"
+                />
+                <FormField
+                  label="Plain margin (%)"
+                  type="number"
+                  value={form.margin_plain}
+                  onChange={(value) => setForm((p) => ({ ...p, margin_plain: value }))}
+                  placeholder="0–100 (blank clears)"
+                />
+              </div>
+              <FormField
+                label="Payout cycle (days)"
+                type="number"
+                value={form.payout_days}
+                onChange={(value) => setForm((p) => ({ ...p, payout_days: value }))}
+                placeholder="e.g. 10 (blank clears)"
+              />
+            </>
           )}
           <FormField
             label="Notes"

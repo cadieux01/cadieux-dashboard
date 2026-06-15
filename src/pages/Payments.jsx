@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { listCreditAssignments, summarizePayments } from '../lib/payments'
 import PaymentVerifications from '../components/PaymentVerifications'
+import EarningsCalculator from '../components/EarningsCalculator'
 import RefreshButton from '../components/RefreshButton'
 import RefreshStatus from '../components/RefreshStatus'
 import useRefreshable from '../lib/useRefreshable'
@@ -139,6 +140,15 @@ export default function Payments() {
               <OwedPill label="Awaiting verification" value={inr(totals.owedAwaiting)} tone="sky" />
               <OwedPill label="Settled (paid)" value={inr(totals.owedPaid)} tone="emerald" />
             </div>
+          </div>
+
+          {/* Earnings & payout — revenue, partner share, company total over a period */}
+          <div className={CARD}>
+            <h2 className="mb-1 text-lg font-semibold text-slate-100">Earnings &amp; payout</h2>
+            <p className="mb-4 text-xs text-slate-500">
+              Total revenue, total partner share and the company total for a chosen period, with a per-partner breakdown. Based on recorded sales.
+            </p>
+            <EarningsCalculator scope="admin" />
           </div>
 
           {/* By partner */}

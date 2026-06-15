@@ -4,7 +4,7 @@ import Modal from '../components/Modal'
 import FormField from '../components/FormField'
 import { logAuditEvent } from '../lib/audit'
 import { createUser } from '../lib/adminApi'
-import { setPartnerMargin } from '../lib/payments'
+import { setPartnerMargins } from '../lib/payments'
 import { isNameTaken } from '../lib/changeRequests'
 import { isValidPhone, normalizePhone } from '../lib/phone'
 import ShareCredentials from '../components/ShareCredentials'
@@ -29,7 +29,9 @@ export default function Onboarding() {
     full_name: '',
     notes: '',
     role: 'partner',
-    margin: '',
+    margin_mg: '',
+    margin_plain: '',
+    payout_days: '',
   })
 
   const updateField = (field, value) => {
@@ -204,11 +206,25 @@ export default function Onboarding() {
     if (formData.full_name.trim().length < 2) {
       errors.full_name = 'Full name is required.'
     }
-    const setMargin = isAdmin && targetRole === 'partner' && String(formData.margin).trim() !== ''
-    if (setMargin) {
-      const m = Number(formData.margin)
-      if (Number.isNaN(m) || m < 0 || m > 100) {
-        errors.margin = 'Margin must be a number between 0 and 100.'
+    const canMargin = isAdmin && targetRole === 'partner'
+    const hasMargin = canMargin && (
+      String(formData.margin_mg).trim() !== '' ||
+      String(formData.margin_plain).trim() !== '' ||
+      String(formData.payout_days).trim() !== ''
+    )
+    if (canMargin) {
+      const checkPct = (raw, key) => {
+        const s = String(raw).trim()
+        if (s === '') return
+        const n = Number(s)
+        if (Number.isNaN(n) || n < 0 || n > 100) errors[key] = 'Must be 0–100.'
+      }
+      checkPct(formData.margin_mg, 'margin_mg')
+      checkPct(formData.margin_plain, 'margin_plain')
+      const ds = String(formData.payout_days).trim()
+      if (ds !== '') {
+        const dn = Number(ds)
+        if (Number.isNaN(dn) || dn < 1 || !Number.isInteger(dn)) errors.payout_days = 'Whole number ≥ 1.'
       }
     }
     if (Object.keys(errors).length > 0) {
@@ -234,12 +250,17 @@ export default function Onboarding() {
         notes: formData.notes,
       })
 
-      // Margin is admin-only + partner-only; set it after the account exists.
-      if (setMargin && result?.userId) {
+      // Margins + payout are admin-only + partner-only; set after the account exists.
+      if (hasMargin && result?.userId) {
         try {
-          await setPartnerMargin(result.userId, Number(formData.margin))
+          const blankNull = (v) => (String(v).trim() === '' ? null : Number(v))
+          await setPartnerMargins(result.userId, {
+            multigrain: blankNull(formData.margin_mg),
+            plain: blankNull(formData.margin_plain),
+            payoutDays: blankNull(formData.payout_days),
+          })
         } catch (mErr) {
-          console.warn('Set partner margin on onboard failed:', mErr.message)
+          console.warn('Set partner margins on onboard failed:', mErr.message)
         }
       }
 
@@ -371,14 +392,34 @@ export default function Onboarding() {
           />
 
           {isAdmin && formData.role === 'partner' && (
-            <FormField
-              label="Margin (%)"
-              type="number"
-              value={formData.margin}
-              onChange={(value) => updateField('margin', value)}
-              placeholder="0–100 (optional)"
-              error={formErrors.margin}
-            />
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <FormField
+                  label="Multi-Grain margin (%)"
+                  type="number"
+                  value={formData.margin_mg}
+                  onChange={(value) => updateField('margin_mg', value)}
+                  placeholder="0–100 (optional)"
+                  error={formErrors.margin_mg}
+                />
+                <FormField
+                  label="Plain margin (%)"
+                  type="number"
+                  value={formData.margin_plain}
+                  onChange={(value) => updateField('margin_plain', value)}
+                  placeholder="0–100 (optional)"
+                  error={formErrors.margin_plain}
+                />
+              </div>
+              <FormField
+                label="Payout cycle (days)"
+                type="number"
+                value={formData.payout_days}
+                onChange={(value) => updateField('payout_days', value)}
+                placeholder="e.g. 10 (optional)"
+                error={formErrors.payout_days}
+              />
+            </>
           )}
 
           <FormField

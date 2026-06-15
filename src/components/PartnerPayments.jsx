@@ -9,6 +9,7 @@ import {
   getProofSignedUrl,
   variantLabelFromSale,
 } from '../lib/payments'
+import EarningsCalculator from './EarningsCalculator'
 
 const STATUS_META = {
   pending: { label: 'On credit', cls: 'border-amber-700 bg-amber-500/10 text-amber-300' },
@@ -40,6 +41,7 @@ export default function PartnerPayments({ partnerId, mode = 'partner' }) {
   const [busyId, setBusyId] = useState(null)
   const [files, setFiles] = useState({}) // saleId -> File
   const [error, setError] = useState(null)
+  const [margins, setMargins] = useState(null) // partner-mode: own margins + payout
   const mounted = useRef(true)
 
   const load = async () => {
@@ -58,9 +60,17 @@ export default function PartnerPayments({ partnerId, mode = 'partner' }) {
   useEffect(() => {
     mounted.current = true
     load()
+    if (mode === 'partner' && partnerId) {
+      supabase
+        .from('profiles')
+        .select('margin_percent, margin_percent_multigrain, margin_percent_plain, payout_days')
+        .eq('id', partnerId)
+        .maybeSingle()
+        .then(({ data }) => { if (mounted.current && data) setMargins(data) })
+    }
     return () => { mounted.current = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [partnerId])
+  }, [partnerId, mode])
 
   // Live-ish: refresh on focus/visibility + a slow poll so a verification by
   // the salesperson shows up without a manual reload.
@@ -195,6 +205,23 @@ export default function PartnerPayments({ partnerId, mode = 'partner' }) {
           })}
         </div>
       )}
+
+      {mode === 'partner' && (() => {
+        const mg = margins?.margin_percent_multigrain ?? margins?.margin_percent
+        const pl = margins?.margin_percent_plain ?? margins?.margin_percent
+        return (
+          <div className="mt-4 border-t border-slate-800 pt-4">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500">Your earnings</h4>
+              <span className="text-xs text-slate-400">
+                Multi-Grain {mg == null ? '—' : `${Number(mg)}%`} · Plain {pl == null ? '—' : `${Number(pl)}%`}
+                {margins?.payout_days != null && <> · payout every {Number(margins.payout_days)} days</>}
+              </span>
+            </div>
+            <EarningsCalculator partnerId={partnerId} payoutDays={margins?.payout_days} scope="partner" />
+          </div>
+        )
+      })()}
     </div>
   )
 }

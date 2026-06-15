@@ -15,7 +15,8 @@ import { formatDateDDMMYY } from '../../lib/date'
 import { SHELF_LIFE, shelfDays } from '../../lib/shelfLife'
 import PartnerUnsold from '../../components/PartnerUnsold'
 import PartnerPayments from '../../components/PartnerPayments'
-import { setPartnerMargin } from '../../lib/payments'
+import EarningsCalculator from '../../components/EarningsCalculator'
+import { setPartnerMargins } from '../../lib/payments'
 import {
   PageHeader,
   StatTile,
@@ -198,6 +199,9 @@ function buildLivePartnerProfile(prof, salesRows, range) {
     status: prof.status || 'active',
     partner_type: prof.partner_type || 'other',
     margin_percent: prof.margin_percent ?? null,
+    margin_percent_multigrain: prof.margin_percent_multigrain ?? null,
+    margin_percent_plain: prof.margin_percent_plain ?? null,
+    payout_days: prof.payout_days ?? null,
     joined_at: prof.created_at || null,
     variants: { multigrain: mg, plain: plain },
     totals: {
@@ -224,48 +228,71 @@ function buildLivePartnerProfile(prof, salesRows, range) {
   }
 }
 
-// Partner margin % — the share of gross the partner keeps; the rest is owed to
-// the company. ADMIN-ONLY to edit (server-enforced via set_partner_margin).
-// Sales/agents see it read-only.
-function PartnerMarginCard({ partnerId, current, canEdit, onSaved }) {
+// Partner per-variant margins + payout cycle — the share of gross the partner
+// keeps per variant; the rest is owed to the company on credit assignments.
+// ADMIN-ONLY to edit (server-enforced via set_partner_margins). Sales/agents
+// see it read-only. Includes an earnings calculator over a chosen period.
+function PartnerMarginCard({ partnerId, profile, canEdit, onSaved }) {
+  const str = (v) => (v == null ? '' : String(v))
   const [editing, setEditing] = useState(false)
-  const [value, setValue] = useState(current == null ? '' : String(current))
+  const [mg, setMg] = useState(str(profile.margin_percent_multigrain ?? profile.margin_percent))
+  const [plain, setPlain] = useState(str(profile.margin_percent_plain ?? profile.margin_percent))
+  const [days, setDays] = useState(str(profile.payout_days))
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState(null)
+
+  const openEdit = () => {
+    setMg(str(profile.margin_percent_multigrain ?? profile.margin_percent))
+    setPlain(str(profile.margin_percent_plain ?? profile.margin_percent))
+    setDays(str(profile.payout_days))
+    setEditing(true)
+  }
 
   const save = async () => {
     setErr(null)
     setBusy(true)
     try {
-      await setPartnerMargin(partnerId, value === '' ? null : Number(value))
+      await setPartnerMargins(partnerId, {
+        multigrain: String(mg).trim() === '' ? null : Number(mg),
+        plain: String(plain).trim() === '' ? null : Number(plain),
+        payoutDays: String(days).trim() === '' ? null : Number(days),
+      })
       setEditing(false)
       onSaved?.()
     } catch (e) {
-      console.error('Set partner margin failed:', e)
-      setErr(e.message || 'Could not save margin.')
+      console.error('Set partner margins failed:', e)
+      setErr(e.message || 'Could not save margins.')
     } finally {
       setBusy(false)
     }
   }
 
+  const mgVal = profile.margin_percent_multigrain ?? profile.margin_percent
+  const plVal = profile.margin_percent_plain ?? profile.margin_percent
+
   return (
     <section className="dashboard-panel mb-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="dashboard-title text-base">Partner margin</h2>
+          <h2 className="dashboard-title text-base">Margins &amp; payout</h2>
           <p className="text-xs text-slate-400">
-            Share the partner keeps; the remainder is owed to the company on credit assignments.
+            Share the partner keeps per variant; the remainder is owed to the company on credit assignments.
           </p>
         </div>
         {!editing && (
           <div className="flex items-center gap-3">
-            <span className="font-mono text-lg font-semibold text-slate-100">
-              {current == null ? 'Not set' : `${Number(current)}%`}
-            </span>
+            <div className="text-right text-sm">
+              <div className="font-mono font-semibold text-slate-100">
+                Multi-Grain {mgVal == null ? '—' : `${Number(mgVal)}%`} · Plain {plVal == null ? '—' : `${Number(plVal)}%`}
+              </div>
+              <div className="text-xs text-slate-400">
+                Payout cycle: {profile.payout_days == null ? '—' : `${Number(profile.payout_days)} days`}
+              </div>
+            </div>
             {canEdit && (
               <button
                 type="button"
-                onClick={() => { setValue(current == null ? '' : String(current)); setEditing(true) }}
+                onClick={openEdit}
                 className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-medium text-slate-200 transition-colors hover:border-slate-600"
               >
                 Edit
@@ -276,19 +303,20 @@ function PartnerMarginCard({ partnerId, current, canEdit, onSaved }) {
       </div>
 
       {editing && (
-        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
-          <div className="flex items-center gap-2">
-            <input
-              type="number"
-              min="0"
-              max="100"
-              step="1"
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              placeholder="0–100"
-              className="dashboard-input w-28 text-sm"
-            />
-            <span className="text-sm text-slate-400">%</span>
+        <div className="mt-3 space-y-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <label className="flex flex-col text-xs text-slate-400">
+              Multi-Grain margin (%)
+              <input type="number" min="0" max="100" step="1" value={mg} onChange={(e) => setMg(e.target.value)} placeholder="0–100" className="dashboard-input mt-1 text-sm" />
+            </label>
+            <label className="flex flex-col text-xs text-slate-400">
+              Plain margin (%)
+              <input type="number" min="0" max="100" step="1" value={plain} onChange={(e) => setPlain(e.target.value)} placeholder="0–100" className="dashboard-input mt-1 text-sm" />
+            </label>
+            <label className="flex flex-col text-xs text-slate-400">
+              Payout cycle (days)
+              <input type="number" min="1" step="1" value={days} onChange={(e) => setDays(e.target.value)} placeholder="e.g. 10" className="dashboard-input mt-1 text-sm" />
+            </label>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -312,6 +340,11 @@ function PartnerMarginCard({ partnerId, current, canEdit, onSaved }) {
       )}
 
       {err && <p className="mt-2 text-xs text-rose-300">{err}</p>}
+
+      <div className="mt-4">
+        <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Earnings calculator</h3>
+        <EarningsCalculator partnerId={partnerId} payoutDays={profile.payout_days} scope="admin" />
+      </div>
     </section>
   )
 }
@@ -474,7 +507,7 @@ export default function PartnerProfile() {
       {!isDemo && (
         <PartnerMarginCard
           partnerId={id}
-          current={profile.margin_percent}
+          profile={profile}
           canEdit={isAdmin}
           onSaved={() => setTick((t) => t + 1)}
         />
