@@ -13,6 +13,7 @@ import {
   PackageCheck,
   Boxes,
   History,
+  Trash2,
   Home,
   LogOut,
   Shield,
@@ -66,6 +67,7 @@ const adminNavigation = [
   { name: 'Requests', href: '/admin/requests', badge: 'pendingRequests', Icon: Inbox },
   { name: 'Allot', href: '/admin/allot', Icon: Boxes },
   { name: 'Batches', href: '/admin/central-stock', Icon: Package },
+  { name: 'Unsold', href: '/admin/unsold', Icon: Trash2 },
   { name: 'Audit', href: '/admin/audit-logs', Icon: FileText },
   { name: 'Profile', href: '/admin/profile', Icon: User },
 ]
