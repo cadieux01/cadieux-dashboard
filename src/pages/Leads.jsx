@@ -122,6 +122,7 @@ export default function Leads() {
     date_of_assignment: new Date().toISOString().split('T')[0],
     time_of_assignment: currentTimeHHMM(),
     retracted_units: '',
+    payment_method: 'credit',
   })
   const [isDateEditable, setIsDateEditable] = useState(false)
   const [batchMap, setBatchMap] = useState({})
@@ -220,7 +221,7 @@ export default function Leads() {
       // stock to them; their past sales still render from the sales rows.
       const { data: partnersData, error: trainersError } = await supabase
         .from('profiles')
-        .select('id, email, full_name, phone_number, notes, created_at, status')
+        .select('id, email, full_name, phone_number, notes, created_at, status, margin_percent')
         .eq('role', 'partner')
         .order('full_name', { ascending: true, nullsFirst: false })
 
@@ -235,6 +236,7 @@ export default function Leads() {
         email: partner.email || '',
         notes: partner.notes || '',
         created_at: partner.created_at,
+        margin_percent: partner.margin_percent,
       }))
 
       setLeads(leadsData || [])
@@ -757,6 +759,11 @@ export default function Leads() {
         // and writes a 'delivered' ledger row to decrement the agent's in-hand
         // units. When no covering batch exists (legacy / mixed / no stock) it
         // inserts exactly as before with batch_id NULL — no countdown.
+        // Money snapshot for the credit/paid ledger: gross across both variants
+        // (mixed-safe). Owed is recomputed server-side from the partner's margin.
+        const assignGross =
+          multigrainAssigned * VARIANTS.multigrain.price +
+          plainAssigned * VARIANTS.plain.price
         const { data, error } = await supabase
           .rpc('assign_sale_fifo', {
             p_partner_id: saleFormData.trainer_id,
@@ -765,6 +772,8 @@ export default function Leads() {
             p_date_of_assignment: assignmentDate,
             p_product_variant: singleVariant?.name || null,
             p_unit_price: singleVariant?.price || null,
+            p_payment_status: saleFormData.payment_method === 'paid' ? 'paid' : 'pending',
+            p_amount_gross: assignGross,
           })
 
 
@@ -796,6 +805,7 @@ export default function Leads() {
         date_of_assignment: new Date().toISOString().split('T')[0],
         time_of_assignment: currentTimeHHMM(),
         retracted_units: '',
+        payment_method: 'credit',
       })
       setIsDateEditable(false)
       setEditingSaleId(null)
@@ -1832,6 +1842,61 @@ export default function Leads() {
                   <span className="text-slate-300">Total Value</span>
                   <span className="font-mono font-semibold text-emerald-300">₹{totalValue.toLocaleString()}</span>
                 </div>
+              </div>
+            )
+          })()}
+
+          {/* Payment: Credit (default) or Paid. Credit tracks an amount owed to
+              the company based on the partner's margin %; Paid settles now. */}
+          {!editingSaleId && (() => {
+            const mg = parseInt(saleFormData.multigrain_assigned) || 0
+            const pl = parseInt(saleFormData.plain_assigned) || 0
+            const gross = mg * VARIANTS.multigrain.price + pl * VARIANTS.plain.price
+            const partner = trainers.find((t) => t.id === saleFormData.trainer_id)
+            const margin = Math.min(100, Math.max(0, Number(partner?.margin_percent) || 0))
+            const owed = Math.round(gross * (100 - margin)) / 100
+            const isCredit = saleFormData.payment_method !== 'paid'
+            return (
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-slate-300 mb-2">Payment</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSaleFormData({ ...saleFormData, payment_method: 'credit' })}
+                    className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                      isCredit
+                        ? 'border-amber-500/50 bg-amber-500/15 text-amber-300'
+                        : 'border-slate-700 bg-slate-800 text-slate-400 hover:bg-slate-700'
+                    }`}
+                  >
+                    On Credit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSaleFormData({ ...saleFormData, payment_method: 'paid' })}
+                    className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                      !isCredit
+                        ? 'border-emerald-500/50 bg-emerald-500/15 text-emerald-300'
+                        : 'border-slate-700 bg-slate-800 text-slate-400 hover:bg-slate-700'
+                    }`}
+                  >
+                    Paid now
+                  </button>
+                </div>
+                {isCredit && (
+                  <div className="mt-2 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2.5 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-300">Partner margin</span>
+                      <span className="font-semibold text-slate-100">
+                        {partner?.margin_percent == null ? '0% (not set)' : `${margin}%`}
+                      </span>
+                    </div>
+                    <div className="mt-1 flex items-center justify-between">
+                      <span className="text-slate-300">Owed to company</span>
+                      <span className="font-mono font-semibold text-amber-300">₹{owed.toLocaleString()}</span>
+                    </div>
+                  </div>
+                )}
               </div>
             )
           })()}

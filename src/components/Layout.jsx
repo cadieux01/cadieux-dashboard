@@ -13,6 +13,7 @@ import {
   PackageCheck,
   Boxes,
   History,
+  Wallet,
   Trash2,
   Home,
   LogOut,
@@ -66,6 +67,7 @@ const adminNavigation = [
   { name: 'Team', href: '/admin/team', Icon: Users },
   { name: 'Requests', href: '/admin/requests', badge: 'pendingRequests', Icon: Inbox },
   { name: 'Stock', href: '/admin/stock', Icon: Package },
+  { name: 'Payments', href: '/admin/payments', Icon: Wallet },
   { name: 'Unsold', href: '/admin/unsold', Icon: Trash2 },
   { name: 'Audit', href: '/admin/audit-logs', Icon: FileText },
   { name: 'Profile', href: '/admin/profile', Icon: User },
@@ -80,6 +82,7 @@ const salesNavigation = [
   { name: 'Allotment', href: '/admin/allotment', Icon: PackageCheck },
   { name: 'Stock', href: '/admin/units', Icon: Boxes },
   { name: 'Records', href: '/admin/records', Icon: History },
+  { name: 'Payments', href: '/admin/payments', Icon: Wallet },
   { name: 'Profile', href: '/admin/profile', Icon: User },
 ]
 

@@ -14,6 +14,8 @@ import {
 import { formatDateDDMMYY } from '../../lib/date'
 import { SHELF_LIFE, shelfDays } from '../../lib/shelfLife'
 import PartnerUnsold from '../../components/PartnerUnsold'
+import PartnerPayments from '../../components/PartnerPayments'
+import { setPartnerMargin } from '../../lib/payments'
 import {
   PageHeader,
   StatTile,
@@ -195,6 +197,7 @@ function buildLivePartnerProfile(prof, salesRows, range) {
     phone: prof.phone || prof.phone_number || '',
     status: prof.status || 'active',
     partner_type: prof.partner_type || 'other',
+    margin_percent: prof.margin_percent ?? null,
     joined_at: prof.created_at || null,
     variants: { multigrain: mg, plain: plain },
     totals: {
@@ -221,9 +224,101 @@ function buildLivePartnerProfile(prof, salesRows, range) {
   }
 }
 
+// Partner margin % — the share of gross the partner keeps; the rest is owed to
+// the company. ADMIN-ONLY to edit (server-enforced via set_partner_margin).
+// Sales/agents see it read-only.
+function PartnerMarginCard({ partnerId, current, canEdit, onSaved }) {
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState(current == null ? '' : String(current))
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState(null)
+
+  const save = async () => {
+    setErr(null)
+    setBusy(true)
+    try {
+      await setPartnerMargin(partnerId, value === '' ? null : Number(value))
+      setEditing(false)
+      onSaved?.()
+    } catch (e) {
+      console.error('Set partner margin failed:', e)
+      setErr(e.message || 'Could not save margin.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <section className="dashboard-panel mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="dashboard-title text-base">Partner margin</h2>
+          <p className="text-xs text-slate-400">
+            Share the partner keeps; the remainder is owed to the company on credit assignments.
+          </p>
+        </div>
+        {!editing && (
+          <div className="flex items-center gap-3">
+            <span className="font-mono text-lg font-semibold text-slate-100">
+              {current == null ? 'Not set' : `${Number(current)}%`}
+            </span>
+            {canEdit && (
+              <button
+                type="button"
+                onClick={() => { setValue(current == null ? '' : String(current)); setEditing(true) }}
+                className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-medium text-slate-200 transition-colors hover:border-slate-600"
+              >
+                Edit
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {editing && (
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min="0"
+              max="100"
+              step="1"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              placeholder="0–100"
+              className="dashboard-input w-28 text-sm"
+            />
+            <span className="text-sm text-slate-400">%</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={save}
+              disabled={busy}
+              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-[#fbf3d4] transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {busy ? 'Saving…' : 'Save'}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setEditing(false); setErr(null) }}
+              disabled={busy}
+              className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 transition-colors hover:border-slate-600 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {err && <p className="mt-2 text-xs text-rose-300">{err}</p>}
+    </section>
+  )
+}
+
 export default function PartnerProfile() {
   const { id } = useParams()
-  const { isDemo, isAdminOrSales, profile: me } = useAuth()
+  const { isDemo, isAdmin, isAdminOrSales, profile: me } = useAuth()
   const [range, setRange] = useState('month')
   const [tick, setTick] = useState(0)
   const [salesPage, setSalesPage] = useState(1)
@@ -375,8 +470,21 @@ export default function PartnerProfile() {
       {/* Current stock — shelf life status */}
       {isDemo && <CurrentStockSection partnerId={id} />}
 
+      {/* Partner margin — admin-only to edit. */}
+      {!isDemo && (
+        <PartnerMarginCard
+          partnerId={id}
+          current={profile.margin_percent}
+          canEdit={isAdmin}
+          onSaved={() => setTick((t) => t + 1)}
+        />
+      )}
+
       {/* Received stock countdowns + expiry → unsold (Stage 7). admin/sales can record. */}
       {!isDemo && <PartnerUnsold partnerId={id} canManage={isAdminOrSales} />}
+
+      {/* Credit / payments ledger (read-only here; verification lives on /admin/payments). */}
+      {!isDemo && <PartnerPayments partnerId={id} mode="admin" />}
 
       {/* SECTION D — Customer log */}
       <section className="mb-6">

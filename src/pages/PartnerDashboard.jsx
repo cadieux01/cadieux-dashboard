@@ -14,6 +14,7 @@ import { formatDateDDMMYY } from '../lib/date'
 import { demoBlock, demoPartnerSales } from '../lib/demoData'
 import { listMyAssignments, listMyRequests } from '../lib/partnerWorkflow'
 import PartnerUnsold from '../components/PartnerUnsold'
+import PartnerPayments from '../components/PartnerPayments'
 import {
   SHELF_LIFE,
   shelfDay,
@@ -989,6 +990,13 @@ export default function PartnerDashboard() {
         {/* Received-stock countdowns + expiry → unsold (Stage 7, read-only). */}
         {!isDemo && (trainerId || profile?.id) && (
           <PartnerUnsold partnerId={trainerId || profile.id} canManage={false} />
+        )}
+
+        {/* Credit / payments — owed amounts, upload proof + request mark-paid. */}
+        {!isDemo && (trainerId || profile?.id) && (
+          <div className="mt-4">
+            <PartnerPayments partnerId={trainerId || profile.id} mode="partner" />
+          </div>
         )}
 
         <RefreshStatus pullDistance={pullDistance} refreshing={refreshing} at={lastUpdated} onRefresh={refresh} />

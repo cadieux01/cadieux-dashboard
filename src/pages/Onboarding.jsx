@@ -4,6 +4,7 @@ import Modal from '../components/Modal'
 import FormField from '../components/FormField'
 import { logAuditEvent } from '../lib/audit'
 import { createUser } from '../lib/adminApi'
+import { setPartnerMargin } from '../lib/payments'
 import { isNameTaken } from '../lib/changeRequests'
 import { isValidPhone, normalizePhone } from '../lib/phone'
 import ShareCredentials from '../components/ShareCredentials'
@@ -14,6 +15,7 @@ import ShareCredentials from '../components/ShareCredentials'
 // auth email server-side — see ../lib/adminApi.js).
 export default function Onboarding() {
   const { role, isDemo } = useAuth()
+  const isAdmin = role === 'admin'
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -27,6 +29,7 @@ export default function Onboarding() {
     full_name: '',
     notes: '',
     role: 'partner',
+    margin: '',
   })
 
   const updateField = (field, value) => {
@@ -201,6 +204,13 @@ export default function Onboarding() {
     if (formData.full_name.trim().length < 2) {
       errors.full_name = 'Full name is required.'
     }
+    const setMargin = isAdmin && targetRole === 'partner' && String(formData.margin).trim() !== ''
+    if (setMargin) {
+      const m = Number(formData.margin)
+      if (Number.isNaN(m) || m < 0 || m > 100) {
+        errors.margin = 'Margin must be a number between 0 and 100.'
+      }
+    }
     if (Object.keys(errors).length > 0) {
       setFormErrors(errors)
       return
@@ -223,6 +233,15 @@ export default function Onboarding() {
         role: targetRole,
         notes: formData.notes,
       })
+
+      // Margin is admin-only + partner-only; set it after the account exists.
+      if (setMargin && result?.userId) {
+        try {
+          await setPartnerMargin(result.userId, Number(formData.margin))
+        } catch (mErr) {
+          console.warn('Set partner margin on onboard failed:', mErr.message)
+        }
+      }
 
       // Local audit row (server-side audit already written by the Edge
       // Function; this one keeps the dashboard's own activity feed
@@ -350,6 +369,17 @@ export default function Onboarding() {
             error={formErrors.full_name}
             required
           />
+
+          {isAdmin && formData.role === 'partner' && (
+            <FormField
+              label="Margin (%)"
+              type="number"
+              value={formData.margin}
+              onChange={(value) => updateField('margin', value)}
+              placeholder="0–100 (optional)"
+              error={formErrors.margin}
+            />
+          )}
 
           <FormField
             label="Notes"

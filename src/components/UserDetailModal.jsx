@@ -6,6 +6,7 @@ import AlertBanner from './AlertBanner'
 import { logAuditEvent } from '../lib/audit'
 import { formatDateDDMMYY } from '../lib/date'
 import { adminSetPassword, changePhone } from '../lib/adminApi'
+import { setPartnerMargin } from '../lib/payments'
 import { displayLogin, isValidPhone, normalizePhone } from '../lib/phone'
 import { demoBlock } from '../lib/demoData'
 import { useAuth } from '../context/AuthContext'
@@ -77,10 +78,14 @@ export default function UserDetailModal({
   const [current, setCurrent] = useState(user)
   const [mode, setMode] = useState(initialMode)
 
+  // Partner margin % is admin-editable only and meaningful for partners only.
+  const canEditMargin = isAdmin && role === 'partner'
+
   const [form, setForm] = useState({
     full_name: user.full_name || '',
     phone: phoneOf(user),
     notes: user.notes || '',
+    margin: user.margin_percent == null ? '' : String(user.margin_percent),
   })
   const [saving, setSaving] = useState(false)
   const [editError, setEditError] = useState(null)
@@ -99,6 +104,7 @@ export default function UserDetailModal({
       full_name: current.full_name || '',
       phone: phoneOf(current),
       notes: current.notes || '',
+      margin: current.margin_percent == null ? '' : String(current.margin_percent),
     })
     setMode('edit')
   }
@@ -124,6 +130,20 @@ export default function UserDetailModal({
     const profileChanged =
       name !== (current.full_name || '') || nextNotes !== (current.notes || '')
 
+    // Margin: admin-only, partner-only. Blank clears it.
+    let nextMargin = current.margin_percent ?? null
+    let marginChanged = false
+    if (canEditMargin) {
+      const raw = String(form.margin).trim()
+      const parsed = raw === '' ? null : Number(raw)
+      if (parsed != null && (Number.isNaN(parsed) || parsed < 0 || parsed > 100)) {
+        setEditError('Margin must be a number between 0 and 100.')
+        return
+      }
+      nextMargin = parsed
+      marginChanged = (current.margin_percent ?? null) !== parsed
+    }
+
     setSaving(true)
     try {
       if (profileChanged) {
@@ -135,6 +155,9 @@ export default function UserDetailModal({
       }
       if (phoneChanged) {
         await changePhone({ userId: current.id, oldPhone, newPhone })
+      }
+      if (marginChanged) {
+        await setPartnerMargin(current.id, nextMargin)
       }
 
       await logAuditEvent({
@@ -159,6 +182,7 @@ export default function UserDetailModal({
         full_name: name,
         notes: nextNotes || null,
         phone: phoneChanged ? normalizePhone(newPhone) : current.phone,
+        margin_percent: canEditMargin ? nextMargin : current.margin_percent,
       }
       setCurrent(updated)
       setMode('view')
@@ -245,6 +269,11 @@ export default function UserDetailModal({
             <DetailRow label="Name">{current.full_name || 'N/A'}</DetailRow>
             <DetailRow label="Phone">{phone || 'N/A'}</DetailRow>
             <DetailRow label="Status"><StatusPill status={status} /></DetailRow>
+            {role === 'partner' && (
+              <DetailRow label="Margin">
+                {current.margin_percent == null ? '—' : `${Number(current.margin_percent)}%`}
+              </DetailRow>
+            )}
             <DetailRow label="Notes">{current.notes || '—'}</DetailRow>
             <DetailRow label="Created">
               {current.created_at ? formatDateDDMMYY(current.created_at) : 'N/A'}
@@ -325,6 +354,15 @@ export default function UserDetailModal({
             placeholder="9876543210"
             required
           />
+          {canEditMargin && (
+            <FormField
+              label="Margin (%)"
+              type="number"
+              value={form.margin}
+              onChange={(value) => setForm((p) => ({ ...p, margin: value }))}
+              placeholder="0–100 (blank to clear)"
+            />
+          )}
           <FormField
             label="Notes"
             type="textarea"
