@@ -13,6 +13,7 @@ import { logAuditEvent } from '../lib/audit'
 import { formatDateDDMMYY } from '../lib/date'
 import { demoBlock, demoPartnerSales } from '../lib/demoData'
 import { listMyAssignments, listMyRequests } from '../lib/partnerWorkflow'
+import PartnerUnsold from '../components/PartnerUnsold'
 import {
   SHELF_LIFE,
   shelfDay,
@@ -984,6 +985,11 @@ export default function PartnerDashboard() {
             </table>
           </div>
         </div>
+
+        {/* Received-stock countdowns + expiry → unsold (Stage 7, read-only). */}
+        {!isDemo && (trainerId || profile?.id) && (
+          <PartnerUnsold partnerId={trainerId || profile.id} canManage={false} />
+        )}
 
         <RefreshStatus pullDistance={pullDistance} refreshing={refreshing} at={lastUpdated} onRefresh={refresh} />
       </div>

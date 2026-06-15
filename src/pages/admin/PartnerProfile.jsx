@@ -13,6 +13,7 @@ import {
 } from '../../lib/demoData'
 import { formatDateDDMMYY } from '../../lib/date'
 import { SHELF_LIFE, shelfDays } from '../../lib/shelfLife'
+import PartnerUnsold from '../../components/PartnerUnsold'
 import {
   PageHeader,
   StatTile,
@@ -373,6 +374,9 @@ export default function PartnerProfile() {
 
       {/* Current stock — shelf life status */}
       {isDemo && <CurrentStockSection partnerId={id} />}
+
+      {/* Received stock countdowns + expiry → unsold (Stage 7). admin/sales can record. */}
+      {!isDemo && <PartnerUnsold partnerId={id} canManage={isAdminOrSales} />}
 
       {/* SECTION D — Customer log */}
       <section className="mb-6">
