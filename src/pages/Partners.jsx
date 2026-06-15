@@ -593,8 +593,8 @@ export default function Partners() {
         <DismissibleInfo
           storageKey="partners-phone-login"
           type="info"
-          title="Phone login"
-          message="Partners log in with their phone number and password. Deleting a login keeps all their data."
+          title="Partner login"
+          message="Partners log in with their name or phone number and password. Removing a login keeps all their data."
         />
       </div>
 
