@@ -12,6 +12,7 @@ import {
   Package,
   PackageCheck,
   Boxes,
+  History,
   Home,
   LogOut,
   Shield,
@@ -76,7 +77,8 @@ const salesNavigation = [
   { name: 'Team', href: '/admin/team', Icon: Users },
   { name: 'Requests', href: '/admin/requests', badge: 'pendingRequests', Icon: Inbox },
   { name: 'Allotment', href: '/admin/allotment', Icon: PackageCheck },
-  { name: 'Units', href: '/admin/units', Icon: Boxes },
+  { name: 'Stock', href: '/admin/units', Icon: Boxes },
+  { name: 'Records', href: '/admin/records', Icon: History },
   { name: 'Profile', href: '/admin/profile', Icon: User },
 ]
 

@@ -8,6 +8,8 @@ import RefreshStatus from '../components/RefreshStatus'
 import useRefreshable from '../lib/useRefreshable'
 import { supabase } from '../lib/supabase'
 import { logAuditEvent, createAuditDescription } from '../lib/audit'
+import { getAgentRecords } from '../lib/records'
+import { formatDateDDMMYY } from '../lib/date'
 import { useAuth } from '../context/AuthContext'
 import {
   demoBlock,
@@ -280,10 +282,137 @@ function TopPartnersSection({ rankings }) {
 }
 
 // ===========================================================================
+// AgentInsightsSection — per-agent analytics (sales role only). Each agent
+// sees ONLY their own data (scoped via sales.agent_id = profile.id): which
+// variant they've sold most, broken down by which partner took it, with units
+// and the timeframe over which it moved. Reuses getAgentRecords (no admin
+// data is fetched).
+// ===========================================================================
+function AgentInsightsSection({ agentId }) {
+  const [rows, setRows] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    getAgentRecords(agentId)
+      .then((d) => { if (!cancelled) setRows(d) })
+      .catch((e) => console.warn('Agent insights load failed:', e.message))
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [agentId])
+
+  const insights = useMemo(() => {
+    const v = {
+      multigrain: { sold: 0, partners: new Map() },
+      plain: { sold: 0, partners: new Map() },
+    }
+    for (const r of rows) {
+      const mg = r.multigrain_assigned || 0
+      const pl = r.plain_assigned || 0
+      const key = mg > 0 && pl === 0 ? 'multigrain' : pl > 0 && mg === 0 ? 'plain' : null
+      if (!key) continue
+      const sold = r.units_sold || 0
+      v[key].sold += sold
+      const pid = r.trainer_id || 'unknown'
+      if (!v[key].partners.has(pid)) {
+        v[key].partners.set(pid, { name: r.trainers?.name || 'Unknown partner', sold: 0, first: null, last: null })
+      }
+      const p = v[key].partners.get(pid)
+      p.sold += sold
+      const da = r.date_of_assignment ? new Date(r.date_of_assignment).getTime() : null
+      const pd = r.purchase_date ? new Date(r.purchase_date).getTime() : null
+      if (da != null) p.first = p.first == null ? da : Math.min(p.first, da)
+      const latest = pd ?? da
+      if (latest != null) p.last = p.last == null ? latest : Math.max(p.last, latest)
+    }
+    const mk = (key) => ({
+      key,
+      label: VARIANTS[key].short,
+      sold: v[key].sold,
+      partners: Array.from(v[key].partners.values())
+        .filter((p) => p.sold > 0)
+        .sort((a, b) => b.sold - a.sold),
+    })
+    const variants = [mk('multigrain'), mk('plain')]
+    const total = v.multigrain.sold + v.plain.sold
+    const top = v.multigrain.sold === v.plain.sold ? null : v.multigrain.sold > v.plain.sold ? 'multigrain' : 'plain'
+    return { variants, total, top }
+  }, [rows])
+
+  const fmtRange = (p) => {
+    if (p.first == null) return ''
+    const a = formatDateDDMMYY(new Date(p.first).toISOString())
+    if (p.last == null || p.last === p.first) return `since ${a}`
+    return `${a} → ${formatDateDDMMYY(new Date(p.last).toISOString())}`
+  }
+
+  return (
+    <section className="dashboard-panel mb-8 rounded-[32px] p-5 sm:p-6">
+      <div className="mb-5 flex items-center gap-2">
+        <span className="text-lg" aria-hidden>🎯</span>
+        <h2 className="font-display text-xl font-semibold tracking-[-0.03em] text-slate-100 sm:text-2xl">Your sales analytics</h2>
+        <span className="ml-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Only you</span>
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-slate-400">Loading your analytics…</p>
+      ) : insights.total === 0 ? (
+        <div className="dashboard-subpanel rounded-[20px] px-5 py-8 text-center text-sm text-slate-400">
+          No sales recorded yet. Once your partners sell, your variant breakdown shows here.
+        </div>
+      ) : (
+        <>
+          {insights.top && (
+            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-4 py-1.5 text-sm font-semibold text-emerald-200">
+              Top seller: {VARIANTS[insights.top].short} · {insights.variants.find((x) => x.key === insights.top).sold} units
+            </div>
+          )}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {insights.variants.map((variant) => {
+              const max = variant.partners.reduce((m, p) => Math.max(m, p.sold), 0)
+              return (
+                <div key={variant.key} className="dashboard-subpanel rounded-[20px] p-4">
+                  <div className="mb-3 flex items-center justify-between">
+                    <p className="text-sm font-semibold text-slate-100">{variant.label}</p>
+                    <p className="text-sm font-bold text-emerald-300">{variant.sold} sold</p>
+                  </div>
+                  {variant.partners.length === 0 ? (
+                    <p className="text-xs text-slate-500">No sales for this variant yet.</p>
+                  ) : (
+                    <div className="space-y-2.5">
+                      {variant.partners.map((p, i) => {
+                        const pct = max > 0 ? Math.max((p.sold / max) * 100, 8) : 0
+                        return (
+                          <div key={i}>
+                            <div className="mb-0.5 flex items-center justify-between gap-2 text-xs">
+                              <span className="truncate font-medium text-slate-200">{p.name}</span>
+                              <span className="flex-shrink-0 font-semibold text-slate-100">{p.sold} units</span>
+                            </div>
+                            <div className="h-2.5 w-full overflow-hidden rounded bg-[#F0EBE3]">
+                              <div className="h-full rounded" style={{ width: `${pct}%`, backgroundColor: '#10b981' }} />
+                            </div>
+                            {fmtRange(p) && <p className="mt-0.5 text-[11px] text-slate-500">{fmtRange(p)}</p>}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </>
+      )}
+    </section>
+  )
+}
+
+// ===========================================================================
 // Main page
 // ===========================================================================
 export default function Sales() {
-  const { isDemo } = useAuth()
+  const { isDemo, role, profile } = useAuth()
   const [trainers, setTrainers] = useState([])
   const [rankings, setRankings] = useState([])
   const [loading, setLoading] = useState(true)
@@ -636,6 +765,10 @@ export default function Sales() {
           />
         </Link>
       </div>
+
+      {role === 'sales' && !isDemo && profile?.id && (
+        <AgentInsightsSection agentId={profile.id} />
+      )}
 
       <div className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
         <PartnerPerformanceSection

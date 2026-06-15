@@ -15,7 +15,7 @@ export default function Units() {
     <div className="dashboard-page">
       <div className="dashboard-page-header">
         <div className="min-w-0">
-          <h1 className="dashboard-title">My Units</h1>
+          <h1 className="dashboard-title">Stock</h1>
           <p className="dashboard-subtitle hidden truncate sm:block">
             Your live unit numbers per variant — available stock, active sales, and returns.
           </p>
