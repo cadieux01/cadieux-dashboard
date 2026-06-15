@@ -10,6 +10,7 @@ import RefreshButton from '../components/RefreshButton'
 import RefreshStatus from '../components/RefreshStatus'
 import useRefreshable from '../lib/useRefreshable'
 import { logAuditEvent, createAuditDescription } from '../lib/audit'
+import { getBatchFreshnessMap, batchMsLeft, fmtBatchLeft } from '../lib/batches'
 import { formatDateDDMMYY, formatDateTimeDDMMYY } from '../lib/date'
 import { useAuth } from '../context/AuthContext'
 import { demoBlock, demoLeads, demoLeadSales, demoLeadTrainers, VARIANTS } from '../lib/demoData'
@@ -123,12 +124,21 @@ export default function Leads() {
     retracted_units: '',
   })
   const [isDateEditable, setIsDateEditable] = useState(false)
+  const [batchMap, setBatchMap] = useState({})
+  const [now, setNow] = useState(Date.now())
   const [trainerFormData, setTrainerFormData] = useState({
     name: '',
     contact: '',
     notes: '',
     joining_date: new Date().toISOString().split('T')[0],
   })
+
+  // Tick `now` every second so the batch countdowns on Active Sales update
+  // live, client-side only (no DB calls).
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [])
 
   const trainerById = useMemo(() => {
     const lookup = {}
@@ -226,6 +236,15 @@ export default function Leads() {
       setLeads(leadsData || [])
       setSales(salesData || [])
       setTrainers(normalizedPartners)
+
+      // Freshness for any batch-stamped assignments so Active Sales can show a
+      // live countdown. Legacy rows (NULL batch_id) simply have no entry.
+      try {
+        const map = await getBatchFreshnessMap((salesData || []).map((r) => r.batch_id))
+        setBatchMap(map)
+      } catch (e) {
+        console.warn('getBatchFreshnessMap failed:', e.message)
+      }
     } catch (error) {
       console.error('Error fetching data:', error)
     } finally {
@@ -475,6 +494,25 @@ export default function Leads() {
   }
   const isActiveSale = (sale) => getRemainingUnsoldUnits(sale) > 0
 
+  // Batch freshness: an assignment carries the originating batch's expiry clock
+  // via batch_id. Legacy / mixed-variant assignments (NULL batch_id) have no
+  // batch and are treated as never-expiring (always "active", no countdown).
+  const getSaleBatch = (sale) => (sale?.batch_id ? batchMap[sale.batch_id] : null)
+  const getSaleMsLeft = (sale) => {
+    const batch = getSaleBatch(sale)
+    return batch ? batchMsLeft(batch.expiry_at, now) : null
+  }
+  const isExpiredSale = (sale) => {
+    const ms = getSaleMsLeft(sale)
+    return ms != null && ms <= 0
+  }
+  const saleFreshnessCls = (ms) => {
+    if (ms == null) return 'text-slate-400'
+    if (ms <= 0) return 'text-rose-400'
+    if (ms <= 24 * 60 * 60 * 1000) return 'text-amber-400'
+    return 'text-emerald-300'
+  }
+
   // Filter sales
   const filteredSales = sales.filter((sale) => {
     if (salesTrainerFilter !== 'all' && sale.trainer_id !== salesTrainerFilter) return false
@@ -488,8 +526,6 @@ export default function Leads() {
     }
     return true
   })
-  const activeSalesCount = sales.filter(isActiveSale).length
-
   const handleSalesSort = (field) => {
     if (salesSortField === field) {
       setSalesSortDirection(salesSortDirection === 'asc' ? 'desc' : 'asc')
@@ -505,6 +541,13 @@ export default function Leads() {
     const timestamp = new Date(value).getTime()
     return Number.isNaN(timestamp) ? 0 : timestamp
   }
+
+  // BOX 1 — Active Sales: assignments whose batch clock has NOT expired
+  // (NULL-batch legacy rows count as active). Newest assignment first.
+  const openAssignments = [...sales]
+    .filter((sale) => !isExpiredSale(sale))
+    .sort((a, b) => getSaleSortTimestamp(b) - getSaleSortTimestamp(a))
+  const openAssignmentsCount = openAssignments.length
 
   const sortedSales = [...filteredSales].sort((a, b) => {
     // Priority 1: keep unclosed (active) sales at the top.
@@ -704,11 +747,21 @@ export default function Leads() {
           },
         })
       } else {
+        // Agent -> partner handoff. The SECURITY DEFINER RPC FIFO-picks the
+        // caller's oldest non-expired batch lot that covers this assignment,
+        // stamps the new sales row with that batch_id (clock carries, no reset)
+        // and writes a 'delivered' ledger row to decrement the agent's in-hand
+        // units. When no covering batch exists (legacy / mixed / no stock) it
+        // inserts exactly as before with batch_id NULL — no countdown.
         const { data, error } = await supabase
-          .from('sales')
-          .insert([insertPayload])
-          .select()
-          .single()
+          .rpc('assign_sale_fifo', {
+            p_partner_id: saleFormData.trainer_id,
+            p_multigrain: multigrainAssigned,
+            p_plain: plainAssigned,
+            p_date_of_assignment: assignmentDate,
+            p_product_variant: singleVariant?.name || null,
+            p_unit_price: singleVariant?.price || null,
+          })
 
 
         if (error) throw error
@@ -1389,8 +1442,8 @@ export default function Leads() {
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h1 className="dashboard-title">Sales</h1>
-              <p className="dashboard-subtitle hidden sm:block">Track and manage buyer leads from partners</p>
+              <h1 className="dashboard-title">Assignment</h1>
+              <p className="dashboard-subtitle hidden sm:block">Assign stock to partners and track active assignments</p>
             </div>
             <RefreshButton onRefresh={refresh} loading={refreshing} />
           </div>
@@ -1427,13 +1480,84 @@ export default function Leads() {
       </div>
 
 
-      {/* Sales Records Section */}
+      {/* BOX 1 — Active Sales (assignments whose batch clock hasn't expired) */}
+      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 sm:p-6 mb-6">
+        <div className="mb-4">
+          <h2 className="text-lg font-semibold text-slate-100">Active Sales</h2>
+          <p className="dashboard-subtitle mt-1">Open assignments: {openAssignmentsCount}</p>
+        </div>
+        {openAssignments.length === 0 ? (
+          <p className="text-sm text-slate-400">No active assignments.</p>
+        ) : (
+          <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
+            {openAssignments.map((sale) => {
+              const ms = getSaleMsLeft(sale)
+              const batch = getSaleBatch(sale)
+              const left = batch ? fmtBatchLeft(ms) : null
+              return (
+                <div
+                  key={sale.id}
+                  className="rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-3"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-100">{getPartnerName(sale)}</p>
+                      <p className="text-xs text-slate-500">
+                        {getPartnerContact(sale) || 'No contact'}
+                      </p>
+                    </div>
+                    {left ? (
+                      <span className={`flex-shrink-0 text-sm font-semibold ${saleFreshnessCls(ms)}`}>
+                        {left}
+                      </span>
+                    ) : (
+                      <span className="flex-shrink-0 text-xs text-slate-500">No batch · no expiry</span>
+                    )}
+                  </div>
+                  <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs sm:grid-cols-4">
+                    <div>
+                      <span className="text-slate-500">Sold </span>
+                      <span className="font-mono text-emerald-400">{sale.units_sold || 0}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500">Multi-Grain </span>
+                      <span className="font-mono text-slate-200">{sale.multigrain_assigned || 0}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500">Plain </span>
+                      <span className="font-mono text-slate-200">{sale.plain_assigned || 0}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500">Variant </span>
+                      <span className="text-slate-200">{sale.product_variant || 'Mixed'}</span>
+                    </div>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between gap-3">
+                    <p className="text-xs text-slate-500">
+                      {sale.date_of_assignment ? formatDateTimeDDMMYY(sale.date_of_assignment) : 'N/A'}
+                    </p>
+                    <button
+                      onClick={() => handleEditSale(sale)}
+                      className="rounded bg-indigo-500/20 px-3 py-1 text-xs text-indigo-400 transition-colors hover:bg-indigo-500/30"
+                    >
+                      Edit
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* BOX 2 — Sales Records: the complete assignment history (active + past
+          + expired), searchable & paginated. */}
       <div className="mb-4">
         <div className="mb-3">
           <h2 className="dashboard-section-title font-extrabold tracking-tight bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
             Sales Records
           </h2>
-          <p className="dashboard-subtitle mt-1">Active sales: {activeSalesCount}</p>
+          <p className="dashboard-subtitle mt-1">Complete assignment history · {sales.length} record{sales.length === 1 ? '' : 's'}</p>
         </div>
         
         {/* Sales Filters */}

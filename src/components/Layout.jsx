@@ -60,7 +60,7 @@ function DemoBadge() {
 
 const adminNavigation = [
   { name: 'Overview', href: '/admin/overview', Icon: LayoutDashboard },
-  { name: 'Sales', href: '/admin/sales', Icon: TrendingUp },
+  { name: 'Assignment', href: '/admin/sales', Icon: TrendingUp },
   { name: 'CTA', href: '/admin/cta', Icon: Megaphone },
   { name: 'Team', href: '/admin/team', Icon: Users },
   { name: 'Change Requests', href: '/admin/change-requests', badge: 'pendingRequests', Icon: ClipboardCheck },
@@ -73,7 +73,7 @@ const adminNavigation = [
 
 const salesNavigation = [
   { name: 'Overview', href: '/admin/overview', Icon: LayoutDashboard },
-  { name: 'Sales', href: '/admin/sales', Icon: TrendingUp },
+  { name: 'Assignment', href: '/admin/sales', Icon: TrendingUp },
   { name: 'CTA', href: '/admin/cta', Icon: Megaphone },
   { name: 'Team', href: '/admin/team', Icon: Users },
   { name: 'Partner Requests', href: '/admin/change-requests', badge: 'pendingRequests', Icon: ClipboardCheck },
