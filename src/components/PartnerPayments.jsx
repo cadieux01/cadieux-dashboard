@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Camera, ChevronDown, Upload, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { formatDateDDMMYY } from '../lib/date'
 import {
@@ -40,9 +41,19 @@ export default function PartnerPayments({ partnerId, mode = 'partner' }) {
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState(null)
   const [files, setFiles] = useState({}) // saleId -> File
+  const [expandedId, setExpandedId] = useState(null) // which pending row is open
   const [error, setError] = useState(null)
   const [margins, setMargins] = useState(null) // partner-mode: own margins + payout
   const mounted = useRef(true)
+
+  // Attach a proof file to a row (shared by picker / camera / drag-drop / paste).
+  const attachFile = (saleId, file) => {
+    if (!file) return
+    setFiles((f) => ({ ...f, [saleId]: file }))
+    setError(null)
+  }
+  const clearFile = (saleId) =>
+    setFiles((f) => ({ ...f, [saleId]: undefined }))
 
   const load = async () => {
     if (!partnerId) return
@@ -88,6 +99,25 @@ export default function PartnerPayments({ partnerId, mode = 'partner' }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [partnerId])
 
+  // Paste-to-attach: while a row's upload zone is open, a pasted image (e.g. a
+  // screenshot from the clipboard) is attached as that row's proof.
+  useEffect(() => {
+    if (!expandedId) return
+    const onPaste = (e) => {
+      const item = Array.from(e.clipboardData?.items || []).find((i) =>
+        i.type.startsWith('image/'),
+      )
+      const file = item?.getAsFile()
+      if (file) {
+        e.preventDefault()
+        attachFile(expandedId, file)
+      }
+    }
+    window.addEventListener('paste', onPaste)
+    return () => window.removeEventListener('paste', onPaste)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expandedId])
+
   const totals = useMemo(() => summarizePayments(rows), [rows])
 
   const viewProof = async (path) => {
@@ -96,14 +126,18 @@ export default function PartnerPayments({ partnerId, mode = 'partner' }) {
   }
 
   const submit = async (sale) => {
+    const file = files[sale.id]
+    if (!file) {
+      setError('Please attach a photo of your payment proof first.')
+      return
+    }
     setError(null)
     setBusyId(sale.id)
     try {
-      let proofPath = null
-      const file = files[sale.id]
-      if (file) proofPath = await uploadPaymentProof(partnerId, file)
+      const proofPath = await uploadPaymentProof(partnerId, file)
       await requestMarkPaid(sale.id, proofPath)
       setFiles((f) => ({ ...f, [sale.id]: undefined }))
+      setExpandedId(null)
       await load()
     } catch (e) {
       console.error('Request mark-paid failed:', e)
@@ -152,53 +186,118 @@ export default function PartnerPayments({ partnerId, mode = 'partner' }) {
       {rows.length === 0 ? (
         <p className="text-sm text-slate-400">No credit assignments yet.</p>
       ) : (
-        <div className="max-h-96 space-y-2 overflow-y-auto">
+        <div className="max-h-[28rem] space-y-2 overflow-y-auto">
           {rows.map((sale) => {
             const owed = Number(sale.amount_owed) || 0
             const isPending = sale.payment_status === 'pending'
             const canAct = mode === 'partner' && isPending
+            const isOpen = expandedId === sale.id
+            const file = files[sale.id]
             return (
-              <div key={sale.id} className="rounded-lg border border-slate-800 bg-slate-800/40 px-3 py-2.5">
-                <div className="flex items-start justify-between gap-3">
+              <div key={sale.id} className="overflow-hidden rounded-xl border border-slate-800 bg-slate-800/40">
+                {/* Tappable header row */}
+                <button
+                  type="button"
+                  onClick={() => canAct && setExpandedId(isOpen ? null : sale.id)}
+                  className={`flex w-full items-center justify-between gap-3 px-3.5 py-3 text-left ${
+                    canAct ? 'active:bg-slate-800/70' : 'cursor-default'
+                  }`}
+                >
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-slate-100">
+                    <p className="truncate text-sm font-semibold text-slate-100">
                       {sale.units_assigned} × {variantLabelFromSale(sale)}
                     </p>
-                    <p className="text-xs text-slate-400">
-                      {sale.date_of_assignment ? formatDateDDMMYY(sale.date_of_assignment) : '—'}
-                      {sale.margin_percent != null && <> · margin {Number(sale.margin_percent)}%</>}
+                    <p className="mt-0.5 text-xs text-slate-400">
+                      Received {sale.date_of_assignment ? formatDateDDMMYY(sale.date_of_assignment) : '—'}
                     </p>
                   </div>
-                  <div className="text-right">
-                    <p className="font-mono text-sm font-semibold text-slate-100">{inr(owed)}</p>
-                    <div className="mt-1"><StatusPill status={sale.payment_status} /></div>
-                  </div>
-                </div>
-
-                {canAct && (
-                  <div className="mt-2.5 flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <label className="flex-1 cursor-pointer rounded-lg border border-dashed border-slate-700 bg-slate-900/40 px-3 py-2 text-xs text-slate-300 hover:border-slate-600">
-                      <input
-                        type="file"
-                        accept="image/*,application/pdf"
-                        className="hidden"
-                        onChange={(e) => setFiles((f) => ({ ...f, [sale.id]: e.target.files?.[0] || undefined }))}
+                  <div className="flex shrink-0 items-center gap-2">
+                    <StatusPill status={sale.payment_status} />
+                    {canAct && (
+                      <ChevronDown
+                        size={16}
+                        className={`text-slate-500 transition-transform ${isOpen ? 'rotate-180' : ''}`}
                       />
-                      {files[sale.id] ? `Proof: ${files[sale.id].name}` : 'Attach payment proof (optional)'}
-                    </label>
+                    )}
+                  </div>
+                </button>
+
+                {/* Expanded proof-upload zone (pending + partner only) */}
+                {canAct && isOpen && (
+                  <div className="border-t border-slate-800 px-3.5 pb-3.5 pt-3">
+                    <p className="mb-2 text-xs text-slate-400">
+                      Upload a photo of your payment proof to mark this as paid. It will go to
+                      your salesperson for verification.
+                    </p>
+
+                    <div
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => {
+                        e.preventDefault()
+                        attachFile(sale.id, e.dataTransfer.files?.[0])
+                      }}
+                      className={`rounded-xl border-2 border-dashed px-3 py-4 text-center ${
+                        file ? 'border-emerald-600/60 bg-emerald-500/5' : 'border-slate-700 bg-slate-900/40'
+                      }`}
+                    >
+                      {file ? (
+                        <div className="flex items-center justify-center gap-2 text-sm text-emerald-300">
+                          <span className="truncate">{file.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => clearFile(sale.id)}
+                            className="rounded-full p-1 text-slate-400 hover:bg-slate-800 hover:text-slate-200"
+                            aria-label="Remove file"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-slate-500">
+                          Drag &amp; drop, paste a screenshot, or use a button below
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="mt-2.5 grid grid-cols-2 gap-2">
+                      <label className="flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-xs font-medium text-slate-200 hover:border-slate-600">
+                        <Upload size={14} />
+                        Choose file
+                        <input
+                          type="file"
+                          accept="image/*,application/pdf"
+                          className="hidden"
+                          onChange={(e) => attachFile(sale.id, e.target.files?.[0])}
+                        />
+                      </label>
+                      <label className="flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900/60 px-3 py-2 text-xs font-medium text-slate-200 hover:border-slate-600">
+                        <Camera size={14} />
+                        Take photo
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          className="hidden"
+                          onChange={(e) => attachFile(sale.id, e.target.files?.[0])}
+                        />
+                      </label>
+                    </div>
+
                     <button
                       type="button"
                       onClick={() => submit(sale)}
-                      disabled={busyId === sale.id}
-                      className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-[#fbf3d4] transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={!file || busyId === sale.id}
+                      className="mt-3 w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-[#fbf3d4] transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      {busyId === sale.id ? 'Submitting…' : 'Mark as paid'}
+                      {busyId === sale.id ? 'Submitting…' : 'Submit for verification'}
                     </button>
                   </div>
                 )}
 
                 {mode === 'admin' && sale.payment_status === 'awaiting_verification' && (
-                  <p className="mt-1.5 text-xs text-sky-300">Partner submitted proof — pending verification.</p>
+                  <p className="border-t border-slate-800 px-3.5 py-2 text-xs text-sky-300">
+                    Partner submitted proof — pending verification.
+                  </p>
                 )}
               </div>
             )

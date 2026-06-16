@@ -5,7 +5,6 @@ import { useAuth } from '../context/AuthContext'
 import Modal from '../components/Modal'
 import FormField from '../components/FormField'
 import UnitWheel from '../components/UnitWheel'
-import KPICard from '../components/KPICard'
 import RefreshButton from '../components/RefreshButton'
 import RefreshStatus from '../components/RefreshStatus'
 import useRefreshable from '../lib/useRefreshable'
@@ -682,12 +681,50 @@ export default function PartnerDashboard() {
     [summary],
   )
 
-  // Active/open orders = the partner's requests not yet fully delivered
-  // (displayStatus is 'pending' | 'accepted' | 'delivered').
-  const activeOrders = useMemo(
-    () => requests.filter((r) => r.displayStatus !== 'delivered').length,
-    [requests],
+  // Total units = everything ever assigned/delivered to this partner (both
+  // delivery sources are already folded into summary.variants[*].assigned).
+  const totalUnits = useMemo(
+    () => summary.variants.multigrain.assigned + summary.variants.plain.assigned,
+    [summary],
   )
+
+  // Per-variant REVENUE = the partner's own cut, not the gross sale value:
+  //   (margin% / 100) × MRP × units SOLD of that variant.
+  // Margins live on the profile (per-variant, with a legacy single-value
+  // fallback). Multi-Grain MRP ₹149, Plain ₹109.
+  const revenueByVariant = useMemo(() => {
+    const mgPct = profile?.margin_percent_multigrain ?? profile?.margin_percent ?? 0
+    const plPct = profile?.margin_percent_plain ?? profile?.margin_percent ?? 0
+    return {
+      multigrain: {
+        pct: Number(mgPct) || 0,
+        amount: (Number(mgPct) || 0) / 100 * VARIANTS.multigrain.price * summary.variants.multigrain.sold,
+      },
+      plain: {
+        pct: Number(plPct) || 0,
+        amount: (Number(plPct) || 0) / 100 * VARIANTS.plain.price * summary.variants.plain.sold,
+      },
+    }
+  }, [profile, summary])
+
+  const inrShort = (n) =>
+    `₹${(Math.round((Number(n) || 0) * 100) / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`
+
+  // Units pulled back from this partner — shown as a clean list below payments.
+  const retractedSales = useMemo(() => {
+    return [...sales]
+      .filter(
+        (s) =>
+          (s.retracted_units || 0) > 0 ||
+          (s.multigrain_retracted || 0) > 0 ||
+          (s.plain_retracted || 0) > 0,
+      )
+      .sort(
+        (a, b) =>
+          new Date(b.retract_date || b.created_at || 0).getTime() -
+          new Date(a.retract_date || a.created_at || 0).getTime(),
+      )
+  }, [sales])
 
   if (loading) {
     return (
@@ -718,8 +755,18 @@ export default function PartnerDashboard() {
           </div>
         </div>
 
-        {/* Headline figures — what the partner most needs at a glance */}
+        {/* Headline figures — what the partner most needs at a glance:
+            everything assigned to them, and what's still left to sell. */}
         <div className="mb-4 grid grid-cols-2 gap-3">
+          <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-sm">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700">
+              Total Units
+            </p>
+            <p className="mt-1 font-display text-5xl font-extrabold leading-none text-slate-100 sm:text-6xl">
+              {totalUnits.toLocaleString()}
+            </p>
+            <p className="mt-2 text-xs text-slate-400">assigned to you</p>
+          </div>
           <div
             className="rounded-2xl border p-5 shadow-sm"
             style={{ backgroundColor: '#024628', borderColor: '#024628' }}
@@ -737,17 +784,8 @@ export default function PartnerDashboard() {
               {availableUnits.toLocaleString()}
             </p>
             <p className="mt-2 text-xs" style={{ color: 'rgba(251,243,212,0.75)' }}>
-              to sell right now
+              left to sell
             </p>
-          </div>
-          <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-sm">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-700">
-              Active Orders
-            </p>
-            <p className="mt-1 font-display text-5xl font-extrabold leading-none text-slate-100 sm:text-6xl">
-              {activeOrders.toLocaleString()}
-            </p>
-            <p className="mt-2 text-xs text-slate-400">open right now</p>
           </div>
         </div>
 
@@ -795,28 +833,35 @@ export default function PartnerDashboard() {
             </div>
           </div>
 
-          <KPICard
-            title="Total Sold"
-            value={summary.totalUnits.toLocaleString()}
-            subtitle="Units"
-            color="emerald"
-            icon={
-              <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M5 13l4 4L19 7" />
-              </svg>
-            }
-          />
-          <KPICard
-            title="Revenue"
-            value={`₹${summary.totalRevenue.toLocaleString()}`}
-            subtitle="By variant"
-            color="purple"
-            icon={
-              <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-10V6m0 12v-2m7-4a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            }
-          />
+          {/* Per-variant REVENUE = the partner's own cut (margin% × MRP × units
+              sold), not the gross sale value. */}
+          <div className="dashboard-panel rounded-xl p-3">
+            <div className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: '#024628' }} />
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-300">MG Revenue</p>
+            </div>
+            <p className="mt-2 font-display text-2xl font-extrabold leading-none text-slate-100">
+              {inrShort(revenueByVariant.multigrain.amount)}
+            </p>
+            <p className="mt-1.5 text-[11px] text-slate-400">
+              {revenueByVariant.multigrain.pct}% × ₹{VARIANTS.multigrain.price} ·{' '}
+              {summary.variants.multigrain.sold.toLocaleString()} sold
+            </p>
+          </div>
+
+          <div className="dashboard-panel rounded-xl p-3">
+            <div className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: '#FBF3D4' }} />
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-amber-200">Plain Revenue</p>
+            </div>
+            <p className="mt-2 font-display text-2xl font-extrabold leading-none text-slate-100">
+              {inrShort(revenueByVariant.plain.amount)}
+            </p>
+            <p className="mt-1.5 text-[11px] text-slate-400">
+              {revenueByVariant.plain.pct}% × ₹{VARIANTS.plain.price} ·{' '}
+              {summary.variants.plain.sold.toLocaleString()} sold
+            </p>
+          </div>
         </div>
 
         {/* Shelf-life day tracking — oldest open stock per variant */}
@@ -996,6 +1041,53 @@ export default function PartnerDashboard() {
         {!isDemo && (trainerId || profile?.id) && (
           <div className="mt-4">
             <PartnerPayments partnerId={trainerId || profile.id} mode="partner" />
+          </div>
+        )}
+
+        {/* Retracted — units pulled back from this partner. */}
+        {!isDemo && retractedSales.length > 0 && (
+          <div className="mt-4 dashboard-panel">
+            <h3 className="dashboard-title mb-3 text-base">Retracted units</h3>
+            <div className="max-h-80 space-y-2 overflow-y-auto">
+              {retractedSales.map((sale) => {
+                const variant = variantFromSale(sale)
+                const mgR = sale.multigrain_retracted || 0
+                const plR = sale.plain_retracted || 0
+                const label =
+                  variant?.short ||
+                  (mgR > 0 && plR === 0
+                    ? VARIANTS.multigrain.short
+                    : plR > 0 && mgR === 0
+                      ? VARIANTS.plain.short
+                      : 'Mixed')
+                const units = sale.retracted_units || mgR + plR
+                return (
+                  <div
+                    key={sale.id}
+                    className="flex items-start justify-between gap-3 rounded-xl border border-slate-800 bg-slate-800/40 px-3.5 py-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-slate-100">
+                        {units} × {label}
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-400">
+                        {sale.retract_date
+                          ? formatDateDDMMYY(sale.retract_date)
+                          : sale.date_of_assignment
+                            ? formatDateDDMMYY(sale.date_of_assignment)
+                            : '—'}
+                        {sale.retract_reason && (
+                          <span className="capitalize"> · {sale.retract_reason}</span>
+                        )}
+                      </p>
+                    </div>
+                    <span className="shrink-0 rounded-full border border-rose-700 bg-rose-500/10 px-2.5 py-0.5 text-xs font-medium text-rose-300">
+                      Retracted
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
           </div>
         )}
 
