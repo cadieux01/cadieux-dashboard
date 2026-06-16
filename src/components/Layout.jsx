@@ -26,6 +26,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import SessionTimeout from './SessionTimeout'
+import NotificationBell from './NotificationBell'
 import { displayLogin, displayName } from '../lib/phone'
 import { fetchPendingCount } from '../lib/changeRequests'
 
@@ -178,6 +179,7 @@ export default function Layout() {
   return (
     <div className="min-h-screen bg-transparent text-slate-100 lg:flex">
       <SessionTimeout />
+      <NotificationBell />
 
       {/* Mobile menu button */}
       <button
