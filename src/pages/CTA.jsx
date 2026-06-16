@@ -37,15 +37,6 @@ function variantKeyOf(productVariant) {
   return null
 }
 
-// Whole days between assignment and sale (assigned→sold). Sold same day = 0.
-function soldAfterDays(assignedDate, soldDate) {
-  if (!assignedDate || !soldDate) return null
-  const a = new Date(assignedDate)
-  const s = new Date(soldDate)
-  if (Number.isNaN(a.getTime()) || Number.isNaN(s.getTime())) return null
-  return Math.max(0, Math.floor((s - a) / 86400000))
-}
-
 const VARIANT_PILL = {
   multigrain: 'bg-[#024628]/40 text-[#7fe0b7] border border-[#024628]/60',
   plain:      'bg-[#FBF3D4]/40 text-[#8A6D1F] border border-[#8A6D1F]/20',
@@ -83,6 +74,15 @@ const KPI_COLORS = {
   amber:   'border-[#D97706]/30 bg-[#D97706]/8 text-[#b45309]',
   rose:    'border-[#DC2626]/30 bg-[#DC2626]/8 text-[#b91c1c]',
   slate:   'border-[#E8E0D4]    bg-[#F0EBE3]    text-slate-400',
+}
+
+// Readable emphasis colour per status for the compact table (darker than the
+// card's tinted-on-glass text so it reads on the light panel rows).
+const STATUS_STRONG = {
+  emerald: 'text-[#047857]',
+  amber:   'text-[#b45309]',
+  rose:    'text-[#b91c1c]',
+  slate:   'text-slate-500',
 }
 
 export default function CTA() {
@@ -182,6 +182,15 @@ export default function CTA() {
   const expiring     = byStatus('expiring_soon')
   const expired      = byStatus('expired')
 
+  // Single combined table — grouped by urgency (active → expiring → expired),
+  // then soonest-to-expire first within each group.
+  const STATUS_ORDER = { active: 0, expiring_soon: 1, expired: 2 }
+  const sortedFiltered = [...filtered].sort(
+    (a, b) =>
+      (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9) ||
+      a.hours_remaining - b.hours_remaining,
+  )
+
   const kpiTiles = [
     { status: 'active',       count: active.length,    units: active.reduce((s, r) => s + r.units_remaining, 0),    cfg: STATUS_CONFIG.active },
     { status: 'expiring_soon', count: expiring.length, units: expiring.reduce((s, r) => s + r.units_remaining, 0),  cfg: STATUS_CONFIG.expiring_soon },
@@ -266,29 +275,87 @@ export default function CTA() {
         )}
       </div>
 
-      {/* Status sections */}
-      {[
-        { rows: active,   cfg: STATUS_CONFIG.active },
-        { rows: expiring, cfg: STATUS_CONFIG.expiring_soon },
-        { rows: expired,  cfg: STATUS_CONFIG.expired },
-      ].map(({ rows: sRows, cfg }) => sRows.length > 0 && (
-        <section key={cfg.label} className="mb-6">
-          <h2 className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-            <span className={`h-2 w-2 rounded-full ${cfg.dot}`} />
-            {cfg.label} · {sRows.length} assignment{sRows.length !== 1 ? 's' : ''}
-          </h2>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {sRows.map((row) => (
-              <AssignmentCard
-                key={row.id}
-                row={row}
-                cfg={cfg}
-                onNavigate={() => navigate(`/admin/partner/${row.partner_id}`)}
-              />
-            ))}
-          </div>
-        </section>
-      ))}
+      {/* Assignments table — compact, mobile-scannable (scrolls sideways on
+          narrow screens). Grouped by urgency, soonest-to-expire first. */}
+      {sortedFiltered.length > 0 && (
+        <div className="mb-6 overflow-auto rounded-[20px] border border-[#E8E0D4]">
+          <table className="w-full min-w-[760px] text-left text-xs">
+            <thead className="sticky top-0 z-10 bg-[#F0EBE3]">
+              <tr className="text-[10px] uppercase tracking-[0.14em] text-slate-500">
+                <th className="px-3 py-2.5 font-semibold">Status</th>
+                <th className="px-3 py-2.5 font-semibold">Partner</th>
+                <th className="px-3 py-2.5 font-semibold">Variant</th>
+                <th className="px-3 py-2.5 font-semibold">Day</th>
+                <th className="px-3 py-2.5 font-semibold">Time left</th>
+                <th className="px-2 py-2.5 text-right font-semibold">Asgn</th>
+                <th className="px-2 py-2.5 text-right font-semibold">Sold</th>
+                <th className="px-2 py-2.5 text-right font-semibold">Left</th>
+                <th className="px-3 py-2.5 text-right font-semibold">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#E8E0D4]">
+              {sortedFiltered.map((row) => {
+                const cfg = STATUS_CONFIG[row.status] || STATUS_CONFIG.active
+                const { total: daysTotal, day, daysLeft, pctUsed, lastDay } = dayInfo(row.variant, row.hours_remaining)
+                const expired = row.status === 'expired'
+                const strong = STATUS_STRONG[cfg.kpiColor] || 'text-slate-500'
+                return (
+                  <tr
+                    key={row.id}
+                    onClick={() => navigate(`/admin/partner/${row.partner_id}`)}
+                    className="cursor-pointer align-top transition hover:bg-[#F0EBE3]/60"
+                  >
+                    <td className="px-3 py-2.5">
+                      <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold ${KPI_COLORS[cfg.kpiColor]}`}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${cfg.dot}`} />
+                        {cfg.label}
+                      </span>
+                      {(lastDay || expired) && (
+                        <p className={`mt-1 text-[10px] font-bold uppercase tracking-wide ${expired ? 'text-[#b91c1c]' : 'text-[#b45309]'}`}>
+                          {expired ? '⚠ Retract / divert' : '⚠ Sell today'}
+                        </p>
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <p className="font-semibold text-slate-100">{row.partner_name}</p>
+                      {row.partner_phone && <p className="text-[11px] text-slate-500">{row.partner_phone}</p>}
+                      <p className="text-[10px] text-slate-500">Assigned {formatDateDDMMYY(row.assigned_date)}</p>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${VARIANT_PILL[row.variant]}`}>
+                        {row.variant_label}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">
+                      <span className="font-bold text-slate-100">Day {day}</span>
+                      <span className="text-slate-500"> / {daysTotal}</span>
+                      <p className="text-[10px] text-slate-500">{expired ? 'shelf over' : `${daysLeft} day${daysLeft !== 1 ? 's' : ''} left`}</p>
+                    </td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">
+                      <span className={`font-semibold ${strong}`}>{timeLabel(row.hours_remaining)}</span>
+                      <p className="text-[10px] text-slate-500">{Math.round(pctUsed)}% used</p>
+                    </td>
+                    <td className="px-2 py-2.5 text-right font-mono text-slate-100">{row.units_assigned}</td>
+                    <td className="px-2 py-2.5 text-right font-mono text-emerald-300">{row.units_sold}</td>
+                    <td className={`px-2 py-2.5 text-right font-mono font-semibold ${strong}`}>{row.units_remaining}</td>
+                    <td className="px-3 py-2.5 text-right">
+                      {row.partner_phone && (
+                        <a
+                          href={`tel:${row.partner_phone}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-block rounded-full bg-[#F0EBE3] px-2.5 py-1 text-[11px] text-slate-300 transition hover:bg-[#ECE5DA]"
+                        >
+                          📞 Call
+                        </a>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Retracted section */}
       {retractions.length > 0 && (
@@ -329,119 +396,6 @@ export default function CTA() {
       )}
 
       <RefreshStatus pullDistance={pullDistance} refreshing={refreshing} at={lastUpdated} onRefresh={refresh} />
-    </div>
-  )
-}
-
-function AssignmentCard({ row, cfg, onNavigate }) {
-  const { total: daysTotal, day, daysLeft, pctUsed, lastDay } = dayInfo(row.variant, row.hours_remaining)
-  const expired = row.status === 'expired'
-
-  // Sell-speed: how fast the sold units moved, from assigned→sold timestamps
-  // (date_of_assignment → purchase_date). Sold within 2 days (before day 3) is
-  // safe/green; day 3 or later reuses the existing amber "About to Expire" style.
-  const soldDays = row.units_sold > 0 ? soldAfterDays(row.assigned_date, row.sold_date) : null
-  const speedCfg = soldDays === null
-    ? null
-    : soldDays < 2 ? STATUS_CONFIG.active : STATUS_CONFIG.expiring_soon
-
-  return (
-    <div
-      onClick={onNavigate}
-      className={`cursor-pointer rounded-[20px] border p-4 backdrop-blur-xl transition hover:-translate-y-0.5 ${cfg.card}`}
-    >
-      {/* Header row */}
-      <div className="mb-3 flex items-start justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <span className={`h-2 w-2 rounded-full ${cfg.dot}`} />
-          <span className={`text-xs font-semibold uppercase tracking-wide ${cfg.text}`}>{cfg.label}</span>
-        </div>
-        <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${cfg.badge}`}>
-          {timeLabel(row.hours_remaining)}
-        </span>
-      </div>
-
-      {/* Day of N — prominent */}
-      <div className="mb-3 flex items-end justify-between gap-2">
-        <div>
-          <span className={`text-2xl font-extrabold leading-none ${cfg.text}`}>Day {day}</span>
-          <span className="ml-1 text-sm font-semibold text-slate-500">of {daysTotal}</span>
-        </div>
-        <span className="text-xs font-semibold text-slate-500">
-          {expired ? 'Shelf life over' : `${daysLeft} day${daysLeft !== 1 ? 's' : ''} left`}
-        </span>
-      </div>
-
-      {/* Last-day / expired warning */}
-      {(lastDay || expired) && (
-        <div className={`mb-3 rounded-[12px] px-3 py-2 text-xs font-bold uppercase tracking-[0.14em] ${
-          expired
-            ? 'border border-[#DC2626]/40 bg-[#DC2626]/10 text-[#b91c1c]'
-            : 'border border-[#D97706]/40 bg-[#D97706]/10 text-[#b45309]'
-        }`}>
-          {expired ? '⚠ Expired — retract or divert' : '⚠ Last day — sell today'}
-        </div>
-      )}
-
-      {/* Partner */}
-      <p className="font-semibold text-slate-100">{row.partner_name}</p>
-      <div className="mt-0.5 flex flex-wrap items-center gap-2">
-        <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${VARIANT_PILL[row.variant]}`}>
-          {row.variant_label}
-        </span>
-        <span className="text-xs text-slate-500">{daysTotal}d shelf life</span>
-        {speedCfg && (
-          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${speedCfg.badge}`}>
-            <span className={`h-1.5 w-1.5 rounded-full ${speedCfg.dot}`} />
-            Sold in {soldDays === 0 ? 'under a day' : `${soldDays} day${soldDays !== 1 ? 's' : ''}`}
-          </span>
-        )}
-      </div>
-
-      {/* Stats */}
-      <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-        <div className="rounded-[10px] bg-[#F0EBE3] px-2 py-1.5">
-          <p className="text-[10px] uppercase tracking-[0.14em] text-slate-500">Assigned</p>
-          <p className="font-semibold text-slate-100">{row.units_assigned}</p>
-        </div>
-        <div className="rounded-[10px] bg-[#F0EBE3] px-2 py-1.5">
-          <p className="text-[10px] uppercase tracking-[0.14em] text-slate-500">Sold</p>
-          <p className="font-semibold text-emerald-300">{row.units_sold}</p>
-        </div>
-        <div className="rounded-[10px] bg-[#F0EBE3] px-2 py-1.5">
-          <p className="text-[10px] uppercase tracking-[0.14em] text-slate-500">Left</p>
-          <p className={`font-semibold ${cfg.text}`}>{row.units_remaining}</p>
-        </div>
-      </div>
-
-      {/* Shelf life used bar */}
-      <div className="mt-3">
-        <div className="mb-1 flex items-center justify-between text-[10px] uppercase tracking-[0.14em] text-slate-500">
-          <span>Shelf used</span>
-          <span>{Math.round(pctUsed)}%</span>
-        </div>
-        <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#F0EBE3]">
-          <div
-            className={`h-full rounded-full transition-all ${
-              row.status === 'active' ? 'bg-emerald-400' :
-              row.status === 'expiring_soon' ? 'bg-amber-400' : 'bg-rose-400'
-            }`}
-            style={{ width: `${pctUsed}%` }}
-          />
-        </div>
-      </div>
-
-      {/* Footer */}
-      <div className="mt-2 flex items-center justify-between">
-        <span className="text-xs text-slate-500">Assigned {formatDateDDMMYY(row.assigned_date)}</span>
-        <a
-          href={`tel:${row.partner_phone}`}
-          onClick={(e) => e.stopPropagation()}
-          className="rounded-full bg-[#F0EBE3] px-2.5 py-1 text-xs text-slate-300 transition hover:bg-[#ECE5DA]"
-        >
-          📞 Call
-        </a>
-      </div>
     </div>
   )
 }

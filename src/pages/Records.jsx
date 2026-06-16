@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { getAgentRecords, getAgentCustomers } from '../lib/records'
+import { getAgentRecords } from '../lib/records'
 import { VARIANTS } from '../lib/demoData'
 import { formatDateDDMMYY } from '../lib/date'
 import RefreshButton from '../components/RefreshButton'
@@ -129,7 +129,6 @@ function VariantRow({ vkey, stats }) {
 export default function Records() {
   const { profile, isDemo } = useAuth()
   const [rows, setRows] = useState([])
-  const [customers, setCustomers] = useState([])
   const [timeframe, setTimeframe] = useState('all')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -137,18 +136,13 @@ export default function Records() {
   const load = async () => {
     if (!profile?.id || isDemo) {
       setRows([])
-      setCustomers([])
       setLoading(false)
       return
     }
     try {
       setError(null)
-      const [data, custData] = await Promise.all([
-        getAgentRecords(profile.id),
-        getAgentCustomers(profile.id),
-      ])
+      const data = await getAgentRecords(profile.id)
       setRows(data)
-      setCustomers(custData)
     } catch (e) {
       console.error('getAgentRecords failed:', e)
       setError(e.message)
@@ -181,10 +175,6 @@ export default function Records() {
   const filteredRows = useMemo(
     () => rows.filter((r) => inWindow(r.date_of_assignment || r.created_at)),
     [rows, cutoff],
-  )
-  const filteredCustomers = useMemo(
-    () => customers.filter((c) => inWindow(c.created_at)),
-    [customers, cutoff],
   )
 
   // Agent-wide summary + per-partner breakdown.
@@ -370,37 +360,6 @@ export default function Records() {
                 </div>
               ))}
             </div>
-          </div>
-
-          {/* Customers */}
-          <div className={CARD}>
-            <h2 className="mb-1 text-lg font-semibold text-slate-100">Customers</h2>
-            <p className="mb-4 text-xs text-slate-500">
-              {filteredCustomers.length} customer{filteredCustomers.length === 1 ? '' : 's'} recorded by your partners · call or WhatsApp directly.
-            </p>
-            {filteredCustomers.length === 0 ? (
-              <p className="text-sm text-slate-500">No customers in this window.</p>
-            ) : (
-              <div className="max-h-[28rem] space-y-2 overflow-y-auto pr-1">
-                {filteredCustomers.map((c) => (
-                  <div
-                    key={c.id}
-                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2.5"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-slate-100">{c.buyer_name || 'Unnamed customer'}</p>
-                      <p className="truncate text-xs text-slate-500">
-                        {c.buyer_contact || 'No contact'}
-                        {c.trainers?.name ? ` · via ${c.trainers.name}` : ''}
-                        {c.status ? ` · ${c.status}` : ''}
-                        {c.created_at ? ` · ${formatDateDDMMYY(c.created_at)}` : ''}
-                      </p>
-                    </div>
-                    <ContactButtons contact={c.buyer_contact} />
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
 
           {/* Complete history */}

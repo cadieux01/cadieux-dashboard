@@ -379,13 +379,10 @@ export default function Leads() {
 
   const handleSaveLead = async () => {
     if (isDemo) return demoBlock()
-    if (!leadFormData.trainer_id) {
-      alert('Please select a partner')
-      return
-    }
-
+    // Partner is optional — a customer logged by an agent goes to admin with no
+    // partner linkage (trainer_id stays null). Only the buyer name is required.
     if (!leadFormData.buyer_name?.trim()) {
-      alert('Please enter buyer name')
+      alert('Please enter customer name')
       return
     }
 
@@ -395,7 +392,7 @@ export default function Leads() {
         const { error } = await supabase
           .from('leads')
           .update({
-            trainer_id: leadFormData.trainer_id,
+            trainer_id: leadFormData.trainer_id || null,
             trainer_contact: leadFormData.trainer_contact.trim() || null,
             buyer_name: leadFormData.buyer_name.trim(),
             buyer_contact: leadFormData.buyer_contact.trim() || null,
@@ -433,7 +430,7 @@ export default function Leads() {
         const { data, error } = await supabase
           .from('leads')
           .insert([{
-            trainer_id: leadFormData.trainer_id,
+            trainer_id: leadFormData.trainer_id || null,
             trainer_contact: leadFormData.trainer_contact.trim() || null,
             buyer_name: leadFormData.buyer_name.trim(),
             buyer_contact: leadFormData.buyer_contact.trim() || null,
@@ -592,6 +589,21 @@ export default function Leads() {
     .filter((sale) => !isExpiredSale(sale))
     .sort((a, b) => getSaleSortTimestamp(b) - getSaleSortTimestamp(a))
   const openAssignmentsCount = openAssignments.length
+
+  // Retracted — any assignment that had units pulled back (own table on the
+  // Assignment page, separate from Active Sales). Newest retraction first.
+  const retractedSales = [...sales]
+    .filter(
+      (sale) =>
+        (sale.retracted_units || 0) > 0 ||
+        (sale.multigrain_retracted || 0) > 0 ||
+        (sale.plain_retracted || 0) > 0,
+    )
+    .sort(
+      (a, b) =>
+        new Date(b.retract_date || b.created_at || 0).getTime() -
+        new Date(a.retract_date || a.created_at || 0).getTime(),
+    )
 
   const sortedSales = [...filteredSales].sort((a, b) => {
     // Priority 1: keep unclosed (active) sales at the top.
@@ -1550,7 +1562,7 @@ export default function Leads() {
               <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
-              <span className="hidden sm:inline">Add Customer</span>
+              <span className="hidden sm:inline">Customer</span>
             </button>
             <button
               onClick={() => setIsAddRetractModalOpen(true)}
@@ -1600,106 +1612,159 @@ export default function Leads() {
         {openAssignments.length === 0 ? (
           <p className="text-sm text-slate-400">No active assignments.</p>
         ) : (
-          <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
-            {openAssignments.map((sale) => {
-              const ms = getSaleMsLeft(sale)
-              const batch = getSaleBatch(sale)
-              const left = batch ? fmtBatchLeft(ms) : null
-              return (
-                <div
-                  key={sale.id}
-                  className="rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-3"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-slate-100">{getPartnerName(sale)}</p>
-                      <p className="text-xs text-slate-500">
-                        {getPartnerContact(sale) || 'No contact'}
-                      </p>
-                    </div>
-                    {left ? (
-                      <span className={`flex-shrink-0 text-sm font-semibold ${saleFreshnessCls(ms)}`}>
-                        {left}
-                      </span>
-                    ) : (
-                      <span className="flex-shrink-0 text-xs text-slate-500">No batch · no expiry</span>
-                    )}
-                  </div>
-                  <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs sm:grid-cols-4">
-                    <div>
-                      <span className="text-slate-500">Sold </span>
-                      <span className="font-mono text-emerald-400">{sale.units_sold || 0}</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-500">Multi-Grain </span>
-                      <span className="font-mono text-slate-200">{sale.multigrain_assigned || 0}</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-500">Plain </span>
-                      <span className="font-mono text-slate-200">{sale.plain_assigned || 0}</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-500">Variant </span>
-                      <span className="text-slate-200">{sale.product_variant || 'Mixed'}</span>
-                    </div>
-                  </div>
-
-                  {/* Credit / payment — agent can view proof and mark paid */}
-                  {sale.payment_status && (() => {
-                    const proof = proofMap[sale.id]
-                    const meta = {
-                      pending: { label: 'On credit', cls: 'border-amber-700 bg-amber-500/10 text-amber-300' },
-                      awaiting_verification: { label: 'Awaiting verification', cls: 'border-sky-700 bg-sky-500/10 text-sky-300' },
-                      paid: { label: 'Paid', cls: 'border-emerald-700 bg-emerald-500/10 text-emerald-300' },
-                    }[sale.payment_status] || { label: sale.payment_status, cls: 'border-slate-700 bg-slate-800 text-slate-300' }
-                    return (
-                      <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-slate-800 pt-2">
-                        <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${meta.cls}`}>
-                          {meta.label}
-                        </span>
-                        {sale.amount_owed != null && sale.payment_status !== 'paid' && (
-                          <span className="font-mono text-xs text-amber-300">₹{Number(sale.amount_owed).toLocaleString('en-IN')} owed</span>
+          <div className="max-h-[460px] overflow-auto rounded-lg border border-slate-800">
+            <table className="w-full min-w-[640px] text-left text-xs">
+              <thead className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur">
+                <tr className="text-[11px] uppercase tracking-wide text-slate-500">
+                  <th className="px-3 py-2 font-medium">Partner</th>
+                  <th className="px-2 py-2 text-right font-medium">MG</th>
+                  <th className="px-2 py-2 text-right font-medium">Plain</th>
+                  <th className="px-2 py-2 text-right font-medium">Sold</th>
+                  <th className="px-3 py-2 font-medium">Expiry</th>
+                  <th className="px-3 py-2 font-medium">Payment</th>
+                  <th className="px-3 py-2 text-right font-medium">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800">
+                {openAssignments.map((sale) => {
+                  const ms = getSaleMsLeft(sale)
+                  const batch = getSaleBatch(sale)
+                  const left = batch ? fmtBatchLeft(ms) : null
+                  const proof = proofMap[sale.id]
+                  const payMeta = sale.payment_status
+                    ? {
+                        pending: { label: 'On credit', cls: 'border-amber-700 bg-amber-500/10 text-amber-300' },
+                        awaiting_verification: { label: 'Awaiting', cls: 'border-sky-700 bg-sky-500/10 text-sky-300' },
+                        paid: { label: 'Paid', cls: 'border-emerald-700 bg-emerald-500/10 text-emerald-300' },
+                      }[sale.payment_status] || { label: sale.payment_status, cls: 'border-slate-700 bg-slate-800 text-slate-300' }
+                    : null
+                  return (
+                    <tr key={sale.id} className="align-top">
+                      <td className="px-3 py-2">
+                        <p className="font-semibold text-slate-100">{getPartnerName(sale)}</p>
+                        <p className="text-[11px] text-slate-500">{getPartnerContact(sale) || 'No contact'}</p>
+                        <p className="text-[11px] text-slate-600">
+                          {sale.date_of_assignment ? formatDateTimeDDMMYY(sale.date_of_assignment) : 'N/A'}
+                        </p>
+                      </td>
+                      <td className="px-2 py-2 text-right font-mono text-slate-200">{sale.multigrain_assigned || 0}</td>
+                      <td className="px-2 py-2 text-right font-mono text-slate-200">{sale.plain_assigned || 0}</td>
+                      <td className="px-2 py-2 text-right font-mono text-emerald-400">{sale.units_sold || 0}</td>
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        {left ? (
+                          <span className={`font-semibold ${saleFreshnessCls(ms)}`}>{left}</span>
+                        ) : (
+                          <span className="text-slate-500">No expiry</span>
                         )}
-                        {proof?.proof_file_path && (
-                          <button
-                            onClick={() => viewProof(proof.proof_file_path)}
-                            className="rounded bg-sky-500/20 px-2.5 py-1 text-xs font-medium text-sky-200 transition-colors hover:bg-sky-500/30"
-                          >
-                            View proof
-                          </button>
+                      </td>
+                      <td className="px-3 py-2">
+                        {payMeta ? (
+                          <div className="flex flex-col items-start gap-1">
+                            <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${payMeta.cls}`}>
+                              {payMeta.label}
+                            </span>
+                            {sale.amount_owed != null && sale.payment_status !== 'paid' && (
+                              <span className="font-mono text-[11px] text-amber-300">₹{Number(sale.amount_owed).toLocaleString('en-IN')} owed</span>
+                            )}
+                            <div className="flex flex-wrap gap-1">
+                              {proof?.proof_file_path && (
+                                <button
+                                  onClick={() => viewProof(proof.proof_file_path)}
+                                  className="rounded bg-sky-500/20 px-2 py-0.5 text-[11px] font-medium text-sky-200 transition-colors hover:bg-sky-500/30"
+                                >
+                                  Proof
+                                </button>
+                              )}
+                              {sale.payment_status !== 'paid' && (
+                                <button
+                                  onClick={() => handleVerifyPayment(sale)}
+                                  disabled={verifyingId === sale.id}
+                                  className="rounded bg-emerald-600 px-2 py-0.5 text-[11px] font-semibold text-[#fbf3d4] transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  {verifyingId === sale.id ? '…' : 'Mark paid'}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-slate-600">—</span>
                         )}
-                        {sale.payment_status !== 'paid' && (
-                          <button
-                            onClick={() => handleVerifyPayment(sale)}
-                            disabled={verifyingId === sale.id}
-                            className="rounded bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-[#fbf3d4] transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            {verifyingId === sale.id ? 'Saving…' : 'Mark paid'}
-                          </button>
-                        )}
-                      </div>
-                    )
-                  })()}
-
-                  <div className="mt-2 flex items-center justify-between gap-3">
-                    <p className="text-xs text-slate-500">
-                      {sale.date_of_assignment ? formatDateTimeDDMMYY(sale.date_of_assignment) : 'N/A'}
-                    </p>
-                    <button
-                      onClick={() => handleEditSale(sale)}
-                      className="rounded bg-indigo-500/20 px-3 py-1 text-xs text-indigo-400 transition-colors hover:bg-indigo-500/30"
-                    >
-                      Edit
-                    </button>
-                  </div>
-                </div>
-              )
-            })}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        <button
+                          onClick={() => handleEditSale(sale)}
+                          className="rounded bg-indigo-500/20 px-3 py-1 text-indigo-400 transition-colors hover:bg-indigo-500/30"
+                        >
+                          Edit
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
 
-      {/* Filters */}
+      {/* Retracted — units pulled back from partners (separate from Active Sales) */}
+      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 sm:p-6 mb-6">
+        <div className="mb-4">
+          <h2 className="text-lg font-semibold text-slate-100">Retracted</h2>
+          <p className="dashboard-subtitle mt-1">Units pulled back: {retractedSales.length}</p>
+        </div>
+        {retractedSales.length === 0 ? (
+          <p className="text-sm text-slate-400">No retracted units.</p>
+        ) : (
+          <div className="max-h-[420px] overflow-auto rounded-lg border border-slate-800">
+            <table className="w-full min-w-[600px] text-left text-xs">
+              <thead className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur">
+                <tr className="text-[11px] uppercase tracking-wide text-slate-500">
+                  <th className="px-3 py-2 font-medium">Partner</th>
+                  <th className="px-2 py-2 text-right font-medium">MG</th>
+                  <th className="px-2 py-2 text-right font-medium">Plain</th>
+                  <th className="px-2 py-2 text-right font-medium">Total</th>
+                  <th className="px-3 py-2 font-medium">Reason</th>
+                  <th className="px-3 py-2 font-medium">Date</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800">
+                {retractedSales.map((sale) => {
+                  const total =
+                    sale.retracted_units ||
+                    (sale.multigrain_retracted || 0) + (sale.plain_retracted || 0)
+                  return (
+                    <tr key={sale.id} className="align-top">
+                      <td className="px-3 py-2">
+                        <p className="font-semibold text-slate-100">{getPartnerName(sale)}</p>
+                        <p className="text-[11px] text-slate-500">{getPartnerContact(sale) || 'No contact'}</p>
+                      </td>
+                      <td className="px-2 py-2 text-right font-mono text-[#c084fc]">{sale.multigrain_retracted || 0}</td>
+                      <td className="px-2 py-2 text-right font-mono text-[#c084fc]">{sale.plain_retracted || 0}</td>
+                      <td className="px-2 py-2 text-right font-mono font-semibold text-[#c084fc]">{total}</td>
+                      <td className="px-3 py-2 text-slate-300">
+                        <p className="capitalize">{sale.retract_reason || '—'}</p>
+                        {sale.retract_notes && <p className="text-[11px] text-slate-500">{sale.retract_notes}</p>}
+                      </td>
+                      <td className="px-3 py-2 whitespace-nowrap text-slate-400">
+                        {sale.retract_date
+                          ? formatDateTimeDDMMYY(sale.retract_date)
+                          : sale.date_of_assignment
+                            ? formatDateDDMMYY(sale.date_of_assignment)
+                            : 'N/A'}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Filters (admin only — customer list below) */}
+      {isAdmin && (
+      <>
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 mb-6">
         <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 sm:gap-4">
           {/* Search */}
@@ -1821,12 +1886,14 @@ export default function Leads() {
           )}
         </div>
       </div>
+      </>
+      )}
 
       {/* Add/Edit Lead Modal */}
       <Modal
         isOpen={isAddModalOpen}
         onClose={handleCloseModal}
-        title={editingLeadId ? "Edit Lead" : "Add New Lead"}
+        title={editingLeadId ? 'Edit Lead' : isAdmin ? 'Add New Lead' : 'Add Customer'}
       >
         <form
           onSubmit={(e) => {
@@ -1834,51 +1901,58 @@ export default function Leads() {
             handleSaveLead()
           }}
         >
+          {/* Partner linkage + status are an admin concern. Agents only log the
+              customer (name + contact); it goes to admin with no partner. */}
+          {(isAdmin || editingLeadId) && (
+            <>
+              <FormField
+                label="Partner"
+                type="select"
+                value={leadFormData.trainer_id}
+                onChange={(value) => {
+                  const selectedTrainer = trainers.find(t => t.id === value)
+                  setLeadFormData({
+                    ...leadFormData,
+                    trainer_id: value,
+                    trainer_contact: selectedTrainer?.contact || leadFormData.trainer_contact,
+                  })
+                }}
+                options={trainers.map((t) => ({ value: t.id, label: t.name }))}
+              />
+              <FormField
+                label="Partner Contact"
+                value={leadFormData.trainer_contact}
+                onChange={(value) => setLeadFormData({ ...leadFormData, trainer_contact: value })}
+                placeholder="Enter trainer contact (phone/email)"
+              />
+            </>
+          )}
           <FormField
-            label="Partner"
-            type="select"
-            value={leadFormData.trainer_id}
-            onChange={(value) => {
-              const selectedTrainer = trainers.find(t => t.id === value)
-              setLeadFormData({
-                ...leadFormData,
-                trainer_id: value,
-                trainer_contact: selectedTrainer?.contact || leadFormData.trainer_contact,
-              })
-            }}
-            options={trainers.map((t) => ({ value: t.id, label: t.name }))}
-            required
-          />
-          <FormField
-            label="Partner Contact"
-            value={leadFormData.trainer_contact}
-            onChange={(value) => setLeadFormData({ ...leadFormData, trainer_contact: value })}
-            placeholder="Enter trainer contact (phone/email)"
-          />
-          <FormField
-            label="Buyer Name"
+            label="Customer Name"
             value={leadFormData.buyer_name}
             onChange={(value) => setLeadFormData({ ...leadFormData, buyer_name: value })}
-            placeholder="Enter buyer name"
+            placeholder="Enter customer name"
             required
           />
           <FormField
-            label="Buyer Contact"
+            label="Customer Contact"
             value={leadFormData.buyer_contact}
             onChange={(value) => setLeadFormData({ ...leadFormData, buyer_contact: value })}
-            placeholder="Enter buyer contact (phone/email)"
+            placeholder="Enter customer contact (phone/email)"
           />
-          <FormField
-            label="Status"
-            type="select"
-            value={leadFormData.status}
-            onChange={(value) => setLeadFormData({ ...leadFormData, status: value })}
-            options={[
-              { value: 'new', label: 'New' },
-              { value: 'converted', label: 'Converted' },
-              { value: 'lost', label: 'Lost' },
-            ]}
-          />
+          {(isAdmin || editingLeadId) && (
+            <FormField
+              label="Status"
+              type="select"
+              value={leadFormData.status}
+              onChange={(value) => setLeadFormData({ ...leadFormData, status: value })}
+              options={[
+                { value: 'new', label: 'New' },
+                { value: 'converted', label: 'Converted' },
+                { value: 'lost', label: 'Lost' },
+              ]}
+            />
+          )}
 
           <div className="flex flex-col sm:flex-row gap-3 mt-6">
             {editingLeadId && (
@@ -1906,7 +1980,7 @@ export default function Leads() {
               type="submit"
               className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-[#fbf3d4] rounded-lg transition-colors font-medium"
             >
-              {editingLeadId ? 'Update' : 'Add'} Lead
+              {editingLeadId ? 'Update' : 'Add'} {isAdmin || editingLeadId ? 'Lead' : 'Customer'}
             </button>
           </div>
         </form>
