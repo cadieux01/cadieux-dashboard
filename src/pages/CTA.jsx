@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Undo2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { formatDateDDMMYY } from '../lib/date'
 import { useAuth } from '../context/AuthContext'
+import { logAuditEvent } from '../lib/audit'
 import { demoCTAData, demoCTARetractions, VARIANTS } from '../lib/demoData'
 import RefreshButton from '../components/RefreshButton'
 import RefreshStatus from '../components/RefreshStatus'
@@ -35,6 +37,20 @@ function variantKeyOf(productVariant) {
   if (/multi/i.test(productVariant)) return 'multigrain'
   if (/plain/i.test(productVariant)) return 'plain'
   return null
+}
+
+// Remaining UNSOLD units on a raw sales row, split by variant. Single-variant
+// rows carry the variant in product_variant and use units_assigned/units_sold;
+// multi-variant rows carry a multigrain/plain split. Never goes negative.
+function saleRemaining(sale) {
+  const pvKey = variantKeyOf(sale.product_variant)
+  if (pvKey) {
+    const rem = Math.max(0, (sale.units_assigned || 0) - (sale.units_sold || 0) - (sale.retracted_units || 0))
+    return { mg: pvKey === 'multigrain' ? rem : 0, pl: pvKey === 'plain' ? rem : 0, total: rem }
+  }
+  const mg = Math.max(0, (sale.multigrain_assigned || 0) - (sale.multigrain_retracted || 0))
+  const pl = Math.max(0, (sale.plain_assigned || 0) - (sale.plain_retracted || 0))
+  return { mg, pl, total: mg + pl }
 }
 
 const VARIANT_PILL = {
@@ -86,11 +102,13 @@ const STATUS_STRONG = {
 }
 
 export default function CTA() {
-  const { isDemo } = useAuth()
+  const { isDemo, user } = useAuth()
   const navigate = useNavigate()
   const [rows, setRows] = useState([])       // shelf-life assignment rows
+  const [rawSales, setRawSales] = useState([]) // underlying sales rows (for retract-all)
   const [retractions, setRetractions] = useState([])
   const [loading, setLoading] = useState(true)
+  const [retractingId, setRetractingId] = useState(null)
   const [partnerFilter, setPartnerFilter] = useState('all')
   const [variantFilter, setVariantFilter] = useState('all')
   const [dayFilter, setDayFilter] = useState('all')
@@ -102,6 +120,7 @@ export default function CTA() {
   const fetchData = async () => {
     if (isDemo) {
       setRows(demoCTAData())
+      setRawSales([])
       setRetractions(demoCTARetractions())
       setLoading(false)
       return
@@ -157,6 +176,7 @@ export default function CTA() {
       })
 
       setRows(liveRows)
+      setRawSales(salesData || [])
       setRetractions([]) // live retractions not yet wired up
     } catch (err) {
       console.error('CTA fetch error:', err)
@@ -197,6 +217,88 @@ export default function CTA() {
     { status: 'expired',      count: expired.length,   units: expired.reduce((s, r) => s + r.units_remaining, 0),   cfg: STATUS_CONFIG.expired },
     { status: 'retracted',    count: retractions.length, units: retractions.reduce((s, r) => s + r.units, 0),       cfg: { label: 'Retracted', kpiColor: 'slate', dot: 'bg-slate-400', text: 'text-slate-300' } },
   ]
+
+  // Per-partner leftovers (raw sales with unsold units remaining) for the
+  // one-tap "retract all remaining" action. Respects the partner filter so you
+  // can focus a single partner; variant/day filters don't apply here because
+  // "retract all" pulls back EVERY remaining unit for that partner.
+  const partnerLeftovers = useMemo(() => {
+    const map = new Map()
+    for (const sale of rawSales) {
+      if (partnerFilter !== 'all' && sale.trainer_id !== partnerFilter) continue
+      const rem = saleRemaining(sale)
+      if (rem.total <= 0) continue
+      const partner = sale.trainers || {}
+      const id = sale.trainer_id
+      const prev = map.get(id) || {
+        partner_id: id,
+        partner_name: partner.full_name || partner.email || `Partner ${id?.slice(0, 6)}`,
+        partner_phone: partner.phone || partner.phone_number || '',
+        mg: 0,
+        pl: 0,
+        total: 0,
+        saleIds: [],
+      }
+      prev.mg += rem.mg
+      prev.pl += rem.pl
+      prev.total += rem.total
+      prev.saleIds.push(sale.id)
+      map.set(id, prev)
+    }
+    return [...map.values()].sort((a, b) => b.total - a.total)
+  }, [rawSales, partnerFilter])
+
+  // Retract EVERY remaining unsold unit for one partner in a single action,
+  // reusing the same sales-row retract fields the Assignment page writes. Sold
+  // units are excluded (saleRemaining only counts unsold), so this never claws
+  // back a completed sale.
+  const retractAllForPartner = async (entry) => {
+    if (isDemo) {
+      alert('Retract is not available in demo mode.')
+      return
+    }
+    if (!entry?.total) return
+    if (!window.confirm(
+      `Retract all ${entry.total} unsold unit${entry.total !== 1 ? 's' : ''} from ${entry.partner_name}? This pulls the stock back from the partner.`
+    )) return
+
+    setRetractingId(entry.partner_id)
+    try {
+      const nowIso = new Date().toISOString()
+      for (const saleId of entry.saleIds) {
+        const sale = rawSales.find((s) => s.id === saleId)
+        if (!sale) continue
+        const rem = saleRemaining(sale)
+        if (rem.total <= 0) continue
+        const nextValues = {
+          retracted_units: (sale.retracted_units || 0) + rem.total,
+          multigrain_retracted: (sale.multigrain_retracted || 0) + rem.mg,
+          plain_retracted: (sale.plain_retracted || 0) + rem.pl,
+          retract_reason: 'unsold',
+          retract_notes: 'Retracted all remaining from CTA',
+          retracted_by: user?.id || null,
+          retract_date: nowIso,
+        }
+        const { error } = await supabase.from('sales').update(nextValues).eq('id', saleId)
+        if (error) throw error
+        await logAuditEvent({
+          actionType: 'UPDATE',
+          entityType: 'sale',
+          entityId: saleId,
+          description: `Retracted ${rem.total} unsold unit(s) from ${entry.partner_name} via CTA`,
+          oldValues: { retracted_units: sale.retracted_units || 0 },
+          newValues: { retracted_units: nextValues.retracted_units },
+          metadata: { trainer_id: entry.partner_id, units_delta: rem.total, source: 'cta_retract_all' },
+        }).catch(() => {})
+      }
+      await fetchData()
+    } catch (err) {
+      console.error('CTA retract-all error:', err)
+      alert('Error retracting units: ' + err.message)
+    } finally {
+      setRetractingId(null)
+    }
+  }
 
   if (loading) {
     return (
@@ -274,6 +376,51 @@ export default function CTA() {
           </button>
         )}
       </div>
+
+      {/* Per-partner leftovers — one-tap "retract all remaining". Pulls back
+          every UNSOLD unit for that partner (sold units are never touched). */}
+      {!isDemo && partnerLeftovers.length > 0 && (
+        <section className="mb-6">
+          <h2 className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+            <Undo2 size={14} />
+            Leftovers — retract remaining · {partnerLeftovers.length}
+          </h2>
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+            {partnerLeftovers.map((entry) => (
+              <div
+                key={entry.partner_id}
+                className="rounded-[20px] border border-[#E8E0D4] bg-[#F0EBE3] p-3.5"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <button
+                    onClick={() => navigate(`/admin/partner/${entry.partner_id}`)}
+                    className="min-w-0 text-left"
+                  >
+                    <p className="truncate font-semibold text-slate-700">{entry.partner_name}</p>
+                    {entry.partner_phone && (
+                      <p className="truncate text-[11px] text-slate-500">{entry.partner_phone}</p>
+                    )}
+                  </button>
+                  <span className="flex-shrink-0 rounded-full bg-[#DC2626]/10 px-2 py-0.5 text-[11px] font-bold text-[#b91c1c]">
+                    {entry.total} left
+                  </span>
+                </div>
+                <p className="mt-1 text-[11px] text-slate-500">
+                  {entry.mg} Multi-Grain · {entry.pl} Plain
+                </p>
+                <button
+                  onClick={() => retractAllForPartner(entry)}
+                  disabled={retractingId === entry.partner_id}
+                  className="mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-lg border border-[#DC2626]/30 bg-[#DC2626]/10 px-3 py-1.5 text-xs font-semibold text-[#b91c1c] transition-colors hover:bg-[#DC2626]/15 disabled:opacity-50"
+                >
+                  <Undo2 size={13} />
+                  {retractingId === entry.partner_id ? 'Retracting…' : 'Retract all remaining'}
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Assignments table — compact, mobile-scannable (scrolls sideways on
           narrow screens). Grouped by urgency, soonest-to-expire first. */}

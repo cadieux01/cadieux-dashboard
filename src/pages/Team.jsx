@@ -3,24 +3,26 @@ import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import Partners from './Partners'
 import SalesExec from './SalesExec'
-import Payments from './Payments'
+import Customers from './Customers'
 
-// Team & Payment — one page, tabbed. Team tab = partner accounts (admins also
-// get an Agents sub-view); Payment tab = the credit/payment + verification view.
-const VALID_VIEWS = new Set(['partners', 'agents', 'payment'])
+// Team — one page, tabbed. Partners + Agents are visible to admin and sales;
+// the Customer sub-tab (customer/leads list) is ADMIN-ONLY (agents never see
+// customer data). Payments live on their own standalone nav item now.
+const VALID_VIEWS = new Set(['partners', 'agents', 'customers'])
 
 export default function Team() {
   const { role } = useAuth()
+  const isAdmin = role === 'admin'
   const [searchParams, setSearchParams] = useSearchParams()
   const raw = searchParams.get('view') || 'partners'
   const view = VALID_VIEWS.has(raw) ? raw : 'partners'
 
-  // If a non-admin lands here with view=agents, reset to partners.
+  // If a non-admin lands on the admin-only customers view, reset to partners.
   useEffect(() => {
-    if (role !== 'admin' && view === 'agents') {
+    if (!isAdmin && view === 'customers') {
       setSearchParams({}, { replace: true })
     }
-  }, [role, view, setSearchParams])
+  }, [isAdmin, view, setSearchParams])
 
   const setView = (v) => {
     if (v === 'partners') {
@@ -35,26 +37,34 @@ export default function Team() {
       active ? 'bg-[#024628] text-[#fbf3d4]' : 'text-slate-500 hover:text-slate-300'
     }`
 
+  const effectiveView = !isAdmin && view === 'customers' ? 'partners' : view
+
   return (
     <>
-      {/* Team / Payment toggle bar */}
+      {/* Team sub-tab bar */}
       <div className="sticky top-0 z-30 flex items-center gap-3 border-b border-[#E8E0D4] bg-[#F7F3ED] px-4 py-2.5">
         <div className="flex flex-wrap gap-1">
-          <button onClick={() => setView('partners')} className={tabCls(view === 'partners')}>
-            Partners
+          <button onClick={() => setView('partners')} className={tabCls(effectiveView === 'partners')}>
+            Partner
           </button>
-          {role === 'admin' && (
-            <button onClick={() => setView('agents')} className={tabCls(view === 'agents')}>
-              Agents
+          <button onClick={() => setView('agents')} className={tabCls(effectiveView === 'agents')}>
+            Agent
+          </button>
+          {isAdmin && (
+            <button onClick={() => setView('customers')} className={tabCls(effectiveView === 'customers')}>
+              Customer
             </button>
           )}
-          <button onClick={() => setView('payment')} className={tabCls(view === 'payment')}>
-            Payment
-          </button>
         </div>
       </div>
 
-      {view === 'payment' ? <Payments /> : view === 'agents' ? <SalesExec /> : <Partners />}
+      {effectiveView === 'agents' ? (
+        <SalesExec />
+      ) : effectiveView === 'customers' ? (
+        <Customers />
+      ) : (
+        <Partners />
+      )}
     </>
   )
 }

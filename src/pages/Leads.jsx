@@ -1544,7 +1544,7 @@ export default function Leads() {
               <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
-              <span className="hidden sm:inline">Assign Unit</span>
+              <span className="hidden sm:inline">Assign</span>
             </button>
             <button
               onClick={() => setIsAddSaleEntryModalOpen(true)}
@@ -1990,7 +1990,7 @@ export default function Leads() {
       <Modal
         isOpen={isAddSaleModalOpen}
         onClose={handleCloseSaleModal}
-        title={editingSaleId ? 'Edit Assignment' : 'Assign Unit'}
+        title={editingSaleId ? 'Edit Assignment' : 'Assign'}
       >
         <form
           onSubmit={(e) => {
@@ -2007,21 +2007,35 @@ export default function Leads() {
             required
           />
 
-          {/* Per-variant assignment — either can be 0, at least one must be > 0 */}
-          <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <NumberStepper
-              label={`Multi-Grain (₹${VARIANTS.multigrain.price})`}
-              value={saleFormData.multigrain_assigned}
-              onChange={(value) => setSaleFormData({ ...saleFormData, multigrain_assigned: value })}
-              max={100}
-            />
-            <NumberStepper
-              label={`Plain (₹${VARIANTS.plain.price})`}
-              value={saleFormData.plain_assigned}
-              onChange={(value) => setSaleFormData({ ...saleFormData, plain_assigned: value })}
-              max={100}
-            />
-          </div>
+          {/* Per-variant assignment — either can be 0, at least one must be > 0.
+              For an AGENT (sales) creating a new assignment, the wheels are
+              capped to that agent's available batch stock per variant (admin is
+              uncapped; editing an existing row is a direct update, not capped). */}
+          {(() => {
+            const isEditing = !!editingSaleId
+            const mgAvail = agentBalance?.byVariant?.multigrain?.available ?? 0
+            const plAvail = agentBalance?.byVariant?.plain?.available ?? 0
+            const capMg = !isAdmin && !isEditing ? mgAvail : 100
+            const capPl = !isAdmin && !isEditing ? plAvail : 100
+            return (
+              <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <NumberStepper
+                  label={`Multi-Grain (₹${VARIANTS.multigrain.price})`}
+                  value={saleFormData.multigrain_assigned}
+                  onChange={(value) => setSaleFormData({ ...saleFormData, multigrain_assigned: value })}
+                  max={capMg}
+                  hint={!isAdmin && !isEditing ? `${mgAvail} available` : undefined}
+                />
+                <NumberStepper
+                  label={`Plain (₹${VARIANTS.plain.price})`}
+                  value={saleFormData.plain_assigned}
+                  onChange={(value) => setSaleFormData({ ...saleFormData, plain_assigned: value })}
+                  max={capPl}
+                  hint={!isAdmin && !isEditing ? `${plAvail} available` : undefined}
+                />
+              </div>
+            )
+          })()}
 
           {/* Live total preview */}
           {(() => {
@@ -2214,7 +2228,7 @@ export default function Leads() {
               disabled={((parseInt(saleFormData.multigrain_assigned) || 0) + (parseInt(saleFormData.plain_assigned) || 0)) <= 0}
               className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-[#fbf3d4] rounded-lg transition-colors font-medium disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {editingSaleId ? 'Update Assignment' : 'Assign Unit'}
+              {editingSaleId ? 'Update Assignment' : 'Assign'}
             </button>
           </div>
         </form>

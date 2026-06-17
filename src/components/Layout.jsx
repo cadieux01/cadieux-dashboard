@@ -80,7 +80,8 @@ const salesNavigation = [
   { name: 'CTA', href: '/admin/cta', Icon: Megaphone },
   { name: 'Requests', href: '/admin/requests', badge: 'pendingRequests', Icon: Inbox },
   { name: 'Records', href: '/admin/records', Icon: History },
-  { name: 'Team & Payment', href: '/admin/team', Icon: Users },
+  { name: 'Team', href: '/admin/team', Icon: Users },
+  { name: 'Payments', href: '/admin/payments', Icon: Wallet },
   { name: 'Profile', href: '/admin/profile', Icon: User },
 ]
 
@@ -324,8 +325,9 @@ export default function Layout() {
         </div>
       </aside>
 
-      {/* Main content */}
-      <main className="flex-1 overflow-auto scroll-smooth pb-[52px] lg:ml-0 lg:pb-0">
+      {/* Main content — pt-14 reserves a top gutter so the fixed
+          NotificationBell / mobile menu button never overlap page headers. */}
+      <main className="flex-1 overflow-auto scroll-smooth pb-[52px] pt-14 lg:ml-0 lg:pb-0">
         <Outlet />
       </main>
 
