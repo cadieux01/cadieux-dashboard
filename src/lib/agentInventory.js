@@ -320,6 +320,57 @@ export async function recordReturn({
   return data
 }
 
+// Admin retract → CENTRAL. The two SECURITY DEFINER RPCs below restore the
+// units to the originating batch (keeping FIFO + expiry clock; stock_pool
+// re-syncs via its trigger) and are admin-gated server-side. Only unsold units
+// are moved; sold/delivered units are never clawed back.
+
+// Rule 3b: admin pulls a PARTNER's unsold units (one sales row) back to central
+// stock. Atomically bumps the sales row's retracted counters AND restores the
+// batch — no agent ledger write (units leave the chain → agent total drops).
+export async function retractSaleToCentral({ saleId, variant, units, reason = null, notes = null }) {
+  const { data, error } = await supabase.rpc('retract_sale_to_central', {
+    p_sale_id: saleId,
+    p_variant: variant,
+    p_units: units,
+    p_reason: reason,
+    p_notes: notes,
+  })
+  if (error) throw error
+  await logAuditEvent({
+    actionType: 'UPDATE',
+    entityType: 'sale',
+    entityId: saleId,
+    category: 'partner',
+    description: `Admin retracted ${units} × ${variantLabel(variant)} from partner to central stock (${reason || 'unsold'})`,
+    newValues: { sale_id: saleId, variant, units, destination: 'central', reason },
+  })
+  return data
+}
+
+// Rule 2: admin pulls an AGENT's in-hand units (one batch lot) back to central
+// stock. Restores the batch + writes a 'withdrawn' (−) agent ledger row.
+export async function retractAgentToCentral({ agentId, batchId, variant, units, reason = null, notes = null }) {
+  const { data, error } = await supabase.rpc('retract_agent_to_central', {
+    p_agent: agentId,
+    p_batch_id: batchId,
+    p_variant: variant,
+    p_units: units,
+    p_reason: reason,
+    p_notes: notes,
+  })
+  if (error) throw error
+  await logAuditEvent({
+    actionType: 'UPDATE',
+    entityType: 'agent_inventory',
+    entityId: data?.id || agentId,
+    category: 'partner',
+    description: `Admin retracted ${units} × ${variantLabel(variant)} from agent to central stock (${reason || 'unsold'})`,
+    newValues: { agent_id: agentId, batch_id: batchId, variant, units, destination: 'central', reason },
+  })
+  return data
+}
+
 // --- Unsold / expired lifecycle (Stage 5, agent side) ----------------------
 
 // The agent's recorded unsold units (their wasted-stock responsibility list).

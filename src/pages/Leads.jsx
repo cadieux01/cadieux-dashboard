@@ -11,7 +11,7 @@ import RefreshStatus from '../components/RefreshStatus'
 import useRefreshable from '../lib/useRefreshable'
 import { logAuditEvent, createAuditDescription } from '../lib/audit'
 import { getBatchFreshnessMap, batchMsLeft, fmtBatchLeft } from '../lib/batches'
-import { getAgentBalance, getAgentHoldingsByBatch, recordReturn } from '../lib/agentInventory'
+import { getAgentBalance, getAgentHoldingsByBatch, recordReturn, retractAgentToCentral, retractSaleToCentral } from '../lib/agentInventory'
 import { verifyPayment, getProofSignedUrl } from '../lib/payments'
 import { formatDateDDMMYY, formatDateTimeDDMMYY } from '../lib/date'
 import { useAuth } from '../context/AuthContext'
@@ -131,8 +131,12 @@ export default function Leads() {
     units: '',
   })
   const [retractFormData, setRetractFormData] = useState({
+    target: 'partner',       // 'partner' | 'agent' (agent target is admin-only)
+    destination: 'agent',    // partner branch: 'agent' (default) | 'central' (admin-only)
     trainer_id: '',
     sale_id: '',
+    agent_id: '',            // agent branch
+    batch_id: '',            // agent branch (chosen in-hand lot)
     units: '',
     variant: 'multigrain',
     reason: 'damaged',
@@ -1338,14 +1342,7 @@ export default function Leads() {
 
   const handleSaveRetractEntry = async () => {
     if (isDemo) return demoBlock()
-    if (!retractFormData.trainer_id) {
-      alert('Please select a partner')
-      return
-    }
-    if (!retractFormData.sale_id) {
-      alert('Please select an active shipment')
-      return
-    }
+
     const units = parseInt(retractFormData.units)
     if (!units || units <= 0) {
       alert('Please enter valid units')
@@ -1353,6 +1350,54 @@ export default function Leads() {
     }
     if (!retractFormData.reason) {
       alert('Please select a reason')
+      return
+    }
+
+    // Admin retracting from an AGENT → always back to CENTRAL stock (rule 2).
+    if (isAdmin && retractFormData.target === 'agent') {
+      if (!retractFormData.agent_id) {
+        alert('Please select an agent')
+        return
+      }
+      if (!retractFormData.batch_id) {
+        alert('Please select an in-hand batch lot')
+        return
+      }
+      try {
+        const lots = agentHoldingsByAgent[retractFormData.agent_id] || []
+        const lot = lots.find((l) => (l.batch?.id || '') === retractFormData.batch_id)
+        if (!lot) {
+          alert('Selected lot not found')
+          return
+        }
+        if (units > (lot.units || 0)) {
+          alert(`Units (${units}) cannot exceed the agent's in-hand units for this lot (${lot.units || 0})`)
+          return
+        }
+        await retractAgentToCentral({
+          agentId: retractFormData.agent_id,
+          batchId: retractFormData.batch_id,
+          variant: lot.variant,
+          units,
+          reason: retractFormData.reason,
+          notes: retractFormData.notes || null,
+        })
+        handleCloseRetractModal()
+        await fetchData()
+      } catch (error) {
+        console.error('Error retracting agent units to central:', error)
+        alert('Error retracting to central: ' + error.message)
+      }
+      return
+    }
+
+    // Otherwise we are retracting from a PARTNER (a sales row).
+    if (!retractFormData.trainer_id) {
+      alert('Please select a partner')
+      return
+    }
+    if (!retractFormData.sale_id) {
+      alert('Please select an active shipment')
       return
     }
 
@@ -1369,6 +1414,25 @@ export default function Leads() {
         return
       }
 
+      // Admin chose to send the partner's units back to CENTRAL (rule 3b).
+      // The atomic RPC bumps the sales row's retracted counters AND restores the
+      // originating batch — no 'returned' ledger write, so the units leave the
+      // agent's chain entirely (agent total drops, agent row leaves active).
+      if (isAdmin && retractFormData.destination === 'central') {
+        await retractSaleToCentral({
+          saleId: sale.id,
+          variant: retractFormData.variant,
+          units,
+          reason: retractFormData.reason,
+          notes: retractFormData.notes || null,
+        })
+        handleCloseRetractModal()
+        await fetchData()
+        return
+      }
+
+      // Default (agent retract, or admin choosing "return to agent"): units
+      // bounce back to the agent who handed them out (rule 1 / 3a). Unchanged.
       const isPlain = retractFormData.variant === 'plain'
       const nowIso = new Date().toISOString()
 
@@ -1434,18 +1498,11 @@ export default function Leads() {
           trainer_id: retractFormData.trainer_id,
           trainer_name: trainer?.name,
           units_delta: units,
+          destination: 'agent',
         },
       })
 
-      setRetractFormData({
-        trainer_id: '',
-        sale_id: '',
-        units: '',
-        variant: 'multigrain',
-        reason: 'damaged',
-        notes: '',
-      })
-      setIsAddRetractModalOpen(false)
+      handleCloseRetractModal()
       await fetchData()
     } catch (error) {
       console.error('Error saving retract entry:', error)
@@ -1456,8 +1513,12 @@ export default function Leads() {
   const handleCloseRetractModal = () => {
     setIsAddRetractModalOpen(false)
     setRetractFormData({
+      target: 'partner',
+      destination: 'agent',
       trainer_id: '',
       sale_id: '',
+      agent_id: '',
+      batch_id: '',
       units: '',
       variant: 'multigrain',
       reason: 'damaged',
@@ -2644,84 +2705,200 @@ export default function Leads() {
             handleSaveRetractEntry()
           }}
         >
-          <FormField
-            label="Partner"
-            type="select"
-            value={retractFormData.trainer_id}
-            onChange={(value) => {
-              setRetractFormData({
-                ...retractFormData,
-                trainer_id: value,
-                sale_id: '',
-              })
-            }}
-            options={trainers.map((trainer) => ({
-              value: trainer.id,
-              label: `${trainer.name}${trainer.contact ? ` - ${trainer.contact}` : ''}`,
-            }))}
-            required
-          />
-
-          {retractFormData.trainer_id && (
-            <FormField
-              label="Active Shipment"
-              type="select"
-              value={retractFormData.sale_id}
-              onChange={(value) => setRetractFormData({ ...retractFormData, sale_id: value })}
-              options={getTrainerActiveSales(retractFormData.trainer_id).map((sale) => {
-                const retractedUnits = sale.retracted_units || 0
-                const remainingUnsold = getRemainingUnsoldUnits(sale)
-                return {
-                  value: sale.id,
-                  label: `${sale.units_assigned} assigned (${sale.units_sold || 0} sold, ${retractedUnits} retracted, ${remainingUnsold} remaining) - ${sale.date_of_assignment ? formatDateDDMMYY(sale.date_of_assignment) : 'N/A'}`,
-                }
-              })}
-              required
-            />
+          {/* Admin can retract from a PARTNER (default) or an AGENT. Agents
+              only ever retract from their partners (no toggle shown). */}
+          {isAdmin && (
+            <div className="mb-4">
+              <p className="mb-1.5 text-[11px] uppercase tracking-wide text-slate-500">Retract from</p>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { value: 'partner', label: 'Partner' },
+                  { value: 'agent', label: 'Agent' },
+                ].map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setRetractFormData((p) => ({ ...p, target: opt.value, units: '' }))}
+                    className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                      retractFormData.target === opt.value
+                        ? 'border-purple-500 bg-purple-500/15 text-purple-200'
+                        : 'border-slate-800 bg-slate-950/40 text-slate-400 hover:bg-slate-800'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
 
-          {retractFormData.sale_id && (() => {
-            const selectedSale = sales.find(s => s.id === retractFormData.sale_id)
-            const retractedUnits = selectedSale?.retracted_units || 0
-            const remainingUnsold = getRemainingUnsoldUnits(selectedSale)
-            return (
-              <div className="mb-4 p-3 bg-slate-800 rounded-lg">
-                <p className="text-sm text-slate-400 mb-1">Active Shipment Details:</p>
-                <p className="text-sm text-slate-100">Units Assigned: {selectedSale?.units_assigned || 0}</p>
-                <p className="text-sm text-slate-100">Units Sold: {selectedSale?.units_sold || 0}</p>
-                <p className="text-sm text-[#7e22ce]">Already Retracted: {retractedUnits}</p>
-                <p className="text-sm text-emerald-400">Remaining Unsold: {remainingUnsold}</p>
-              </div>
-            )
-          })()}
+          {/* ---- AGENT target (admin only): always returns to central ---- */}
+          {isAdmin && retractFormData.target === 'agent' ? (
+            <>
+              <FormField
+                label="Agent"
+                type="select"
+                value={retractFormData.agent_id}
+                onChange={(value) => setRetractFormData({ ...retractFormData, agent_id: value, batch_id: '', units: '' })}
+                options={Object.values(agentById)
+                  .filter((a) => (agentHoldingsByAgent[a.id] || []).some((l) => l.batch?.id && (l.units || 0) > 0))
+                  .map((a) => ({ value: a.id, label: `${a.name}${a.contact ? ` - ${a.contact}` : ''}` }))}
+                required
+              />
 
-          <FormField
-            label="Variant"
-            type="select"
-            value={retractFormData.variant}
-            onChange={(value) => setRetractFormData({ ...retractFormData, variant: value })}
-            options={[
-              { value: 'multigrain', label: 'Multi-Grain' },
-              { value: 'plain', label: 'Plain' },
-            ]}
-            required
-          />
-
-          {(() => {
-            const selectedSale = retractFormData.sale_id ? sales.find(s => s.id === retractFormData.sale_id) : null
-            const maxUnits = selectedSale ? getRemainingUnsoldUnits(selectedSale) : 100
-            return (
-              <div className="mb-3">
-                <NumberStepper
-                  label="Retracted Units"
-                  hint={selectedSale ? `Max: ${maxUnits}` : undefined}
-                  value={retractFormData.units}
-                  onChange={(value) => setRetractFormData({ ...retractFormData, units: value })}
-                  max={maxUnits}
+              {retractFormData.agent_id && (
+                <FormField
+                  label="In-hand Batch Lot"
+                  type="select"
+                  value={retractFormData.batch_id}
+                  onChange={(value) => {
+                    const lots = agentHoldingsByAgent[retractFormData.agent_id] || []
+                    const lot = lots.find((l) => (l.batch?.id || '') === value)
+                    setRetractFormData((p) => ({ ...p, batch_id: value, variant: lot?.variant || p.variant, units: '' }))
+                  }}
+                  options={(agentHoldingsByAgent[retractFormData.agent_id] || [])
+                    .filter((l) => l.batch?.id && (l.units || 0) > 0)
+                    .map((l) => ({
+                      value: l.batch.id,
+                      label: `${l.variant_label} · Batch #${l.batch.batch_number} · ${l.units} in-hand${l.batch.expiry_at ? ` · ${fmtBatchLeft(batchMsLeft(l.batch.expiry_at, now)) || 'Expired'}` : ''}`,
+                    }))}
+                  required
                 />
+              )}
+
+              <div className="mb-4 rounded-lg border border-amber-500/25 bg-amber-500/10 p-3">
+                <p className="text-sm text-amber-300">Destination: Central stock</p>
+                <p className="mt-0.5 text-xs text-slate-400">Units are restored to the originating batch (keeps its expiry clock) and removed from the agent's in-hand.</p>
               </div>
-            )
-          })()}
+
+              {(() => {
+                const lots = agentHoldingsByAgent[retractFormData.agent_id] || []
+                const lot = lots.find((l) => (l.batch?.id || '') === retractFormData.batch_id)
+                const maxUnits = lot ? lot.units || 0 : 100
+                return (
+                  <div className="mb-3">
+                    <NumberStepper
+                      label="Retracted Units"
+                      hint={lot ? `Max: ${maxUnits}` : undefined}
+                      value={retractFormData.units}
+                      onChange={(value) => setRetractFormData({ ...retractFormData, units: value })}
+                      max={maxUnits}
+                    />
+                  </div>
+                )
+              })()}
+            </>
+          ) : (
+            <>
+              {/* ---- PARTNER target ---- */}
+              <FormField
+                label="Partner"
+                type="select"
+                value={retractFormData.trainer_id}
+                onChange={(value) => {
+                  setRetractFormData({
+                    ...retractFormData,
+                    trainer_id: value,
+                    sale_id: '',
+                  })
+                }}
+                options={trainers.map((trainer) => ({
+                  value: trainer.id,
+                  label: `${trainer.name}${trainer.contact ? ` - ${trainer.contact}` : ''}`,
+                }))}
+                required
+              />
+
+              {retractFormData.trainer_id && (
+                <FormField
+                  label="Active Shipment"
+                  type="select"
+                  value={retractFormData.sale_id}
+                  onChange={(value) => setRetractFormData({ ...retractFormData, sale_id: value })}
+                  options={getTrainerActiveSales(retractFormData.trainer_id).map((sale) => {
+                    const retractedUnits = sale.retracted_units || 0
+                    const remainingUnsold = getRemainingUnsoldUnits(sale)
+                    return {
+                      value: sale.id,
+                      label: `${sale.units_assigned} assigned (${sale.units_sold || 0} sold, ${retractedUnits} retracted, ${remainingUnsold} remaining) - ${sale.date_of_assignment ? formatDateDDMMYY(sale.date_of_assignment) : 'N/A'}`,
+                    }
+                  })}
+                  required
+                />
+              )}
+
+              {retractFormData.sale_id && (() => {
+                const selectedSale = sales.find(s => s.id === retractFormData.sale_id)
+                const retractedUnits = selectedSale?.retracted_units || 0
+                const remainingUnsold = getRemainingUnsoldUnits(selectedSale)
+                return (
+                  <div className="mb-4 p-3 bg-slate-800 rounded-lg">
+                    <p className="text-sm text-slate-400 mb-1">Active Shipment Details:</p>
+                    <p className="text-sm text-slate-100">Units Assigned: {selectedSale?.units_assigned || 0}</p>
+                    <p className="text-sm text-slate-100">Units Sold: {selectedSale?.units_sold || 0}</p>
+                    <p className="text-sm text-[#7e22ce]">Already Retracted: {retractedUnits}</p>
+                    <p className="text-sm text-emerald-400">Remaining Unsold: {remainingUnsold}</p>
+                  </div>
+                )
+              })()}
+
+              <FormField
+                label="Variant"
+                type="select"
+                value={retractFormData.variant}
+                onChange={(value) => setRetractFormData({ ...retractFormData, variant: value })}
+                options={[
+                  { value: 'multigrain', label: 'Multi-Grain' },
+                  { value: 'plain', label: 'Plain' },
+                ]}
+                required
+              />
+
+              {/* Admin chooses where the partner's unsold units go (rule 3).
+                  Agents always return them to themselves (no choice shown). */}
+              {isAdmin && (
+                <div className="mb-4">
+                  <p className="mb-1.5 text-[11px] uppercase tracking-wide text-slate-500">Return to</p>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {[
+                      { value: 'agent', label: 'Agent', hint: "Back to the agent's in-hand" },
+                      { value: 'central', label: 'Central stock', hint: 'Restore to the originating batch' },
+                    ].map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setRetractFormData((p) => ({ ...p, destination: opt.value }))}
+                        className={`rounded-lg border px-3 py-2 text-left transition-colors ${
+                          retractFormData.destination === opt.value
+                            ? 'border-emerald-500 bg-emerald-500/10'
+                            : 'border-slate-800 bg-slate-950/40 hover:bg-slate-800'
+                        }`}
+                      >
+                        <p className={`text-sm font-medium ${retractFormData.destination === opt.value ? 'text-emerald-300' : 'text-slate-300'}`}>{opt.label}</p>
+                        <p className="text-[11px] text-slate-500">{opt.hint}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {(() => {
+                const selectedSale = retractFormData.sale_id ? sales.find(s => s.id === retractFormData.sale_id) : null
+                const maxUnits = selectedSale ? getRemainingUnsoldUnits(selectedSale) : 100
+                return (
+                  <div className="mb-3">
+                    <NumberStepper
+                      label="Retracted Units"
+                      hint={selectedSale ? `Max: ${maxUnits}` : undefined}
+                      value={retractFormData.units}
+                      onChange={(value) => setRetractFormData({ ...retractFormData, units: value })}
+                      max={maxUnits}
+                    />
+                  </div>
+                )
+              })()}
+            </>
+          )}
 
           <FormField
             label="Reason"
