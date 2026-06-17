@@ -4,6 +4,7 @@ import { VARIANTS } from '../lib/demoData'
 import { formatDateTimeDDMMYY } from '../lib/date'
 import UnitWheel from '../components/UnitWheel'
 import RefreshButton from '../components/RefreshButton'
+import CentralStockSummary from '../components/CentralStockSummary'
 import {
   getStockPool,
   allot,
@@ -30,16 +31,6 @@ const STATUS_META = {
   accepted: { label: 'Accepted', cls: 'text-emerald-400' },
   rejected: { label: 'Rejected', cls: 'text-rose-400' },
   withdrawn: { label: 'Withdrawn', cls: 'text-orange-400' },
-}
-
-function PoolCard({ variant, total, available }) {
-  return (
-    <div className="rounded-xl border border-slate-800 bg-slate-950/40 px-4 py-4">
-      <p className="text-xs uppercase tracking-wide text-slate-400">{VARIANTS[variant]?.short || variant}</p>
-      <p className="mt-1 font-display text-4xl font-bold text-slate-100">{available}</p>
-      <p className="mt-0.5 text-xs text-slate-500">available · {total} total</p>
-    </div>
-  )
 }
 
 export default function Allot({ embedded = false }) {
@@ -142,23 +133,8 @@ export default function Allot({ embedded = false }) {
         </div>
       ) : (
         <>
-          {/* Central pool */}
-          <div className={CARD}>
-            <h2 className="mb-4 text-lg font-semibold text-slate-100">Central stock</h2>
-            <div className="grid grid-cols-2 gap-3">
-              {VARIANT_KEYS.map((v) => (
-                <PoolCard
-                  key={v}
-                  variant={v}
-                  total={pool?.[v]?.total || 0}
-                  available={pool?.[v]?.available || 0}
-                />
-              ))}
-            </div>
-            <p className="mt-3 text-xs text-slate-500">
-              Central stock is the live total of non-expired batch units. Add or edit stock from the Batches page.
-            </p>
-          </div>
+          {/* Central pool — per-variant + total available (shared with Batches) */}
+          <CentralStockSummary pool={pool} />
 
           {/* Allot to exec */}
           <div className={CARD}>

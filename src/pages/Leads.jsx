@@ -10,7 +10,9 @@ import RefreshButton from '../components/RefreshButton'
 import RefreshStatus from '../components/RefreshStatus'
 import useRefreshable from '../lib/useRefreshable'
 import { logAuditEvent, createAuditDescription } from '../lib/audit'
-import { getBatchFreshnessMap, batchMsLeft, fmtBatchLeft } from '../lib/batches'
+import { getBatchFreshnessMap, batchMsLeft, fmtBatchLeft, listBatches } from '../lib/batches'
+import { getBatchHolders } from '../lib/batchHolders'
+import BatchHoldersCell from '../components/BatchHoldersCell'
 import { getAgentBalance, getAgentHoldingsByBatch, recordReturn, retractAgentToCentral, retractSaleToCentral } from '../lib/agentInventory'
 import { verifyPayment, getProofSignedUrl } from '../lib/payments'
 import { formatDateDDMMYY, formatDateTimeDDMMYY } from '../lib/date'
@@ -166,8 +168,13 @@ export default function Leads() {
   // Agent-active table can show in-hand + downstream-held units per batch.
   const [agentHoldingsByAgent, setAgentHoldingsByAgent] = useState({})
   const [agentById, setAgentById] = useState({})
+  // Central batches + who currently holds unsold units from each, for the
+  // Available-stock table and the batch history view.
+  const [availableBatches, setAvailableBatches] = useState([])
+  const [batchHolders, setBatchHolders] = useState({})
   // History tab dropdown: 'agent' = closed agent batches, 'partner' = sold /
-  // retracted assignments.
+  // retracted assignments, 'retracted' = pulled-back units, 'batch' = per-batch
+  // lifecycle.
   const [historyMode, setHistoryMode] = useState('agent')
   const [trainerFormData, setTrainerFormData] = useState({
     name: '',
@@ -294,6 +301,16 @@ export default function Leads() {
         setBatchMap(map)
       } catch (e) {
         console.warn('getBatchFreshnessMap failed:', e.message)
+      }
+
+      // Central batches + current per-batch holders for the Available-stock
+      // table and the batch history view.
+      try {
+        const [batchList, holders] = await Promise.all([listBatches(), getBatchHolders()])
+        setAvailableBatches(batchList)
+        setBatchHolders(holders)
+      } catch (e) {
+        console.warn('batches / holders fetch failed:', e.message)
       }
 
       // Logged-in agent's in-hand stock balance (admin → agent → partner ledger).
@@ -788,15 +805,42 @@ export default function Leads() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentHoldingsByAgent, sales, agentById, batchMap])
 
+  // BATCH history — one row per central batch with its full lifecycle: units
+  // sent, still in central, currently held downstream (agent + partner), sold
+  // and retracted. FIFO oldest-first (listBatches order).
+  const batchHistoryRows = useMemo(() => {
+    return [...availableBatches].map((b) => {
+      const holders = batchHolders[b.id] || []
+      const heldNow = holders.reduce((sum, h) => sum + (h.units || 0), 0)
+      let sold = 0
+      let retracted = 0
+      for (const s of sales) {
+        if (s.batch_id !== b.id) continue
+        sold += s.units_sold || 0
+        retracted += s.retracted_units || 0
+      }
+      return { ...b, holders, heldNow, sold, retracted }
+    })
+  }, [availableBatches, batchHolders, sales])
+
   // Infinite scroll — show 3 most-recent rows, +3 per scroll, no cap.
   const agentActive = useInfiniteList(agentActiveRows)
   const agentActiveVisible = agentActiveRows.slice(0, agentActive.visible)
   const partnerActive = useInfiniteList(partnerActiveRows)
   const partnerActiveVisible = partnerActiveRows.slice(0, partnerActive.visible)
-  const historyList = historyMode === 'agent' ? agentHistoryRows : partnerHistoryRows
+  const historyList =
+    historyMode === 'agent'
+      ? agentHistoryRows
+      : historyMode === 'partner'
+        ? partnerHistoryRows
+        : historyMode === 'retracted'
+          ? retractedSales
+          : batchHistoryRows
   const history = useInfiniteList(historyList)
   const agentHistoryVisible = historyMode === 'agent' ? agentHistoryRows.slice(0, history.visible) : []
   const partnerHistoryVisible = historyMode === 'partner' ? partnerHistoryRows.slice(0, history.visible) : []
+  const retractedHistoryVisible = historyMode === 'retracted' ? retractedSales.slice(0, history.visible) : []
+  const batchHistoryVisible = historyMode === 'batch' ? batchHistoryRows.slice(0, history.visible) : []
 
   const sortedSales = [...filteredSales].sort((a, b) => {
     // Priority 1: keep unclosed (active) sales at the top.
@@ -1864,6 +1908,61 @@ export default function Leads() {
         </div>
       )}
 
+      {/* AVAILABLE STOCK — central batches still holding units, with who holds
+          them now. Moved here from the Stock/Batches view. Read-only; FIFO
+          oldest-first; live countdown. */}
+      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 sm:p-6 mb-6">
+        <div className="mb-4">
+          <h2 className="text-lg font-semibold text-slate-100">Available stock</h2>
+          <p className="dashboard-subtitle mt-1">
+            Central batches & who holds them now · oldest first (FIFO)
+          </p>
+        </div>
+        <div className="max-h-[460px] overflow-auto rounded-lg border border-slate-800">
+          <table className="w-full min-w-[48rem] text-left text-xs">
+            <thead className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur">
+              <tr className="text-[11px] uppercase tracking-wide text-slate-500">
+                <th className="px-3 py-2 font-medium">Batch</th>
+                <th className="px-3 py-2 font-medium">Variant</th>
+                <th className="px-2 py-2 text-right font-medium">Available</th>
+                <th className="px-3 py-2 font-medium">Assigned to</th>
+                <th className="px-3 py-2 font-medium">Countdown</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800">
+              {availableBatches.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-3 py-6 text-center text-slate-500">
+                    No batches yet.
+                  </td>
+                </tr>
+              ) : (
+                availableBatches.map((b) => {
+                  const ms = batchMsLeft(b.expiry_at, now)
+                  const left = fmtBatchLeft(ms)
+                  const expired = ms !== null && ms <= 0
+                  return (
+                    <tr key={b.id} className={`align-top ${expired ? 'bg-rose-950/20' : ''}`}>
+                      <td className="px-3 py-2.5 font-mono text-slate-300">#{b.batch_number}</td>
+                      <td className="px-3 py-2.5 text-slate-300">{b.variant_label}</td>
+                      <td className="px-2 py-2.5 text-right font-mono font-semibold text-slate-100">
+                        {b.quantity_remaining}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <BatchHoldersCell holders={batchHolders[b.id]} />
+                      </td>
+                      <td className={`px-3 py-2.5 font-mono ${expired ? 'text-rose-400' : 'text-slate-300'}`}>
+                        {left || '—'}
+                      </td>
+                    </tr>
+                  )
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       {/* AGENT — active chain rows (per agent, per batch, per variant). A row
           stays active while the agent holds in-hand stock OR a downstream
           partner still holds unsold units from that agent's batch. Per-batch
@@ -2099,8 +2198,14 @@ export default function Leads() {
           <div>
             <h2 className="text-lg font-semibold text-slate-100">History</h2>
             <p className="dashboard-subtitle mt-1">
-              {historyMode === 'agent' ? 'Closed agent batches' : 'Sold / retracted partner assignments'} ·{' '}
-              {(historyMode === 'agent' ? agentHistoryRows : partnerHistoryRows).length}
+              {historyMode === 'agent'
+                ? 'Closed agent batches'
+                : historyMode === 'partner'
+                  ? 'Sold / retracted partner assignments'
+                  : historyMode === 'retracted'
+                    ? 'Units pulled back'
+                    : 'Lifecycle per batch'}{' '}
+              · {historyList.length}
             </p>
           </div>
           <select
@@ -2110,6 +2215,8 @@ export default function Leads() {
           >
             <option value="agent">Agent</option>
             <option value="partner">Partner</option>
+            <option value="retracted">Retracted</option>
+            <option value="batch">Batch</option>
           </select>
         </div>
         <div className="max-h-[520px] overflow-auto rounded-lg border border-slate-800">
@@ -2148,7 +2255,7 @@ export default function Leads() {
                 )}
               </tbody>
             </table>
-          ) : (
+          ) : historyMode === 'partner' ? (
             <table className="w-full min-w-[600px] text-left text-xs">
               <thead className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur">
                 <tr className="text-[11px] uppercase tracking-wide text-slate-500">
@@ -2185,6 +2292,94 @@ export default function Leads() {
                 {partnerHistoryRows.length === 0 && (
                   <tr>
                     <td colSpan={6} className="px-3 py-6 text-center text-sm text-slate-500">No sold or retracted assignments yet.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          ) : historyMode === 'retracted' ? (
+            <table className="w-full min-w-[600px] text-left text-xs">
+              <thead className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur">
+                <tr className="text-[11px] uppercase tracking-wide text-slate-500">
+                  <th className="px-3 py-2 font-medium">Partner</th>
+                  <th className="px-2 py-2 text-right font-medium">MG</th>
+                  <th className="px-2 py-2 text-right font-medium">Plain</th>
+                  <th className="px-2 py-2 text-right font-medium">Total</th>
+                  <th className="px-3 py-2 font-medium">Reason</th>
+                  <th className="px-3 py-2 font-medium">Date</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800">
+                {retractedHistoryVisible.map((sale) => {
+                  const total =
+                    sale.retracted_units ||
+                    (sale.multigrain_retracted || 0) + (sale.plain_retracted || 0)
+                  return (
+                    <tr key={sale.id} className="align-top">
+                      <td className="px-3 py-2">
+                        <p className="font-semibold text-slate-100">{getPartnerName(sale)}</p>
+                        <p className="text-[11px] text-slate-500">{getPartnerContact(sale) || 'No contact'}</p>
+                      </td>
+                      <td className="px-2 py-2 text-right font-mono text-[#c084fc]">{sale.multigrain_retracted || 0}</td>
+                      <td className="px-2 py-2 text-right font-mono text-[#c084fc]">{sale.plain_retracted || 0}</td>
+                      <td className="px-2 py-2 text-right font-mono font-semibold text-[#c084fc]">{total}</td>
+                      <td className="px-3 py-2 text-slate-300">
+                        <p className="capitalize">{sale.retract_reason || '—'}</p>
+                        {sale.retract_notes && <p className="text-[11px] text-slate-500">{sale.retract_notes}</p>}
+                      </td>
+                      <td className="px-3 py-2 whitespace-nowrap text-slate-400">
+                        {sale.retract_date
+                          ? formatDateTimeDDMMYY(sale.retract_date)
+                          : sale.date_of_assignment
+                            ? formatDateDDMMYY(sale.date_of_assignment)
+                            : 'N/A'}
+                      </td>
+                    </tr>
+                  )
+                })}
+                {retractedSales.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-3 py-6 text-center text-sm text-slate-500">No retracted units.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          ) : (
+            <table className="w-full min-w-[48rem] text-left text-xs">
+              <thead className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur">
+                <tr className="text-[11px] uppercase tracking-wide text-slate-500">
+                  <th className="px-3 py-2 font-medium">Batch</th>
+                  <th className="px-3 py-2 font-medium">Variant</th>
+                  <th className="px-2 py-2 text-right font-medium">Sent</th>
+                  <th className="px-2 py-2 text-right font-medium">In central</th>
+                  <th className="px-2 py-2 text-right font-medium">Held now</th>
+                  <th className="px-2 py-2 text-right font-medium">Sold</th>
+                  <th className="px-2 py-2 text-right font-medium">Retracted</th>
+                  <th className="px-3 py-2 font-medium">Countdown</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800">
+                {batchHistoryVisible.map((b) => {
+                  const ms = batchMsLeft(b.expiry_at, now)
+                  const left = fmtBatchLeft(ms)
+                  const expired = ms !== null && ms <= 0
+                  return (
+                    <tr key={b.id} className={`align-top ${expired ? 'bg-rose-950/20' : ''}`}>
+                      <td className="px-3 py-2.5 font-mono text-slate-300">#{b.batch_number}</td>
+                      <td className="px-3 py-2.5 text-slate-300">{b.variant_label}</td>
+                      <td className="px-2 py-2.5 text-right font-mono text-slate-100">{b.quantity}</td>
+                      <td className="px-2 py-2.5 text-right font-mono text-slate-300">{b.quantity_remaining}</td>
+                      <td className="px-2 py-2.5 text-right font-mono text-emerald-300">{b.heldNow}</td>
+                      <td className="px-2 py-2.5 text-right font-mono text-emerald-400">{b.sold}</td>
+                      <td className="px-2 py-2.5 text-right font-mono text-[#c084fc]">{b.retracted}</td>
+                      <td className={`px-3 py-2.5 font-mono ${expired ? 'text-rose-400' : 'text-slate-300'}`}>
+                        {left || '—'}
+                      </td>
+                    </tr>
+                  )
+                })}
+                {batchHistoryRows.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="px-3 py-6 text-center text-sm text-slate-500">No batches yet.</td>
                   </tr>
                 )}
               </tbody>

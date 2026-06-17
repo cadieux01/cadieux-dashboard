@@ -4,6 +4,9 @@ import { useAuth } from '../context/AuthContext'
 import { formatDateTimeDDMMYY } from '../lib/date'
 import RefreshButton from '../components/RefreshButton'
 import WheelDateTime from '../components/WheelDateTime'
+import CentralStockSummary from '../components/CentralStockSummary'
+import BatchHoldersCell from '../components/BatchHoldersCell'
+import { getBatchHolders } from '../lib/batchHolders'
 import {
   getShelfLife,
   updateShelfLife,
@@ -40,6 +43,8 @@ export default function CentralStock({ embedded = false }) {
 
   const [shelf, setShelf] = useState({ multigrain: 3, plain: 6 })
   const [batches, setBatches] = useState([])
+  const [batchHolders, setBatchHolders] = useState({})
+  const [summaryKey, setSummaryKey] = useState(0)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [now, setNow] = useState(Date.now())
@@ -69,9 +74,11 @@ export default function CentralStock({ embedded = false }) {
     if (isRefresh) setRefreshing(true)
     else setLoading(true)
     try {
-      const [s, b] = await Promise.all([getShelfLife(), listBatches()])
+      const [s, b, holders] = await Promise.all([getShelfLife(), listBatches(), getBatchHolders()])
       setShelf(s)
       setBatches(b)
+      setBatchHolders(holders)
+      setSummaryKey((k) => k + 1)
     } catch (e) {
       console.warn('Central stock load failed:', e.message)
     } finally {
@@ -94,17 +101,6 @@ export default function CentralStock({ embedded = false }) {
       clearInterval(pollRef.current)
     }
   }, [isDemo])
-
-  const expiredAt = (b) => {
-    const exp = b.expiry_at ? new Date(b.expiry_at).getTime() : null
-    return exp != null && now >= exp
-  }
-
-  // Available central stock = remaining units across NON-expired batches.
-  const availableByVariant = (variant) =>
-    batches
-      .filter((b) => b.variant === variant && !expiredAt(b))
-      .reduce((sum, b) => sum + (b.quantity_remaining || 0), 0)
 
   const visibleBatches = batches.filter((b) => filter === 'all' || b.variant === filter)
 
@@ -215,6 +211,9 @@ export default function CentralStock({ embedded = false }) {
         </div>
       ) : (
         <>
+          {/* Central stock — available per variant + total (same figure as Allot) */}
+          <CentralStockSummary refreshKey={summaryKey} />
+
           {/* 1. New batch */}
           <div className={CARD}>
             <h2 className="mb-4 text-lg font-semibold text-slate-100">New batch</h2>
@@ -296,13 +295,14 @@ export default function CentralStock({ embedded = false }) {
             )}
           </div>
 
-          {/* 3. Available stock — per-batch table, FIFO oldest first, live countdown */}
+          {/* 3. Batches — per-batch table, FIFO oldest first, live countdown.
+              "Assigned to" lists who currently holds unsold units from a batch. */}
           <div className={CARD}>
             <div className="mb-3 flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <h2 className="text-lg font-semibold text-slate-100">Available stock</h2>
+                <h2 className="text-lg font-semibold text-slate-100">Batches</h2>
                 <p className="mt-0.5 text-xs text-slate-500">
-                  {VARIANT_KEYS.map((v) => `${VARIANTS[v]?.short || v}: ${availableByVariant(v)}`).join(' · ')} · non-expired units
+                  Units sent &amp; who holds them now · oldest first (FIFO)
                 </p>
               </div>
               <div className="flex flex-shrink-0 gap-1">
@@ -325,12 +325,13 @@ export default function CentralStock({ embedded = false }) {
               <p className="text-sm text-slate-400">No batches yet.</p>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[36rem] border-collapse text-sm">
+                <table className="w-full min-w-[48rem] border-collapse text-sm">
                   <thead>
                     <tr className="border-b border-slate-800 text-left text-xs uppercase tracking-wide text-slate-400">
                       <th className="py-2 pr-3 font-medium">Batch</th>
                       <th className="py-2 pr-3 font-medium">Variant</th>
                       <th className="py-2 pr-3 font-medium">Units</th>
+                      <th className="py-2 pr-3 font-medium">Assigned to</th>
                       <th className="py-2 pr-3 font-medium">Started</th>
                       <th className="py-2 pr-3 font-medium">Countdown</th>
                       <th className="py-2 font-medium text-right">Edit</th>
@@ -352,6 +353,9 @@ export default function CentralStock({ embedded = false }) {
                             <td className="py-2.5 pr-3 text-slate-300">
                               {b.quantity_remaining}<span className="text-slate-500">/{b.quantity}</span>
                             </td>
+                            <td className="py-2.5 pr-3 align-top">
+                              <BatchHoldersCell holders={batchHolders[b.id]} />
+                            </td>
                             <td className="py-2.5 pr-3 text-slate-400">{formatDateTimeDDMMYY(b.created_at)}</td>
                             <td className={`py-2.5 pr-3 font-semibold ${soldOut ? 'text-slate-500' : expired ? 'text-rose-400' : 'text-emerald-400'}`}>
                               {soldOut ? 'Sold out' : ms == null ? '—' : fmtBatchLeft(ms)}
@@ -368,7 +372,7 @@ export default function CentralStock({ embedded = false }) {
                           </tr>
                           {editId === b.id && (
                             <tr>
-                              <td colSpan={6} className="pb-3">
+                              <td colSpan={7} className="pb-3">
                                 <form onSubmit={submitEdit} className="space-y-3 rounded-lg border border-slate-800 bg-slate-950/40 p-3">
                                   <div>
                                     <label className="mb-1 block text-xs text-slate-400">Quantity</label>
