@@ -8,6 +8,7 @@ import { setPartnerMargins } from '../lib/payments'
 import { isNameTaken } from '../lib/changeRequests'
 import { isValidPhone, normalizePhone } from '../lib/phone'
 import ShareCredentials from '../components/ShareCredentials'
+import { PARTNER_TYPES } from '../lib/demoData'
 
 // Onboarding flow: admins can create both partners and sales execs;
 // sales can create partners only. Both roles log in with a phone +
@@ -27,7 +28,7 @@ export default function Onboarding() {
     phone: '',
     password: '',
     full_name: '',
-    notes: '',
+    partner_type: '',
     role: 'partner',
     margin_mg: '',
     margin_plain: '',
@@ -182,7 +183,7 @@ export default function Onboarding() {
       phone: '',
       password: '',
       full_name: '',
-      notes: '',
+      partner_type: '',
       role: 'partner',
     })
   }
@@ -247,7 +248,7 @@ export default function Onboarding() {
         password: formData.password,
         full_name: formData.full_name,
         role: targetRole,
-        notes: formData.notes,
+        partner_type: targetRole === 'partner' ? (formData.partner_type || null) : null,
       })
 
       // Margins + payout are admin-only + partner-only; set after the account exists.
@@ -422,13 +423,15 @@ export default function Onboarding() {
             </>
           )}
 
-          <FormField
-            label="Notes"
-            type="textarea"
-            value={formData.notes}
-            onChange={(value) => updateField('notes', value)}
-            placeholder="Internal notes (admin only)"
-          />
+          {(role === 'admin' ? formData.role === 'partner' : true) && (
+            <FormField
+              label="Partner Type"
+              type="select"
+              value={formData.partner_type}
+              onChange={(value) => updateField('partner_type', value)}
+              options={PARTNER_TYPES}
+            />
+          )}
 
           <div className="flex gap-3 mt-6">
             <button

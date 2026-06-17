@@ -8,7 +8,7 @@ import { formatDateDDMMYY } from '../lib/date'
 import { adminSetPassword, changePhone } from '../lib/adminApi'
 import { setPartnerMargins } from '../lib/payments'
 import { displayLogin, isValidPhone, normalizePhone } from '../lib/phone'
-import { demoBlock } from '../lib/demoData'
+import { demoBlock, PARTNER_TYPES, PARTNER_TYPE_LABELS } from '../lib/demoData'
 import { useAuth } from '../context/AuthContext'
 import usePinGate from '../lib/usePinGate'
 import { Pencil, KeyRound, Send } from 'lucide-react'
@@ -41,9 +41,10 @@ function DetailRow({ label, children }) {
 /**
  * View / edit / reset-password modal for a single sales-agent or partner.
  *
- * Profile name + notes are written straight to `profiles`. Phone changes and
- * password resets are service-role ops, so they go through the manage-partner
+ * Profile name + partner type are written straight to `profiles`. Phone changes
+ * and password resets are service-role ops, so they go through the manage-partner
  * Edge Function (changePhone / changePassword). Every mutation is audit-logged.
+ * Deactivate / Reactivate / Remove live at the bottom of edit mode (not the list).
  *
  * Props:
  *   user               the profile row to view/edit
@@ -69,6 +70,7 @@ export default function UserDetailModal({
   onShareNewPassword,
   onDeactivate,
   onReactivate,
+  onDelete,
   refreshList,
   setBanner,
 }) {
@@ -85,7 +87,7 @@ export default function UserDetailModal({
   const [form, setForm] = useState({
     full_name: user.full_name || '',
     phone: phoneOf(user),
-    notes: user.notes || '',
+    partner_type: user.partner_type || '',
     margin_mg: str(user.margin_percent_multigrain ?? user.margin_percent),
     margin_plain: str(user.margin_percent_plain ?? user.margin_percent),
     payout_days: str(user.payout_days),
@@ -106,7 +108,7 @@ export default function UserDetailModal({
     setForm({
       full_name: current.full_name || '',
       phone: phoneOf(current),
-      notes: current.notes || '',
+      partner_type: current.partner_type || '',
       margin_mg: str(current.margin_percent_multigrain ?? current.margin_percent),
       margin_plain: str(current.margin_percent_plain ?? current.margin_percent),
       payout_days: str(current.payout_days),
@@ -131,9 +133,11 @@ export default function UserDetailModal({
       return
     }
 
-    const nextNotes = form.notes.trim()
+    // Partner type is meaningful for partners only.
+    const nextType = role === 'partner' ? (form.partner_type || null) : (current.partner_type ?? null)
     const profileChanged =
-      name !== (current.full_name || '') || nextNotes !== (current.notes || '')
+      name !== (current.full_name || '') ||
+      (role === 'partner' && nextType !== (current.partner_type ?? null))
 
     // Margins + payout: admin-only, partner-only. Blank clears each.
     let nextMg = current.margin_percent_multigrain ?? null
@@ -171,9 +175,11 @@ export default function UserDetailModal({
     setSaving(true)
     try {
       if (profileChanged) {
+        const patch = { full_name: name }
+        if (role === 'partner') patch.partner_type = nextType
         const { error: upErr } = await supabase
           .from('profiles')
-          .update({ full_name: name, notes: nextNotes || null })
+          .update(patch)
           .eq('id', current.id)
         if (upErr) throw upErr
       }
@@ -192,19 +198,19 @@ export default function UserDetailModal({
         oldValues: {
           full_name: current.full_name || null,
           phone: oldPhone,
-          notes: current.notes || null,
+          partner_type: current.partner_type ?? null,
         },
         newValues: {
           full_name: name,
           phone: phoneChanged ? normalizePhone(newPhone) : oldPhone,
-          notes: nextNotes || null,
+          partner_type: role === 'partner' ? nextType : (current.partner_type ?? null),
         },
       })
 
       const updated = {
         ...current,
         full_name: name,
-        notes: nextNotes || null,
+        partner_type: role === 'partner' ? nextType : current.partner_type,
         phone: phoneChanged ? normalizePhone(newPhone) : current.phone,
         margin_percent: canEditMargin ? nextMg : current.margin_percent,
         margin_percent_multigrain: canEditMargin ? nextMg : current.margin_percent_multigrain,
@@ -311,7 +317,11 @@ export default function UserDetailModal({
                 {current.payout_days == null ? '—' : `${Number(current.payout_days)} days`}
               </DetailRow>
             )}
-            <DetailRow label="Notes">{current.notes || '—'}</DetailRow>
+            {role === 'partner' && (
+              <DetailRow label="Type">
+                {current.partner_type ? (PARTNER_TYPE_LABELS[current.partner_type] || current.partner_type) : '—'}
+              </DetailRow>
+            )}
             <DetailRow label="Created">
               {current.created_at ? formatDateDDMMYY(current.created_at) : 'N/A'}
             </DetailRow>
@@ -342,23 +352,6 @@ export default function UserDetailModal({
             >
               <Send size={16} /> Share Login
             </button>
-            {status === 'inactive' ? (
-              <button
-                type="button"
-                onClick={() => onReactivate(current)}
-                className="rounded-lg bg-emerald-500/20 px-4 py-2 text-sm font-medium text-emerald-400 transition-colors hover:bg-emerald-500/30"
-              >
-                Reactivate
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => onDeactivate(current)}
-                className="rounded-lg bg-amber-500/20 px-4 py-2 text-sm font-medium text-amber-400 transition-colors hover:bg-amber-500/30"
-              >
-                Deactivate
-              </button>
-            )}
           </div>
         </div>
       )}
@@ -418,13 +411,15 @@ export default function UserDetailModal({
               />
             </>
           )}
-          <FormField
-            label="Notes"
-            type="textarea"
-            value={form.notes}
-            onChange={(value) => setForm((p) => ({ ...p, notes: value }))}
-            placeholder="Internal notes"
-          />
+          {role === 'partner' && (
+            <FormField
+              label="Partner Type"
+              type="select"
+              value={form.partner_type}
+              onChange={(value) => setForm((p) => ({ ...p, partner_type: value }))}
+              options={PARTNER_TYPES}
+            />
+          )}
 
           <div className="mt-6 flex gap-3">
             <button
@@ -443,6 +438,45 @@ export default function UserDetailModal({
             >
               {saving ? 'Saving...' : 'Save Changes'}
             </button>
+          </div>
+
+          {/* Account controls — kept out of the list; live at the bottom of Edit. */}
+          <div className="mt-6 border-t border-slate-800 pt-4">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Account</p>
+            <div className="flex flex-wrap gap-3">
+              {status === 'active' ? (
+                <button
+                  type="button"
+                  onClick={() => onDeactivate(current)}
+                  disabled={saving}
+                  className="rounded-lg bg-amber-500/20 px-4 py-2 text-sm font-medium text-amber-400 transition-colors hover:bg-amber-500/30 disabled:opacity-50"
+                >
+                  Deactivate
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => onReactivate(current)}
+                  disabled={saving}
+                  className="rounded-lg bg-emerald-500/20 px-4 py-2 text-sm font-medium text-emerald-400 transition-colors hover:bg-emerald-500/30 disabled:opacity-50"
+                >
+                  Reactivate
+                </button>
+              )}
+              {status !== 'deleted' && onDelete && (
+                <button
+                  type="button"
+                  onClick={() => onDelete(current)}
+                  disabled={saving}
+                  className="rounded-lg bg-rose-500/20 px-4 py-2 text-sm font-medium text-rose-400 transition-colors hover:bg-rose-500/30 disabled:opacity-50"
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+            <p className="mt-2 text-xs text-slate-500">
+              Deactivate blocks login but keeps data. Remove hides the account; both are recoverable with Reactivate.
+            </p>
           </div>
         </div>
       )}

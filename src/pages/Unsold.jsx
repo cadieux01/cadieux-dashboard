@@ -79,11 +79,19 @@ function HolderRow({ h }) {
   )
 }
 
+const VIEW_OPTIONS = [
+  { value: 'agent', label: 'By agent' },
+  { value: 'partner', label: 'By partner' },
+  { value: 'date', label: 'Over time' },
+  { value: 'history', label: 'Complete history' },
+]
+
 export default function Unsold() {
   const { isDemo } = useAuth()
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [view, setView] = useState('agent')
 
   const load = async () => {
     if (isDemo) {
@@ -205,90 +213,106 @@ export default function Unsold() {
             </div>
           </div>
 
-          {/* By agent */}
+          {/* Consolidated breakdown — one surface, dropdown switches the view */}
           <div className={CARD}>
-            <h2 className="mb-1 text-lg font-semibold text-slate-100">By agent</h2>
-            <p className="mb-4 text-xs text-slate-500">
-              {agents.length} agent{agents.length === 1 ? '' : 's'} · most wasted first.
-            </p>
-            {agents.length === 0 ? (
-              <p className="text-sm text-slate-400">No agent-held unsold stock.</p>
-            ) : (
-              <div className="max-h-[28rem] space-y-3 overflow-y-auto pr-1">
-                {agents.map((h) => (
-                  <HolderRow key={h.id} h={h} />
-                ))}
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <h2 className="text-lg font-semibold text-slate-100">Breakdown</h2>
+                <p className="text-xs text-slate-500">
+                  {view === 'agent' && `${agents.length} agent${agents.length === 1 ? '' : 's'} · most wasted first.`}
+                  {view === 'partner' && `${partners.length} partner${partners.length === 1 ? '' : 's'} · most wasted first. Partner-side recording arrives in a later stage.`}
+                  {view === 'date' && 'Units recorded unsold per day · newest first.'}
+                  {view === 'history' && `${rows.length} record${rows.length === 1 ? '' : 's'} · newest first.`}
+                </p>
               </div>
-            )}
-          </div>
-
-          {/* By partner */}
-          <div className={CARD}>
-            <h2 className="mb-1 text-lg font-semibold text-slate-100">By partner</h2>
-            <p className="mb-4 text-xs text-slate-500">
-              {partners.length} partner{partners.length === 1 ? '' : 's'} · most wasted first. Partner-side recording arrives in a later stage.
-            </p>
-            {partners.length === 0 ? (
-              <p className="text-sm text-slate-400">No partner-held unsold stock yet.</p>
-            ) : (
-              <div className="max-h-[28rem] space-y-3 overflow-y-auto pr-1">
-                {partners.map((h) => (
-                  <HolderRow key={h.id} h={h} />
+              <select
+                value={view}
+                onChange={(e) => setView(e.target.value)}
+                className="dashboard-select w-full sm:w-auto"
+              >
+                {VIEW_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
                 ))}
-              </div>
-            )}
-          </div>
-
-          {/* By date */}
-          <div className={CARD}>
-            <h2 className="mb-1 text-lg font-semibold text-slate-100">Over time</h2>
-            <p className="mb-4 text-xs text-slate-500">Units recorded unsold per day · newest first.</p>
-            <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
-              {byDate.map((d) => (
-                <div
-                  key={d.day}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2"
-                >
-                  <span className="text-sm font-medium text-slate-100">{formatDateDDMMYY(d.day)}</span>
-                  <div className="flex flex-wrap items-center gap-3 text-xs">
-                    <VariantSplit byVariant={d} />
-                    <span className="rounded-full bg-rose-500/15 px-2.5 py-0.5 font-semibold text-rose-400">{d.units} total</span>
-                  </div>
-                </div>
-              ))}
+              </select>
             </div>
-          </div>
 
-          {/* Complete history */}
-          <div className={CARD}>
-            <h2 className="mb-1 text-lg font-semibold text-slate-100">Complete history</h2>
-            <p className="mb-4 text-xs text-slate-500">{rows.length} record{rows.length === 1 ? '' : 's'} · newest first.</p>
-            <div className="max-h-[32rem] space-y-2 overflow-y-auto pr-1">
-              {rows.map((r) => (
-                <div
-                  key={r.id}
-                  className="flex flex-wrap items-start justify-between gap-2 rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2.5"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-slate-100">
-                      {r.units} × {r.variant_label}
-                      <span className="ml-2 rounded bg-slate-800 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-slate-400">
-                        {r.holder_type}
+            {view === 'agent' && (
+              agents.length === 0 ? (
+                <p className="text-sm text-slate-400">No agent-held unsold stock.</p>
+              ) : (
+                <div className="max-h-[28rem] space-y-3 overflow-y-auto pr-1">
+                  {agents.map((h) => (
+                    <HolderRow key={h.id} h={h} />
+                  ))}
+                </div>
+              )
+            )}
+
+            {view === 'partner' && (
+              partners.length === 0 ? (
+                <p className="text-sm text-slate-400">No partner-held unsold stock yet.</p>
+              ) : (
+                <div className="max-h-[28rem] space-y-3 overflow-y-auto pr-1">
+                  {partners.map((h) => (
+                    <HolderRow key={h.id} h={h} />
+                  ))}
+                </div>
+              )
+            )}
+
+            {view === 'date' && (
+              byDate.length === 0 ? (
+                <p className="text-sm text-slate-400">No unsold stock recorded yet.</p>
+              ) : (
+                <div className="max-h-[28rem] space-y-2 overflow-y-auto pr-1">
+                  {byDate.map((d) => (
+                    <div
+                      key={d.day}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2"
+                    >
+                      <span className="text-sm font-medium text-slate-100">{formatDateDDMMYY(d.day)}</span>
+                      <div className="flex flex-wrap items-center gap-3 text-xs">
+                        <VariantSplit byVariant={d} />
+                        <span className="rounded-full bg-rose-500/15 px-2.5 py-0.5 font-semibold text-rose-400">{d.units} total</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )
+            )}
+
+            {view === 'history' && (
+              rows.length === 0 ? (
+                <p className="text-sm text-slate-400">No unsold records yet.</p>
+              ) : (
+                <div className="max-h-[32rem] space-y-2 overflow-y-auto pr-1">
+                  {rows.map((r) => (
+                    <div
+                      key={r.id}
+                      className="flex flex-wrap items-start justify-between gap-2 rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2.5"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-slate-100">
+                          {r.units} × {r.variant_label}
+                          <span className="ml-2 rounded bg-slate-800 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-slate-400">
+                            {r.holder_type}
+                          </span>
+                        </p>
+                        <p className="truncate text-xs text-slate-400">{r.holder_name}</p>
+                        <p className="text-xs text-slate-500">
+                          Recorded {formatDateTimeDDMMYY(r.created_at)}
+                          {r.batch ? ` · Batch #${r.batch.batch_number}` : ''}
+                          {r.batch?.expiry_at ? ` · expired ${formatDateDDMMYY(r.batch.expiry_at)}` : ''}
+                        </p>
+                      </div>
+                      <span className="flex-shrink-0 rounded bg-rose-500/15 px-2 py-0.5 text-xs font-semibold uppercase text-rose-400">
+                        {r.reason}
                       </span>
-                    </p>
-                    <p className="truncate text-xs text-slate-400">{r.holder_name}</p>
-                    <p className="text-xs text-slate-500">
-                      Recorded {formatDateTimeDDMMYY(r.created_at)}
-                      {r.batch ? ` · Batch #${r.batch.batch_number}` : ''}
-                      {r.batch?.expiry_at ? ` · expired ${formatDateDDMMYY(r.batch.expiry_at)}` : ''}
-                    </p>
-                  </div>
-                  <span className="flex-shrink-0 rounded bg-rose-500/15 px-2 py-0.5 text-xs font-semibold uppercase text-rose-400">
-                    {r.reason}
-                  </span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              )
+            )}
           </div>
         </>
       )}

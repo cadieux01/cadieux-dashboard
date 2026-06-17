@@ -68,7 +68,6 @@ export default function Partners() {
     password: '',
     full_name: '',
     partner_type: '',
-    notes: '',
   })
 
   const { refresh, refreshing, lastUpdated, pullDistance } = useRefreshable(() => fetchPartners())
@@ -96,7 +95,7 @@ export default function Partners() {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, email, full_name, phone, phone_number, partner_type, notes, status, created_at, role, margin_percent, margin_percent_multigrain, margin_percent_plain, payout_days')
+        .select('id, email, full_name, phone, phone_number, partner_type, status, created_at, role, margin_percent, margin_percent_multigrain, margin_percent_plain, payout_days')
         .eq('role', 'partner')
         .order('created_at', { ascending: false })
 
@@ -147,9 +146,8 @@ export default function Partners() {
       if (!query) return true
       const matchesName = partner.full_name?.toLowerCase().includes(query)
       const matchesPhone = partnerPhone(partner).toLowerCase().includes(query)
-      const matchesNotes = partner.notes?.toLowerCase().includes(query)
       const matchesType = (PARTNER_TYPE_LABELS[partner.partner_type] || '').toLowerCase().includes(query)
-      return matchesName || matchesPhone || matchesNotes || matchesType
+      return matchesName || matchesPhone || matchesType
     })
   }, [partners, searchQuery, typeFilter, statusFilter])
 
@@ -166,7 +164,6 @@ export default function Partners() {
       password: '',
       full_name: '',
       partner_type: '',
-      notes: '',
     })
   }
 
@@ -213,7 +210,6 @@ export default function Partners() {
         password: addFormData.password,
         full_name: addFormData.full_name,
         role: 'partner',
-        notes: addFormData.notes,
         partner_type: addFormData.partner_type || null,
       })
 
@@ -445,9 +441,9 @@ export default function Partners() {
     }
   }
 
+  // Deactivate / Reactivate / Remove deliberately live inside the Edit modal
+  // (bottom), not in the list rows.
   const rowActions = (partner) => {
-    const status = partner.status || 'active'
-    const busy = busyId === partner.id
     return (
       <div className="flex items-center justify-end gap-2">
         <button
@@ -486,33 +482,6 @@ export default function Partners() {
         >
           <Send size={16} />
         </button>
-        {status === 'active' && (
-          <button
-            onClick={() => handleDeactivate(partner)}
-            disabled={busy}
-            className="rounded bg-amber-500/20 px-3 py-1 text-xs text-amber-400 transition-colors hover:bg-amber-500/30 disabled:opacity-50"
-          >
-            {busy ? '...' : 'Deactivate'}
-          </button>
-        )}
-        {(status === 'inactive' || status === 'deleted') && (
-          <button
-            onClick={() => handleReactivate(partner)}
-            disabled={busy}
-            className="rounded bg-emerald-500/20 px-3 py-1 text-xs text-emerald-400 transition-colors hover:bg-emerald-500/30 disabled:opacity-50"
-          >
-            {busy ? '...' : 'Reactivate'}
-          </button>
-        )}
-        {status !== 'deleted' && (
-          <button
-            onClick={() => handleDelete(partner)}
-            disabled={busy}
-            className="rounded bg-rose-500/20 px-3 py-1 text-xs text-rose-400 transition-colors hover:bg-rose-500/30 disabled:opacity-50"
-          >
-            {busy ? '...' : 'Remove'}
-          </button>
-        )}
       </div>
     )
   }
@@ -545,7 +514,6 @@ export default function Partners() {
         </div>
         <div className="mb-2 text-xs text-slate-500">
           {partner.created_at ? formatDateDDMMYY(partner.created_at) : ''}
-          {partner.notes ? ` · ${partner.notes}` : ''}
         </div>
         <div onClick={(e) => e.stopPropagation()}>{rowActions(partner)}</div>
       </div>
@@ -621,7 +589,7 @@ export default function Partners() {
               </svg>
               <input
                 type="text"
-                placeholder="Search by partner name, phone, or notes..."
+                placeholder="Search by partner name, phone, or type..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -684,7 +652,6 @@ export default function Partners() {
                 <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wider">Assigned</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wider">Sold</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wider">Retracted</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Notes</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
@@ -716,16 +683,13 @@ export default function Partners() {
                     <td className="px-4 py-3 text-right font-mono text-slate-100">{s.assigned}</td>
                     <td className="px-4 py-3 text-right font-mono text-emerald-300">{s.sold}</td>
                     <td className="px-4 py-3 text-right font-mono text-amber-300">{s.retracted}</td>
-                    <td className="px-4 py-3">
-                      <p className="max-w-xs truncate text-slate-300">{partner.notes || '—'}</p>
-                    </td>
                     <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>{rowActions(partner)}</td>
                   </tr>
                 )
               })}
               {filteredPartners.length === 0 && (
                 <tr>
-                  <td colSpan="9" className="px-6 py-8 text-center text-slate-500">
+                  <td colSpan="8" className="px-6 py-8 text-center text-slate-500">
                     No partner accounts found.
                   </td>
                 </tr>
@@ -790,14 +754,6 @@ export default function Partners() {
             options={PARTNER_TYPES}
           />
 
-          <FormField
-            label="Notes"
-            type="textarea"
-            value={addFormData.notes}
-            onChange={(value) => updateField('notes', value)}
-            placeholder="Internal notes"
-          />
-
           <div className="flex gap-3 mt-6">
             <button
               type="button"
@@ -830,6 +786,7 @@ export default function Partners() {
           onShareNewPassword={(d) => setShareData(d)}
           onDeactivate={(u) => { setDetailUser(null); handleDeactivate(u) }}
           onReactivate={(u) => { setDetailUser(null); handleReactivate(u) }}
+          onDelete={(u) => { setDetailUser(null); handleDelete(u) }}
           refreshList={fetchPartners}
           setBanner={setBanner}
         />

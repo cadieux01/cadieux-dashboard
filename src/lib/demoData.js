@@ -625,23 +625,40 @@ export const DIVERSION_REASONS = [
 // profile, the type column + filter in the Partners list, and the per-type
 // breakdown on the agent profile.
 export const PARTNER_TYPES = [
-  { value: 'stall_owner',     label: 'Stall Owner' },
-  { value: 'retailer',        label: 'Retailer' },
-  { value: 'gated_community', label: 'Gated Community' },
-  { value: 'cafeteria',       label: 'Cafeteria' },
-  { value: 'business_b2b',    label: 'Business / B2B' },
-  { value: 'other',           label: 'Other' },
+  { value: 'retailer',       label: 'Retailer' },
+  { value: 'bulk_vendor',    label: 'Bulk Vendor' },
+  { value: 'canteen_vendor', label: 'Canteen Vendor' },
+  { value: 'stalls',         label: 'Stalls' },
+  { value: 'residential',    label: 'Residential' },
 ]
 
-export const PARTNER_TYPE_LABELS = Object.fromEntries(PARTNER_TYPES.map((t) => [t.value, t.label]))
+// Legacy type values still present on older rows — kept for display only so
+// existing partners keep a readable label/pill. Not offered in the selector.
+const LEGACY_PARTNER_TYPE_LABELS = {
+  stall_owner:     'Stall Owner',
+  gated_community: 'Gated Community',
+  cafeteria:       'Cafeteria',
+  business_b2b:    'Business / B2B',
+  other:           'Other',
+}
+
+export const PARTNER_TYPE_LABELS = {
+  ...LEGACY_PARTNER_TYPE_LABELS,
+  ...Object.fromEntries(PARTNER_TYPES.map((t) => [t.value, t.label])),
+}
 
 // Tailwind pill classes per partner type (dark theme).
 export const PARTNER_TYPE_PILL = {
-  stall_owner:     'border-emerald-400/30 bg-emerald-400/10 text-emerald-200',
   retailer:        'border-indigo-400/30 bg-indigo-400/10 text-indigo-200',
-  gated_community: 'border-violet-400/30 bg-violet-400/10 text-violet-700',
+  bulk_vendor:     'border-emerald-400/30 bg-emerald-400/10 text-emerald-200',
+  canteen_vendor:  'border-amber-400/30 bg-amber-400/10 text-amber-200',
+  stalls:          'border-sky-400/30 bg-sky-400/10 text-sky-200',
+  residential:     'border-violet-400/30 bg-violet-400/10 text-violet-200',
+  // legacy
+  stall_owner:     'border-emerald-400/30 bg-emerald-400/10 text-emerald-200',
+  gated_community: 'border-violet-400/30 bg-violet-400/10 text-violet-200',
   cafeteria:       'border-amber-400/30 bg-amber-400/10 text-amber-200',
-  business_b2b:    'border-blue-400/30 bg-blue-400/10 text-[#1e40af]',
+  business_b2b:    'border-blue-400/30 bg-blue-400/10 text-blue-200',
   other:           'border-slate-500/30 bg-slate-500/10 text-slate-300',
 }
 

@@ -128,20 +128,6 @@ export default function Payments() {
             <PaymentVerifications />
           </div>
 
-          {/* Totals */}
-          <div className={CARD}>
-            <h2 className="mb-1 text-lg font-semibold text-slate-100">Owed to company</h2>
-            <p className="mb-4 text-xs text-slate-500">
-              Across {partners.length} partner{partners.length === 1 ? '' : 's'} with credit-tracked assignments.
-            </p>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <OwedPill label="Outstanding" value={inr(totals.owedOutstanding)} tone="amber" />
-              <OwedPill label="On credit" value={inr(totals.owedPending)} tone="amber" />
-              <OwedPill label="Awaiting verification" value={inr(totals.owedAwaiting)} tone="sky" />
-              <OwedPill label="Settled (paid)" value={inr(totals.owedPaid)} tone="emerald" />
-            </div>
-          </div>
-
           {/* Earnings & payout — revenue, partner share, company total over a period */}
           <div className={CARD}>
             <h2 className="mb-1 text-lg font-semibold text-slate-100">Earnings &amp; payout</h2>
@@ -151,10 +137,23 @@ export default function Payments() {
             <EarningsCalculator scope="admin" />
           </div>
 
-          {/* By partner */}
+          {/* By partner — summary on top, per-partner table below */}
           <div className={CARD}>
             <h2 className="mb-1 text-lg font-semibold text-slate-100">By partner</h2>
-            <p className="mb-4 text-xs text-slate-500">Most owed first.</p>
+            <p className="mb-4 text-xs text-slate-500">
+              Across {partners.length} partner{partners.length === 1 ? '' : 's'} with credit-tracked assignments.
+            </p>
+
+            {/* Summary totals */}
+            <div className="mb-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <OwedPill label="Outstanding" value={inr(totals.owedOutstanding)} tone="amber" />
+              <OwedPill label="On credit" value={inr(totals.owedPending)} tone="amber" />
+              <OwedPill label="Awaiting verification" value={inr(totals.owedAwaiting)} tone="sky" />
+              <OwedPill label="Settled (paid)" value={inr(totals.owedPaid)} tone="emerald" />
+            </div>
+
+            {/* Per-partner table */}
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Per partner · most owed first</p>
             {loading ? (
               <p className="text-sm text-slate-400">Loading…</p>
             ) : partners.length === 0 ? (

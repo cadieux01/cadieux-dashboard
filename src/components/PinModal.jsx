@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { PIN_LENGTH, MAX_ATTEMPTS, verifyPin, isPinSet } from '../lib/pinSecurity'
+import { PIN_LENGTH, MAX_ATTEMPTS, verifyPin, isPinSet, resetPin } from '../lib/pinSecurity'
+
+const SECURITY_QUESTION = 'Who is your best friend?'
 
 // ============================================================================
 // PinModal — 6-digit PIN entry overlay used to gate sensitive dashboard
@@ -20,7 +22,14 @@ export default function PinModal({ isOpen, onConfirm, onCancel, actionLabel }) {
   const [attemptsLeft, setAttemptsLeft] = useState(MAX_ATTEMPTS)
   const [noPin, setNoPin] = useState(false)
   const [checking, setChecking] = useState(true)
+  // Forgot-PIN recovery: 'verify' (default) or 'forgot' (security question).
+  const [mode, setMode] = useState('verify')
+  const [answer, setAnswer] = useState('')
+  const [newDigits, setNewDigits] = useState(() => Array(PIN_LENGTH).fill(''))
+  const [resetting, setResetting] = useState(false)
+  const [resetError, setResetError] = useState(null)
   const refs = useRef([])
+  const newRefs = useRef([])
 
   // On open: reset, then ask the server whether a PIN exists for this account.
   useEffect(() => {
@@ -33,6 +42,11 @@ export default function PinModal({ isOpen, onConfirm, onCancel, actionLabel }) {
     setAttemptsLeft(MAX_ATTEMPTS)
     setNoPin(false)
     setChecking(true)
+    setMode('verify')
+    setAnswer('')
+    setNewDigits(Array(PIN_LENGTH).fill(''))
+    setResetting(false)
+    setResetError(null)
     isPinSet()
       .then((set) => {
         if (cancelled) return
@@ -130,6 +144,57 @@ export default function PinModal({ isOpen, onConfirm, onCancel, actionLabel }) {
     }
   }
 
+  const handleNewChange = (i, v) => {
+    const ch = v.replace(/\D/g, '').slice(0, 1)
+    const next = [...newDigits]
+    next[i] = ch
+    setNewDigits(next)
+    setResetError(null)
+    if (ch && i < PIN_LENGTH - 1) newRefs.current[i + 1]?.focus()
+  }
+
+  const handleNewKeyDown = (i, e) => {
+    if (e.key === 'Backspace') {
+      if (newDigits[i]) {
+        const next = [...newDigits]
+        next[i] = ''
+        setNewDigits(next)
+      } else if (i > 0) {
+        newRefs.current[i - 1]?.focus()
+      }
+    } else if (e.key === 'ArrowLeft' && i > 0) {
+      newRefs.current[i - 1]?.focus()
+    } else if (e.key === 'ArrowRight' && i < PIN_LENGTH - 1) {
+      newRefs.current[i + 1]?.focus()
+    }
+  }
+
+  const attemptReset = async () => {
+    if (resetting) return
+    if (!answer.trim()) {
+      setResetError('Please answer the security question.')
+      return
+    }
+    const newPin = newDigits.join('')
+    if (newPin.length !== PIN_LENGTH) {
+      setResetError(`Please enter all ${PIN_LENGTH} digits for the new PIN.`)
+      return
+    }
+    setResetting(true)
+    setResetError(null)
+    try {
+      await resetPin(answer, newPin)
+      // New PIN is live; close the gate (the action re-verifies with it).
+      onCancel()
+    } catch (e) {
+      setResetError(e.message || 'Could not reset the PIN.')
+      setNewDigits(Array(PIN_LENGTH).fill(''))
+      setTimeout(() => newRefs.current[0]?.focus(), 0)
+    } finally {
+      setResetting(false)
+    }
+  }
+
   const lockSeconds = Math.ceil(lockMs / 1000)
   const lockMm = Math.floor(lockSeconds / 60)
   const lockSs = String(lockSeconds % 60).padStart(2, '0')
@@ -153,14 +218,58 @@ export default function PinModal({ isOpen, onConfirm, onCancel, actionLabel }) {
             </svg>
           </div>
           <div>
-            <h2 id="pin-modal-title" className="font-display text-lg font-semibold text-slate-100">Security Verification</h2>
+            <h2 id="pin-modal-title" className="font-display text-lg font-semibold text-slate-100">
+              {mode === 'forgot' ? 'Reset dashboard PIN' : 'Security Verification'}
+            </h2>
             <p className="text-xs text-slate-400">
-              {actionLabel ? `Confirm: ${actionLabel}` : 'Enter your dashboard PIN to confirm.'}
+              {mode === 'forgot'
+                ? 'Answer the security question to set a new PIN.'
+                : actionLabel ? `Confirm: ${actionLabel}` : 'Enter your dashboard PIN to confirm.'}
             </p>
           </div>
         </div>
 
-        {checking ? (
+        {mode === 'forgot' ? (
+          <>
+            <div className="my-4">
+              <label className="mb-1 block text-sm font-medium text-slate-300">{SECURITY_QUESTION}</label>
+              <input
+                type="text"
+                autoFocus
+                value={answer}
+                onChange={(e) => { setAnswer(e.target.value); setResetError(null) }}
+                placeholder="Your answer"
+                disabled={resetting}
+                className="w-full rounded-lg border border-[#D1C9BC] bg-white px-3 py-2 text-sm text-slate-100 outline-none transition-colors focus:border-[#024628] focus:ring-2 focus:ring-[#024628]/40 disabled:opacity-50"
+              />
+            </div>
+
+            <div className="mb-2">
+              <label className="mb-1 block text-sm font-medium text-slate-300">New 6-digit PIN</label>
+              <div className="flex justify-center gap-2">
+                {newDigits.map((d, i) => (
+                  <input
+                    key={i}
+                    ref={(el) => (newRefs.current[i] = el)}
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={1}
+                    value={d}
+                    onChange={(e) => handleNewChange(i, e.target.value)}
+                    onKeyDown={(e) => handleNewKeyDown(i, e)}
+                    disabled={resetting}
+                    className="h-11 w-10 rounded-lg border border-[#D1C9BC] bg-white text-center font-display text-xl font-bold text-slate-100 outline-none transition-colors focus:border-[#024628] focus:ring-2 focus:ring-[#024628]/40 disabled:opacity-50"
+                    aria-label={`New PIN digit ${i + 1}`}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {resetError && (
+              <p className="mb-3 mt-2 text-center text-sm font-semibold text-rose-400">{resetError}</p>
+            )}
+          </>
+        ) : checking ? (
           <div className="my-6 flex items-center justify-center">
             <div className="h-7 w-7 animate-spin rounded-full border-4 border-[#024628] border-t-transparent" />
           </div>
@@ -201,29 +310,62 @@ export default function PinModal({ isOpen, onConfirm, onCancel, actionLabel }) {
               <p className="mb-3 text-center text-sm font-semibold text-rose-400">{error}</p>
             )}
 
-            <p className="mb-4 text-center text-[11px] text-slate-500">
+            <p className="mb-2 text-center text-[11px] text-slate-500">
               {MAX_ATTEMPTS} wrong attempts = 5 min lockout
               {lockMs === 0 && attemptsLeft < MAX_ATTEMPTS ? ` · ${attemptsLeft} left` : ''}
+            </p>
+
+            <p className="mb-4 text-center">
+              <button
+                type="button"
+                onClick={() => { setMode('forgot'); setError(null) }}
+                className="text-xs font-semibold text-[#024628] underline-offset-2 hover:underline"
+              >
+                Forgot PIN?
+              </button>
             </p>
           </>
         )}
 
         <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="flex-1 rounded-lg border border-[#D1C9BC] bg-white px-4 py-2 text-sm font-semibold text-slate-300 transition hover:bg-[#F0EBE3]"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={attemptVerify}
-            disabled={checking || noPin || lockMs > 0 || verifying}
-            className="flex-1 rounded-lg bg-[#024628] px-4 py-2 text-sm font-semibold text-[#fbf3d4] transition hover:bg-[#035c36] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {verifying ? 'Verifying…' : 'Confirm'}
-          </button>
+          {mode === 'forgot' ? (
+            <>
+              <button
+                type="button"
+                onClick={() => { setMode('verify'); setResetError(null); setTimeout(() => refs.current[0]?.focus(), 0) }}
+                disabled={resetting}
+                className="flex-1 rounded-lg border border-[#D1C9BC] bg-white px-4 py-2 text-sm font-semibold text-slate-300 transition hover:bg-[#F0EBE3] disabled:opacity-50"
+              >
+                Back
+              </button>
+              <button
+                type="button"
+                onClick={attemptReset}
+                disabled={resetting}
+                className="flex-1 rounded-lg bg-[#024628] px-4 py-2 text-sm font-semibold text-[#fbf3d4] transition hover:bg-[#035c36] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {resetting ? 'Resetting…' : 'Reset PIN'}
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={onCancel}
+                className="flex-1 rounded-lg border border-[#D1C9BC] bg-white px-4 py-2 text-sm font-semibold text-slate-300 transition hover:bg-[#F0EBE3]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={attemptVerify}
+                disabled={checking || noPin || lockMs > 0 || verifying}
+                className="flex-1 rounded-lg bg-[#024628] px-4 py-2 text-sm font-semibold text-[#fbf3d4] transition hover:bg-[#035c36] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {verifying ? 'Verifying…' : 'Confirm'}
+              </button>
+            </>
+          )}
         </div>
       </div>
 

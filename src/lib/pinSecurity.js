@@ -117,6 +117,19 @@ export async function removePin(currentPin) {
   clearVerifiedCache()
 }
 
+// Forgot-PIN recovery: set a brand-new PIN without the current one, gated by
+// the security question ("Who is your best friend?"). The answer is checked
+// server-side; a wrong answer throws. On success the gate cache is cleared so
+// the next sensitive action re-verifies with the new PIN.
+export async function resetPin(securityAnswer, newPin) {
+  const next = String(newPin || '').trim()
+  if (next.length !== PIN_LENGTH || !/^\d+$/.test(next)) {
+    throw new Error(`New PIN must be exactly ${PIN_LENGTH} digits.`)
+  }
+  await callPinFn({ action: 'reset', security_answer: String(securityAnswer || ''), new_pin: next })
+  clearVerifiedCache()
+}
+
 // Verify a PIN for a gated action. Returns true on success (and refreshes the
 // session cache); throws an Error carrying lockout / attempt info on failure.
 export async function verifyPin(pin) {

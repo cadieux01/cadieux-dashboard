@@ -376,9 +376,9 @@ export default function SalesExec() {
     setDetailMode(mode)
   }
 
+  // Deactivate / Reactivate / Remove deliberately live inside the Edit modal
+  // (bottom), not in the list rows.
   const rowActions = (exec) => {
-    const status = exec.status || 'active'
-    const busy = busyId === exec.id
     return (
       <div className="flex items-center justify-end gap-2">
         <a
@@ -410,33 +410,6 @@ export default function SalesExec() {
         >
           <Send size={16} />
         </button>
-        {status === 'active' && (
-          <button
-            onClick={() => handleDeactivate(exec)}
-            disabled={busy}
-            className="rounded bg-amber-500/20 px-3 py-1 text-xs text-amber-400 transition-colors hover:bg-amber-500/30 disabled:opacity-50"
-          >
-            {busy ? '...' : 'Deactivate'}
-          </button>
-        )}
-        {(status === 'inactive' || status === 'deleted') && (
-          <button
-            onClick={() => handleReactivate(exec)}
-            disabled={busy}
-            className="rounded bg-emerald-500/20 px-3 py-1 text-xs text-emerald-400 transition-colors hover:bg-emerald-500/30 disabled:opacity-50"
-          >
-            {busy ? '...' : 'Reactivate'}
-          </button>
-        )}
-        {status !== 'deleted' && (
-          <button
-            onClick={() => handleDelete(exec)}
-            disabled={busy}
-            className="rounded bg-rose-500/20 px-3 py-1 text-xs text-rose-400 transition-colors hover:bg-rose-500/30 disabled:opacity-50"
-          >
-            {busy ? '...' : 'Remove'}
-          </button>
-        )}
       </div>
     )
   }
@@ -798,6 +771,7 @@ export default function SalesExec() {
           onShareNewPassword={(d) => setShareData(d)}
           onDeactivate={(u) => { setDetailUser(null); handleDeactivate(u) }}
           onReactivate={(u) => { setDetailUser(null); handleReactivate(u) }}
+          onDelete={(u) => { setDetailUser(null); handleDelete(u) }}
           refreshList={fetchExecs}
           setBanner={setBanner}
         />
