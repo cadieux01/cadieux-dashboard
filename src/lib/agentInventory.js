@@ -57,16 +57,18 @@ async function fetchProfileMap(ids) {
   return Object.fromEntries((data || []).map((p) => [p.id, p]))
 }
 
-// 'expired' is a negative consumer (Stage 5): expired-in-hand units recorded as
-// unsold leave the agent's available balance, just like a delivery.
-const SIGN = { received: 1, returned: 1, delivered: -1, expired: -1 }
+// 'expired' and 'withdrawn' are negative consumers: 'expired' (Stage 5) is
+// expired-in-hand units recorded as unsold; 'withdrawn' is units an admin pulled
+// back from the exec when withdrawing an allotment. Both leave the agent's
+// available balance, just like a delivery.
+const SIGN = { received: 1, returned: 1, delivered: -1, expired: -1, withdrawn: -1 }
 
 // Roll a list of ledger rows into totals + per-variant balances.
 function summarize(rows) {
-  const totals = { received: 0, delivered: 0, returned: 0, expired: 0 }
+  const totals = { received: 0, delivered: 0, returned: 0, expired: 0, withdrawn: 0 }
   const byVariant = {
-    multigrain: { received: 0, delivered: 0, returned: 0, expired: 0, available: 0 },
-    plain: { received: 0, delivered: 0, returned: 0, expired: 0, available: 0 },
+    multigrain: { received: 0, delivered: 0, returned: 0, expired: 0, withdrawn: 0, available: 0 },
+    plain: { received: 0, delivered: 0, returned: 0, expired: 0, withdrawn: 0, available: 0 },
   }
   for (const r of rows) {
     const u = r.units || 0
@@ -76,9 +78,9 @@ function summarize(rows) {
   }
   for (const key of Object.keys(byVariant)) {
     const v = byVariant[key]
-    v.available = v.received - v.delivered + v.returned - v.expired
+    v.available = v.received - v.delivered + v.returned - v.expired - v.withdrawn
   }
-  const available = totals.received - totals.delivered + totals.returned - totals.expired
+  const available = totals.received - totals.delivered + totals.returned - totals.expired - totals.withdrawn
   return { totals, byVariant, available }
 }
 
@@ -131,13 +133,14 @@ export async function getAgentHoldingsByBatch(agentId) {
 
   const received = rows.filter((r) => r.entry_type === 'received')
   const consumed = { multigrain: 0, plain: 0 } // net delivered − returned
-  // 'expired' is batch-tagged (Stage 5), so deplete it from its OWN batch lot
-  // exactly rather than FIFO — keeps multi-batch expiry attribution correct.
-  const expiredByBatch = {}
+  // 'expired' (Stage 5) and 'withdrawn' (allotment withdraw) are batch-tagged,
+  // so deplete them from their OWN batch lot exactly rather than FIFO — keeps
+  // multi-batch attribution correct.
+  const exactByBatch = {}
   for (const r of rows) {
     if (r.entry_type === 'delivered') consumed[r.variant] = (consumed[r.variant] || 0) + (r.units || 0)
     else if (r.entry_type === 'returned') consumed[r.variant] = (consumed[r.variant] || 0) - (r.units || 0)
-    else if (r.entry_type === 'expired' && r.batch_id) expiredByBatch[r.batch_id] = (expiredByBatch[r.batch_id] || 0) + (r.units || 0)
+    else if ((r.entry_type === 'expired' || r.entry_type === 'withdrawn') && r.batch_id) exactByBatch[r.batch_id] = (exactByBatch[r.batch_id] || 0) + (r.units || 0)
   }
 
   const batchMap = await getBatchFreshnessMap(received.map((r) => r.batch_id))
@@ -157,11 +160,12 @@ export async function getAgentHoldingsByBatch(agentId) {
 
     for (const lot of lots) {
       let remaining = lot.units
-      // 1) Exact: remove units of THIS batch already recorded as expired/unsold.
-      if (lot.batchId && (expiredByBatch[lot.batchId] || 0) > 0) {
-        const take = Math.min(remaining, expiredByBatch[lot.batchId])
+      // 1) Exact: remove units of THIS batch already recorded as expired/unsold
+      //    or withdrawn back to central.
+      if (lot.batchId && (exactByBatch[lot.batchId] || 0) > 0) {
+        const take = Math.min(remaining, exactByBatch[lot.batchId])
         remaining -= take
-        expiredByBatch[lot.batchId] -= take
+        exactByBatch[lot.batchId] -= take
       }
       // 2) FIFO: deplete net delivered (delivered − returned) oldest-first.
       if (toConsume > 0 && remaining > 0) {

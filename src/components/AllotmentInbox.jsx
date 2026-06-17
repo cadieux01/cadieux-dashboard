@@ -22,6 +22,7 @@ const STATUS_META = {
   pending: { label: 'Pending', cls: 'text-amber-400' },
   accepted: { label: 'Accepted', cls: 'text-emerald-400' },
   rejected: { label: 'Rejected', cls: 'text-rose-400' },
+  withdrawn: { label: 'Withdrawn', cls: 'text-orange-400' },
 }
 
 function freshnessCls(ms) {

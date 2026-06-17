@@ -8,7 +8,9 @@ import {
   getStockPool,
   allot,
   listAllAllotments,
+  withdrawAllotment,
 } from '../lib/allot'
+import { useAuth } from '../context/AuthContext'
 
 // ============================================================================
 // Allot (admin) — manage the central stock pool and hand units to execs.
@@ -27,6 +29,7 @@ const STATUS_META = {
   pending: { label: 'Pending', cls: 'text-amber-400' },
   accepted: { label: 'Accepted', cls: 'text-emerald-400' },
   rejected: { label: 'Rejected', cls: 'text-rose-400' },
+  withdrawn: { label: 'Withdrawn', cls: 'text-orange-400' },
 }
 
 function PoolCard({ variant, total, available }) {
@@ -40,11 +43,13 @@ function PoolCard({ variant, total, available }) {
 }
 
 export default function Allot({ embedded = false }) {
+  const { isDemo } = useAuth()
   const [pool, setPool] = useState(null)
   const [execs, setExecs] = useState([])
   const [allotments, setAllotments] = useState([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [withdrawingId, setWithdrawingId] = useState(null)
 
   // Allot form
   const [allotForm, setAllotForm] = useState({ exec_id: '', variant: 'multigrain', units: '' })
@@ -95,6 +100,23 @@ export default function Allot({ embedded = false }) {
   }
 
   const availForVariant = pool?.[allotForm.variant]?.available || 0
+
+  const handleWithdraw = async (a) => {
+    if (isDemo) return
+    const msg = a.status === 'pending'
+      ? `Withdraw this allotment? ${a.units} × ${a.variant_label} will return to central stock.`
+      : `Withdraw this allotment? The exec's remaining unsold units (up to ${a.units} × ${a.variant_label}) will return to central stock. Sold units are never clawed back.`
+    if (!window.confirm(msg)) return
+    setWithdrawingId(a.id)
+    try {
+      await withdrawAllotment(a.id)
+      await load(true)
+    } catch (e) {
+      window.alert(e.message || 'Could not withdraw the allotment.')
+    } finally {
+      setWithdrawingId(null)
+    }
+  }
 
   return (
     <div className={embedded ? '' : 'dashboard-page'}>
@@ -188,6 +210,7 @@ export default function Allot({ embedded = false }) {
               <div className="max-h-96 space-y-2 overflow-y-auto pr-1">
                 {allotments.map((a) => {
                   const meta = STATUS_META[a.status] || { label: a.status, cls: 'text-slate-300' }
+                  const canWithdraw = !isDemo && (a.status === 'pending' || a.status === 'accepted')
                   return (
                     <div
                       key={a.id}
@@ -201,7 +224,18 @@ export default function Allot({ embedded = false }) {
                           {formatDateTimeDDMMYY(a.allotted_at)} · by {a.allotted_by_name}
                         </p>
                       </div>
-                      <span className={`flex-shrink-0 text-sm font-semibold ${meta.cls}`}>{meta.label}</span>
+                      <div className="flex flex-shrink-0 flex-col items-end gap-1.5">
+                        <span className={`text-sm font-semibold ${meta.cls}`}>{meta.label}</span>
+                        {canWithdraw && (
+                          <button
+                            onClick={() => handleWithdraw(a)}
+                            disabled={withdrawingId === a.id}
+                            className="rounded-md border border-orange-500/40 px-2 py-0.5 text-xs font-semibold text-orange-400 transition-colors hover:bg-orange-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {withdrawingId === a.id ? '…' : 'Withdraw'}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   )
                 })}

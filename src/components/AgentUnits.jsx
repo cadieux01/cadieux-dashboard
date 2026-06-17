@@ -28,6 +28,7 @@ const ENTRY_META = {
   delivered: { label: 'Delivered', cls: 'text-amber-400', sign: '−' },
   returned: { label: 'Returned', cls: 'text-sky-400', sign: '+' },
   expired: { label: 'Expired (unsold)', cls: 'text-rose-400', sign: '−' },
+  withdrawn: { label: 'Withdrawn', cls: 'text-orange-400', sign: '−' },
 }
 
 function Stat({ label, value, accent }) {

@@ -25,10 +25,12 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 const pad2 = (n) => String(n).padStart(2, '0')
 const daysInMonth = (year, monthIdx) => new Date(year, monthIdx + 1, 0).getDate()
 
-function Column({ items, index, onIndex, ariaLabel }) {
+function Column({ items, index, onIndex, ariaLabel, maxIndex }) {
   const scrollerRef = useRef(null)
   const snapTimer = useRef(null)
   const isUserScrolling = useRef(false)
+  // Highest selectable row (out-of-range rows beyond it are greyed + inert).
+  const cap = Number.isInteger(maxIndex) ? Math.max(0, Math.min(items.length - 1, maxIndex)) : items.length - 1
 
   const scrollToIndex = useCallback((i, smooth) => {
     const el = scrollerRef.current
@@ -50,7 +52,7 @@ function Column({ items, index, onIndex, ariaLabel }) {
       const el = scrollerRef.current
       if (!el) return
       let i = Math.round(el.scrollTop / ITEM_H)
-      i = Math.max(0, Math.min(items.length - 1, i))
+      i = Math.max(0, Math.min(cap, i))
       el.scrollTo({ top: i * ITEM_H, behavior: 'smooth' })
       isUserScrolling.current = false
       if (i !== index) onIndex(i)
@@ -62,10 +64,10 @@ function Column({ items, index, onIndex, ariaLabel }) {
     if (e.key === 'ArrowUp') i = index - 1
     else if (e.key === 'ArrowDown') i = index + 1
     else if (e.key === 'Home') i = 0
-    else if (e.key === 'End') i = items.length - 1
+    else if (e.key === 'End') i = cap
     else return
     e.preventDefault()
-    i = Math.max(0, Math.min(items.length - 1, i))
+    i = Math.max(0, Math.min(cap, i))
     scrollToIndex(i, true)
     if (i !== index) onIndex(i)
   }
@@ -88,25 +90,35 @@ function Column({ items, index, onIndex, ariaLabel }) {
       }}
     >
       <div style={{ height: PAD }} />
-      {items.map((it, i) => (
-        <div
-          key={it.key}
-          onClick={() => { scrollToIndex(i, true); if (i !== index) onIndex(i) }}
-          className={`flex cursor-pointer items-center justify-center font-display font-bold tabular-nums transition-colors ${
-            i === index ? 'text-[20px] text-[#024628]' : 'text-[15px] text-[#9AA89E]'
-          }`}
-          style={{ height: ITEM_H, scrollSnapAlign: 'center' }}
-        >
-          {it.label}
-        </div>
-      ))}
+      {items.map((it, i) => {
+        const blocked = i > cap
+        return (
+          <div
+            key={it.key}
+            onClick={() => { if (blocked) return; scrollToIndex(i, true); if (i !== index) onIndex(i) }}
+            className={`flex items-center justify-center font-display font-bold tabular-nums transition-colors ${
+              blocked
+                ? 'cursor-not-allowed text-[15px] text-[#CDD3CD]'
+                : i === index
+                  ? 'cursor-pointer text-[20px] text-[#024628]'
+                  : 'cursor-pointer text-[15px] text-[#9AA89E]'
+            }`}
+            style={{ height: ITEM_H, scrollSnapAlign: 'center' }}
+          >
+            {it.label}
+          </div>
+        )
+      })}
       <div style={{ height: PAD }} />
     </div>
   )
 }
 
-export default function WheelDateTime({ value, onChange, label, hint }) {
+export default function WheelDateTime({ value, onChange, label, hint, max }) {
   const d = value instanceof Date && !Number.isNaN(value.getTime()) ? value : new Date()
+  // Optional upper bound (a JS Date). Future months/dates beyond it are greyed
+  // out, and any settled value is clamped so it can never exceed `max`.
+  const maxDate = max instanceof Date && !Number.isNaN(max.getTime()) ? max : null
 
   // Year is fixed (no wheel) — taken from the value so editing an existing
   // batch keeps its year; a fresh `new Date()` gives the current year.
@@ -132,13 +144,28 @@ export default function WheelDateTime({ value, onChange, label, hint }) {
   const emit = (mo, dy, h12, mm, pm) => {
     const safeDay = Math.min(dy, daysInMonth(year, mo))
     const h24 = (h12 % 12) + (pm ? 12 : 0)
-    onChange(new Date(year, mo, safeDay, h24, mm, 0, 0))
+    let next = new Date(year, mo, safeDay, h24, mm, 0, 0)
+    // Backstop clamp: a settled value can never exceed the bound (covers the
+    // time wheels, which aren't index-greyed because of the AM/PM split).
+    if (maxDate && next.getTime() > maxDate.getTime()) next = new Date(maxDate.getTime())
+    onChange(next)
   }
 
+  // Grey out future months/dates beyond the bound (same year — the bound is
+  // capped to the end of the current day by the caller, so year never differs).
+  const monthMaxIndex = maxDate && year >= maxDate.getFullYear() ? maxDate.getMonth() : 11
+  const dateMaxIndex = !maxDate || year < maxDate.getFullYear()
+    ? dim - 1
+    : monthIdx < maxDate.getMonth()
+      ? dim - 1
+      : monthIdx === maxDate.getMonth()
+        ? maxDate.getDate() - 1
+        : 0
+
   const COLS = [
-    { key: 'month', heading: 'Month', items: monthItems, index: monthIdx,
+    { key: 'month', heading: 'Month', items: monthItems, index: monthIdx, maxIndex: monthMaxIndex,
       onIndex: (i) => emit(i, day, hour12, minute, isPM), aria: 'Month' },
-    { key: 'date', heading: 'Date', items: dayItems, index: day - 1,
+    { key: 'date', heading: 'Date', items: dayItems, index: day - 1, maxIndex: dateMaxIndex,
       onIndex: (i) => emit(monthIdx, i + 1, hour12, minute, isPM), aria: 'Date' },
     { key: 'hour', heading: 'Hour', items: hourItems, index: hour12 - 1,
       onIndex: (i) => emit(monthIdx, day, i + 1, minute, isPM), aria: 'Hour' },
@@ -180,7 +207,7 @@ export default function WheelDateTime({ value, onChange, label, hint }) {
           />
           <div className="relative z-10 flex gap-1.5">
             {COLS.map((c) => (
-              <Column key={c.key} items={c.items} index={c.index} onIndex={c.onIndex} ariaLabel={c.aria} />
+              <Column key={c.key} items={c.items} index={c.index} onIndex={c.onIndex} ariaLabel={c.aria} maxIndex={c.maxIndex} />
             ))}
           </div>
         </div>

@@ -25,6 +25,16 @@ import {
 
 const CARD = 'rounded-xl border border-slate-800 bg-slate-900 p-4 sm:p-6 mb-6'
 
+// Upper bound for a batch's start clock: no future date/month, and at most one
+// hour ahead of now — but never spilling past the end of the current day (so a
+// late-night +1h can't wander into "tomorrow"). One instant serves both rules.
+function batchClockMax() {
+  const plusHour = Date.now() + 60 * 60 * 1000
+  const endOfToday = new Date()
+  endOfToday.setHours(23, 59, 59, 999)
+  return new Date(Math.min(plusHour, endOfToday.getTime()))
+}
+
 export default function CentralStock({ embedded = false }) {
   const { isDemo } = useAuth()
 
@@ -127,6 +137,9 @@ export default function CentralStock({ embedded = false }) {
     setCreateErr(null)
     const quantity = parseInt(createForm.quantity, 10)
     if (Number.isNaN(quantity) || quantity <= 0) { setCreateErr('Enter a quantity (1 or more).'); return }
+    if (createForm.when instanceof Date && createForm.when.getTime() > batchClockMax().getTime()) {
+      setCreateErr('Batch start can’t be in the future (max: one hour from now).'); return
+    }
     setCreateBusy(true)
     try {
       await createBatch({
@@ -155,6 +168,9 @@ export default function CentralStock({ embedded = false }) {
     setEditErr(null)
     const quantity = parseInt(editForm.quantity, 10)
     if (Number.isNaN(quantity) || quantity <= 0) { setEditErr('Enter a quantity (1 or more).'); return }
+    if (editForm.when instanceof Date && editForm.when.getTime() > batchClockMax().getTime()) {
+      setEditErr('Batch start can’t be in the future (max: one hour from now).'); return
+    }
     setEditBusy(true)
     try {
       await editBatch({
@@ -222,6 +238,7 @@ export default function CentralStock({ embedded = false }) {
               <WheelDateTime
                 label="Batch start (clock)"
                 value={createForm.when}
+                max={batchClockMax()}
                 onChange={(dt) => setCreateForm({ ...createForm, when: dt })}
               />
               {createErr && <p className="text-sm font-semibold text-rose-400">{createErr}</p>}
@@ -324,17 +341,20 @@ export default function CentralStock({ embedded = false }) {
                       const exp = b.expiry_at ? new Date(b.expiry_at).getTime() : null
                       const ms = exp != null ? exp - now : null
                       const expired = ms != null && ms <= 0
+                      // The shelf-life clock is only meaningful while units are
+                      // unsold. Once a batch's remaining hits 0, stop the timer.
+                      const soldOut = (b.quantity_remaining || 0) <= 0
                       return (
                         <Fragment key={b.id}>
-                          <tr className={`border-b border-slate-800/70 ${expired ? 'bg-rose-950/20' : ''}`}>
+                          <tr className={`border-b border-slate-800/70 ${expired && !soldOut ? 'bg-rose-950/20' : ''}`}>
                             <td className="py-2.5 pr-3 font-medium text-slate-100">#{b.batch_number}</td>
                             <td className="py-2.5 pr-3 text-slate-300">{b.variant_label}</td>
                             <td className="py-2.5 pr-3 text-slate-300">
                               {b.quantity_remaining}<span className="text-slate-500">/{b.quantity}</span>
                             </td>
                             <td className="py-2.5 pr-3 text-slate-400">{formatDateTimeDDMMYY(b.created_at)}</td>
-                            <td className={`py-2.5 pr-3 font-semibold ${expired ? 'text-rose-400' : 'text-emerald-400'}`}>
-                              {ms == null ? '—' : fmtBatchLeft(ms)}
+                            <td className={`py-2.5 pr-3 font-semibold ${soldOut ? 'text-slate-500' : expired ? 'text-rose-400' : 'text-emerald-400'}`}>
+                              {soldOut ? 'Sold out' : ms == null ? '—' : fmtBatchLeft(ms)}
                             </td>
                             <td className="py-2.5 text-right">
                               <button
@@ -363,6 +383,7 @@ export default function CentralStock({ embedded = false }) {
                                   <WheelDateTime
                                     label="Batch start (clock)"
                                     value={editForm.when}
+                                    max={batchClockMax()}
                                     onChange={(dt) => setEditForm({ ...editForm, when: dt })}
                                   />
                                   {editErr && <p className="text-sm font-semibold text-rose-400">{editErr}</p>}

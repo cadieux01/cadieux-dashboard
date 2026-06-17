@@ -205,3 +205,21 @@ export async function rejectAllotment(allotmentId) {
     newValues: { status: 'rejected' },
   })
 }
+
+// Admin withdraws an allotment. Pending → voided (units free back to central).
+// Accepted → the exec's REMAINING UNSOLD units from this batch are pulled back
+// to the same batch (FIFO, never clawing back sold/delivered units); a negative
+// 'withdrawn' ledger row drops the exec's balance. All atomic in the RPC.
+export async function withdrawAllotment(allotmentId) {
+  const { error } = await supabase.rpc('withdraw_allotment', { p_allotment_id: allotmentId })
+  if (error) throw error
+
+  await logAuditEvent({
+    actionType: 'UPDATE',
+    entityType: 'allotment',
+    entityId: allotmentId,
+    category: 'partner',
+    description: 'Withdrew allotment (unsold units returned to central)',
+    newValues: { status: 'withdrawn' },
+  })
+}
