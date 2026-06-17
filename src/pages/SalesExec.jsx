@@ -533,7 +533,7 @@ export default function SalesExec() {
           <div className="min-w-[220px] flex-1">
             <div className="relative">
               <svg
-                className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-500"
+                className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-500"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"

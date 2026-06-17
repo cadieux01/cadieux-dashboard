@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import KPICard from '../components/KPICard'
 import DataTable from '../components/DataTable'
@@ -11,7 +11,7 @@ import RefreshStatus from '../components/RefreshStatus'
 import useRefreshable from '../lib/useRefreshable'
 import { logAuditEvent, createAuditDescription } from '../lib/audit'
 import { getBatchFreshnessMap, batchMsLeft, fmtBatchLeft } from '../lib/batches'
-import { getAgentBalance } from '../lib/agentInventory'
+import { getAgentBalance, getAgentHoldingsByBatch, recordReturn } from '../lib/agentInventory'
 import { verifyPayment, getProofSignedUrl } from '../lib/payments'
 import { formatDateDDMMYY, formatDateTimeDDMMYY } from '../lib/date'
 import { useAuth } from '../context/AuthContext'
@@ -58,6 +58,32 @@ function NumberStepper({ label, hint, value, onChange, min = 0, max = 100 }) {
       max={max}
     />
   )
+}
+
+// Infinite-scroll helper: render `step` rows, then load `step` more whenever
+// the sentinel scrolls into view (no fixed cap). Resets when the source list
+// length changes (e.g. data refresh or history-mode switch).
+function useInfiniteList(items, step = 3) {
+  const [visible, setVisible] = useState(step)
+  const sentinelRef = useRef(null)
+  const total = items.length
+  useEffect(() => {
+    setVisible(step)
+  }, [total, step])
+  useEffect(() => {
+    const el = sentinelRef.current
+    if (!el) return undefined
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) setVisible((v) => Math.min(v + step, total))
+      },
+      { rootMargin: '120px' },
+    )
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [total, step, visible])
+  const capped = Math.min(visible, total)
+  return { visible: capped, sentinelRef, hasMore: capped < total }
 }
 
 const STATUS_OPTIONS = [
@@ -132,6 +158,13 @@ export default function Leads() {
   const [isDateEditable, setIsDateEditable] = useState(false)
   const [batchMap, setBatchMap] = useState({})
   const [now, setNow] = useState(Date.now())
+  // Agent chain: each agent's in-hand stock by batch + a name lookup, so the
+  // Agent-active table can show in-hand + downstream-held units per batch.
+  const [agentHoldingsByAgent, setAgentHoldingsByAgent] = useState({})
+  const [agentById, setAgentById] = useState({})
+  // History tab dropdown: 'agent' = closed agent batches, 'partner' = sold /
+  // retracted assignments.
+  const [historyMode, setHistoryMode] = useState('agent')
   const [trainerFormData, setTrainerFormData] = useState({
     name: '',
     contact: '',
@@ -264,6 +297,45 @@ export default function Leads() {
         if (user?.id) setAgentBalance(await getAgentBalance(user.id))
       } catch (e) {
         console.warn('getAgentBalance failed:', e.message)
+      }
+
+      // Agent chain rows: in-hand stock by batch for every agent that handed
+      // out stock (admin can read any agent's ledger via RLS), plus their
+      // profile names for the Agent-active table.
+      try {
+        const agentIds = (salesData || []).map((s) => s.agent_id).filter(Boolean)
+        if (user?.id) agentIds.push(user.id)
+        const uniqueAgentIds = Array.from(new Set(agentIds))
+
+        const agentMap = {}
+        if (uniqueAgentIds.length) {
+          const { data: agentProfiles } = await supabase
+            .from('profiles')
+            .select('id, full_name, phone_number, email')
+            .in('id', uniqueAgentIds)
+          for (const p of agentProfiles || []) {
+            agentMap[p.id] = {
+              id: p.id,
+              name: p.full_name || p.email || 'Agent',
+              contact: p.phone_number || '',
+            }
+          }
+        }
+        setAgentById(agentMap)
+
+        const holdingsMap = {}
+        await Promise.all(
+          uniqueAgentIds.map(async (id) => {
+            try {
+              holdingsMap[id] = await getAgentHoldingsByBatch(id)
+            } catch {
+              holdingsMap[id] = []
+            }
+          }),
+        )
+        setAgentHoldingsByAgent(holdingsMap)
+      } catch (e) {
+        console.warn('agent holdings fetch failed:', e.message)
       }
 
       // Payment proofs for credit assignments awaiting verification, so the agent
@@ -604,6 +676,123 @@ export default function Leads() {
         new Date(b.retract_date || b.created_at || 0).getTime() -
         new Date(a.retract_date || a.created_at || 0).getTime(),
     )
+
+  // A batch-stamped assignment is single-variant (FIFO picks one batch), so
+  // derive that variant from the per-variant assigned split. Mixed/legacy rows
+  // return null and are skipped from the agent chain attribution.
+  const getSaleVariant = (sale) => {
+    const mg = sale?.multigrain_assigned || 0
+    const pl = sale?.plain_assigned || 0
+    if (mg > 0 && pl === 0) return 'multigrain'
+    if (pl > 0 && mg === 0) return 'plain'
+    if (sale?.product_variant) {
+      const v = String(sale.product_variant).toLowerCase()
+      if (v.includes('multi')) return 'multigrain'
+      if (v.includes('plain')) return 'plain'
+    }
+    return null
+  }
+
+  // PARTNER chain — one row per assignment (= one batch). Active while the
+  // partner still holds unsold units; leaves to history on full sale/retract.
+  const partnerActiveRows = useMemo(
+    () =>
+      [...sales]
+        .filter((s) => getRemainingUnsoldUnits(s) > 0)
+        .sort((a, b) => getSaleSortTimestamp(b) - getSaleSortTimestamp(a)),
+    [sales],
+  )
+  const partnerHistoryRows = useMemo(
+    () =>
+      [...sales]
+        .filter(
+          (s) => getRemainingUnsoldUnits(s) === 0 && ((s.units_sold || 0) > 0 || (s.retracted_units || 0) > 0),
+        )
+        .sort((a, b) => {
+          const at = new Date(a.purchase_date || a.retract_date || a.date_of_assignment || a.created_at || 0).getTime()
+          const bt = new Date(b.purchase_date || b.retract_date || b.date_of_assignment || b.created_at || 0).getTime()
+          return bt - at
+        }),
+    [sales],
+  )
+
+  // AGENT chain — rows keyed by (agent, batch, variant). The agent's total for
+  // a batch = in-hand (ledger, already net of deliveries) + Σ downstream
+  // partner-held unsold units from that same batch. A row is active while that
+  // total > 0 (agent still holds, or a partner still holds its unsold stock);
+  // it moves to history once everything downstream has sold/retracted.
+  const { agentActiveRows, agentHistoryRows } = useMemo(() => {
+    const map = new Map()
+    const ensure = (agentId, batchId, variant, batch) => {
+      const key = `${agentId}::${batchId || 'nobatch'}::${variant}`
+      if (!map.has(key)) {
+        map.set(key, {
+          key,
+          agentId,
+          agentName: agentById[agentId]?.name || 'Agent',
+          agentContact: agentById[agentId]?.contact || '',
+          variant,
+          variant_label: variant === 'plain' ? 'Plain' : 'Multi-Grain',
+          batch: batch || null,
+          inHand: 0,
+          partnerHeld: 0,
+          sold: 0,
+          retracted: 0,
+          lastDate: 0,
+        })
+      }
+      const row = map.get(key)
+      if (!row.batch && batch) row.batch = batch
+      return row
+    }
+
+    // 1) In-hand lots per agent (already excludes delivered units).
+    for (const [agentId, holdings] of Object.entries(agentHoldingsByAgent)) {
+      for (const h of holdings || []) {
+        const row = ensure(agentId, h.batch?.id || null, h.variant, h.batch || null)
+        row.inHand += h.units || 0
+      }
+    }
+
+    // 2) Downstream partner-held / sold / retracted, attributed to the agent
+    //    who handed the stock out, keyed by the same batch + variant.
+    for (const s of sales) {
+      if (!s.agent_id) continue
+      const variant = getSaleVariant(s)
+      if (!variant) continue
+      const batch = s.batch_id ? batchMap[s.batch_id] || null : null
+      const row = ensure(s.agent_id, s.batch_id || null, variant, batch)
+      row.partnerHeld += getRemainingUnsoldUnits(s)
+      row.sold += s.units_sold || 0
+      row.retracted += s.retracted_units || 0
+      const ts = getSaleSortTimestamp(s)
+      if (ts > row.lastDate) row.lastDate = ts
+    }
+
+    const all = Array.from(map.values())
+    const active = all
+      .filter((r) => r.inHand + r.partnerHeld > 0)
+      .sort((a, b) => {
+        const ad = a.batch?.created_at ? new Date(a.batch.created_at).getTime() : a.lastDate
+        const bd = b.batch?.created_at ? new Date(b.batch.created_at).getTime() : b.lastDate
+        return bd - ad
+      })
+    const history = all
+      .filter((r) => r.inHand + r.partnerHeld === 0 && (r.sold > 0 || r.retracted > 0))
+      .sort((a, b) => b.lastDate - a.lastDate)
+    return { agentActiveRows: active, agentHistoryRows: history }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agentHoldingsByAgent, sales, agentById, batchMap])
+
+  // Infinite scroll — show 3 most-recent rows, +3 per scroll, no cap.
+  const agentActive = useInfiniteList(agentActiveRows)
+  const agentActiveVisible = agentActiveRows.slice(0, agentActive.visible)
+  const partnerActive = useInfiniteList(partnerActiveRows)
+  const partnerActiveVisible = partnerActiveRows.slice(0, partnerActive.visible)
+  const historyList = historyMode === 'agent' ? agentHistoryRows : partnerHistoryRows
+  const history = useInfiniteList(historyList)
+  const agentHistoryVisible = historyMode === 'agent' ? agentHistoryRows.slice(0, history.visible) : []
+  const partnerHistoryVisible = historyMode === 'partner' ? partnerHistoryRows.slice(0, history.visible) : []
 
   const sortedSales = [...filteredSales].sort((a, b) => {
     // Priority 1: keep unclosed (active) sales at the top.
@@ -1204,6 +1393,26 @@ export default function Leads() {
 
       if (error) throw error
 
+      // Chain step: retracted units bounce back to the agent who handed them
+      // out, carrying the originating batch clock, so the agent is "holding"
+      // them again (agent row stays/returns to active, central view reflects
+      // the returned in-hand stock). Best-effort: legacy rows with no agent_id
+      // or no batch skip the ledger write (nothing to credit back to).
+      if (sale.agent_id) {
+        try {
+          await recordReturn({
+            agentId: sale.agent_id,
+            partnerId: sale.trainer_id || null,
+            variant: retractFormData.variant,
+            units,
+            batchId: sale.batch_id || null,
+            note: `Retracted from partner (${retractFormData.reason})`,
+          })
+        } catch (returnErr) {
+          console.warn('Retract ledger return failed:', returnErr.message)
+        }
+      }
+
       const trainer = trainers.find(t => t.id === retractFormData.trainer_id)
       await logAuditEvent({
         actionType: 'UPDATE',
@@ -1556,15 +1765,6 @@ export default function Leads() {
               <span className="hidden sm:inline">Sale</span>
             </button>
             <button
-              onClick={() => setIsAddModalOpen(true)}
-              className="flex h-8 items-center justify-center gap-1.5 px-3 bg-gradient-to-r from-sky-600 to-sky-500 hover:from-sky-500 hover:to-sky-400 text-[#fbf3d4] text-xs font-medium rounded-lg shadow-lg transition-all"
-            >
-              <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
-              <span className="hidden sm:inline">Customer</span>
-            </button>
-            <button
               onClick={() => setIsAddRetractModalOpen(true)}
               className="flex h-8 items-center justify-center gap-1.5 px-3 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 text-[#fbf3d4] text-xs font-medium rounded-lg shadow-lg transition-all"
             >
@@ -1603,15 +1803,76 @@ export default function Leads() {
         </div>
       )}
 
-      {/* BOX 1 — Active Sales (assignments whose batch clock hasn't expired) */}
+      {/* AGENT — active chain rows (per agent, per batch, per variant). A row
+          stays active while the agent holds in-hand stock OR a downstream
+          partner still holds unsold units from that agent's batch. Per-batch
+          split → a different batch/expiry is a separate row. Read-only. */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 sm:p-6 mb-6">
         <div className="mb-4">
-          <h2 className="text-lg font-semibold text-slate-100">Active Sales</h2>
-          <p className="dashboard-subtitle mt-1">Open assignments: {openAssignmentsCount}</p>
+          <h2 className="text-lg font-semibold text-slate-100">Agent — active</h2>
+          <p className="dashboard-subtitle mt-1">
+            In-hand or downstream-held: {agentActiveRows.length} row{agentActiveRows.length === 1 ? '' : 's'}
+          </p>
         </div>
-        {openAssignments.length === 0 ? (
-          <p className="text-sm text-slate-400">No active assignments.</p>
-        ) : (
+        <div className="max-h-[460px] overflow-auto rounded-lg border border-slate-800">
+          <table className="w-full min-w-[620px] text-left text-xs">
+            <thead className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur">
+              <tr className="text-[11px] uppercase tracking-wide text-slate-500">
+                <th className="px-3 py-2 font-medium">Agent</th>
+                <th className="px-3 py-2 font-medium">Variant</th>
+                <th className="px-2 py-2 text-right font-medium">In-hand</th>
+                <th className="px-2 py-2 text-right font-medium">Partner-held</th>
+                <th className="px-2 py-2 text-right font-medium">Total</th>
+                <th className="px-3 py-2 font-medium">Expiry</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800">
+              {agentActiveVisible.map((row) => {
+                const ms = row.batch ? batchMsLeft(row.batch.expiry_at, now) : null
+                const left = row.batch ? fmtBatchLeft(ms) : null
+                return (
+                  <tr key={row.key} className="align-top">
+                    <td className="px-3 py-2">
+                      <p className="font-semibold text-slate-100">{row.agentName}</p>
+                      {row.agentContact && <p className="text-[11px] text-slate-500">{row.agentContact}</p>}
+                      {row.batch?.batch_number != null && (
+                        <p className="text-[11px] text-slate-600">Batch #{row.batch.batch_number}</p>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-slate-300">{row.variant_label}</td>
+                    <td className="px-2 py-2 text-right font-mono text-slate-200">{row.inHand}</td>
+                    <td className="px-2 py-2 text-right font-mono text-slate-200">{row.partnerHeld}</td>
+                    <td className="px-2 py-2 text-right font-mono font-semibold text-emerald-300">{row.inHand + row.partnerHeld}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      {left ? (
+                        <span className={`font-semibold ${saleFreshnessCls(ms)}`}>{left}</span>
+                      ) : (
+                        <span className="text-slate-500">No expiry</span>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
+              {agentActiveRows.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-3 py-6 text-center text-sm text-slate-500">No active agent stock.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+          {agentActive.hasMore && <div ref={agentActive.sentinelRef} className="h-6" />}
+        </div>
+      </div>
+
+      {/* PARTNER — active (one row per assignment/batch). Editable: edit the
+          assignment + verify credit payment. Leaves once fully sold/retracted. */}
+      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 sm:p-6 mb-6">
+        <div className="mb-4">
+          <h2 className="text-lg font-semibold text-slate-100">Partner — active</h2>
+          <p className="dashboard-subtitle mt-1">
+            Holding unsold: {partnerActiveRows.length} row{partnerActiveRows.length === 1 ? '' : 's'}
+          </p>
+        </div>
           <div className="max-h-[460px] overflow-auto rounded-lg border border-slate-800">
             <table className="w-full min-w-[640px] text-left text-xs">
               <thead className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur">
@@ -1626,7 +1887,7 @@ export default function Leads() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800">
-                {openAssignments.map((sale) => {
+                {partnerActiveVisible.map((sale) => {
                   const ms = getSaleMsLeft(sale)
                   const batch = getSaleBatch(sale)
                   const left = batch ? fmtBatchLeft(ms) : null
@@ -1701,22 +1962,25 @@ export default function Leads() {
                     </tr>
                   )
                 })}
+                {partnerActiveRows.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="px-3 py-6 text-center text-sm text-slate-500">No partner currently holding unsold units.</td>
+                  </tr>
+                )}
               </tbody>
             </table>
+            {partnerActive.hasMore && <div ref={partnerActive.sentinelRef} className="h-6" />}
           </div>
-        )}
       </div>
 
-      {/* Retracted — units pulled back from partners (separate from Active Sales) */}
+      {/* Retracted — units pulled back from partners (units return to the
+          handing agent's in-hand stock). Separate proper table. */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 sm:p-6 mb-6">
         <div className="mb-4">
           <h2 className="text-lg font-semibold text-slate-100">Retracted</h2>
           <p className="dashboard-subtitle mt-1">Units pulled back: {retractedSales.length}</p>
         </div>
-        {retractedSales.length === 0 ? (
-          <p className="text-sm text-slate-400">No retracted units.</p>
-        ) : (
-          <div className="max-h-[420px] overflow-auto rounded-lg border border-slate-800">
+        <div className="max-h-[420px] overflow-auto rounded-lg border border-slate-800">
             <table className="w-full min-w-[600px] text-left text-xs">
               <thead className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur">
                 <tr className="text-[11px] uppercase tracking-wide text-slate-500">
@@ -1756,138 +2020,118 @@ export default function Leads() {
                     </tr>
                   )
                 })}
+                {retractedSales.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-3 py-6 text-center text-sm text-slate-500">No retracted units.</td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
-        )}
       </div>
 
-      {/* Filters (admin only — customer list below) */}
-      {isAdmin && (
-      <>
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 mb-6">
-        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 sm:gap-4">
-          {/* Search */}
-          <div className="w-full sm:flex-1 sm:min-w-[220px]">
-            <div className="relative">
-              <svg
-                className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-              <input
-                type="text"
-                placeholder="Search by trainer, buyer, or contact..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-              />
-            </div>
+      {/* HISTORY — read-only past chain rows. Dropdown switches between the
+          agent view (closed agent batches) and the partner view (sold /
+          retracted assignments). Infinite scroll, newest first. */}
+      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 sm:p-6 mb-8">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-100">History</h2>
+            <p className="dashboard-subtitle mt-1">
+              {historyMode === 'agent' ? 'Closed agent batches' : 'Sold / retracted partner assignments'} ·{' '}
+              {(historyMode === 'agent' ? agentHistoryRows : partnerHistoryRows).length}
+            </p>
           </div>
-
-          {/* Status Filter */}
           <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            value={historyMode}
+            onChange={(e) => setHistoryMode(e.target.value)}
             className="w-full sm:w-auto px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
           >
-            {STATUS_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
+            <option value="agent">Agent</option>
+            <option value="partner">Partner</option>
           </select>
-
-          {/* Trainer Filter */}
-          <select
-            value={trainerFilter}
-            onChange={(e) => setTrainerFilter(e.target.value)}
-            className="w-full sm:w-auto px-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          >
-            <option value="all">All Partners</option>
-            {trainers.map((trainer) => (
-              <option key={trainer.id} value={trainer.id}>
-                {trainer.name}
-              </option>
-            ))}
-          </select>
-
-          {/* Clear Filters */}
-          {(searchQuery || statusFilter !== 'all' || trainerFilter !== 'all') && (
-            <button
-              onClick={() => {
-                setSearchQuery('')
-                setStatusFilter('all')
-                setTrainerFilter('all')
-              }}
-              className="w-full sm:w-auto px-4 py-2 text-sm text-slate-400 hover:text-slate-100 transition-colors"
-            >
-              Clear filters
-            </button>
-          )}
         </div>
-      </div>
-
-      {/* Customers Table */}
-      <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden mb-8">
-        <div className="px-4 sm:px-6 py-4 border-b border-slate-800">
-          <h3 className="text-lg font-semibold text-slate-100">Customers</h3>
-        </div>
-        <div className="sm:hidden p-4 space-y-3">
-          {paginatedCustomers.length === 0 ? (
-            <p className="text-sm text-slate-400">No customers found for selected filters.</p>
+        <div className="max-h-[520px] overflow-auto rounded-lg border border-slate-800">
+          {historyMode === 'agent' ? (
+            <table className="w-full min-w-[600px] text-left text-xs">
+              <thead className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur">
+                <tr className="text-[11px] uppercase tracking-wide text-slate-500">
+                  <th className="px-3 py-2 font-medium">Agent</th>
+                  <th className="px-3 py-2 font-medium">Variant</th>
+                  <th className="px-2 py-2 text-right font-medium">Sold</th>
+                  <th className="px-2 py-2 text-right font-medium">Retracted</th>
+                  <th className="px-3 py-2 font-medium">Closed</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800">
+                {agentHistoryVisible.map((row) => (
+                  <tr key={row.key} className="align-top">
+                    <td className="px-3 py-2">
+                      <p className="font-semibold text-slate-100">{row.agentName}</p>
+                      {row.batch?.batch_number != null && (
+                        <p className="text-[11px] text-slate-600">Batch #{row.batch.batch_number}</p>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-slate-300">{row.variant_label}</td>
+                    <td className="px-2 py-2 text-right font-mono text-emerald-400">{row.sold}</td>
+                    <td className="px-2 py-2 text-right font-mono text-[#c084fc]">{row.retracted}</td>
+                    <td className="px-3 py-2 whitespace-nowrap text-slate-400">
+                      {row.lastDate ? formatDateDDMMYY(new Date(row.lastDate).toISOString()) : 'N/A'}
+                    </td>
+                  </tr>
+                ))}
+                {agentHistoryRows.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="px-3 py-6 text-center text-sm text-slate-500">No closed agent batches yet.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           ) : (
-            paginatedCustomers.map(renderCustomerCard)
+            <table className="w-full min-w-[600px] text-left text-xs">
+              <thead className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur">
+                <tr className="text-[11px] uppercase tracking-wide text-slate-500">
+                  <th className="px-3 py-2 font-medium">Partner</th>
+                  <th className="px-2 py-2 text-right font-medium">MG</th>
+                  <th className="px-2 py-2 text-right font-medium">Plain</th>
+                  <th className="px-2 py-2 text-right font-medium">Sold</th>
+                  <th className="px-2 py-2 text-right font-medium">Retracted</th>
+                  <th className="px-3 py-2 font-medium">Date</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800">
+                {partnerHistoryVisible.map((sale) => (
+                  <tr key={sale.id} className="align-top">
+                    <td className="px-3 py-2">
+                      <p className="font-semibold text-slate-100">{getPartnerName(sale)}</p>
+                      <p className="text-[11px] text-slate-500">{getPartnerContact(sale) || 'No contact'}</p>
+                    </td>
+                    <td className="px-2 py-2 text-right font-mono text-slate-200">{sale.multigrain_assigned || 0}</td>
+                    <td className="px-2 py-2 text-right font-mono text-slate-200">{sale.plain_assigned || 0}</td>
+                    <td className="px-2 py-2 text-right font-mono text-emerald-400">{sale.units_sold || 0}</td>
+                    <td className="px-2 py-2 text-right font-mono text-[#c084fc]">{sale.retracted_units || 0}</td>
+                    <td className="px-3 py-2 whitespace-nowrap text-slate-400">
+                      {sale.purchase_date
+                        ? formatDateDDMMYY(sale.purchase_date)
+                        : sale.retract_date
+                          ? formatDateTimeDDMMYY(sale.retract_date)
+                          : sale.date_of_assignment
+                            ? formatDateDDMMYY(sale.date_of_assignment)
+                            : 'N/A'}
+                    </td>
+                  </tr>
+                ))}
+                {partnerHistoryRows.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-3 py-6 text-center text-sm text-slate-500">No sold or retracted assignments yet.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           )}
-        </div>
-        <div className="hidden sm:block max-h-[600px] overflow-y-auto">
-          <DataTable columns={columns} data={paginatedCustomers} />
-        </div>
-        {/* Bottom bar — items-per-page + showing count + pager (below the table) */}
-        <div className="px-4 sm:px-6 py-4 border-t border-slate-800 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-slate-400">Items per page:</span>
-            <select
-              value={customersItemsPerPage}
-              onChange={(e) => setCustomersItemsPerPage(Number(e.target.value))}
-              className="px-2 py-1 bg-slate-800 border border-slate-700 rounded text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            >
-              <option value={10}>10</option>
-              <option value={20}>20</option>
-              <option value={50}>50</option>
-            </select>
-            <span className="text-sm text-slate-500">
-              Showing {customerCountStart}-{customerCountEnd} of {filteredLeads.length}
-            </span>
-          </div>
-          {customersTotalPages > 1 && (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setCustomersPage(Math.max(1, customersPage - 1))}
-                disabled={customersPage === 1}
-                className="px-3 py-1 bg-slate-800 border border-slate-700 rounded text-slate-100 text-sm hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                Previous
-              </button>
-              <span className="text-sm text-slate-400">
-                Page {customersPage} of {customersTotalPages}
-              </span>
-              <button
-                onClick={() => setCustomersPage(Math.min(customersTotalPages, customersPage + 1))}
-                disabled={customersPage === customersTotalPages}
-                className="px-3 py-1 bg-slate-800 border border-slate-700 rounded text-slate-100 text-sm hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                Next
-              </button>
-            </div>
-          )}
+          {history.hasMore && <div ref={history.sentinelRef} className="h-6" />}
         </div>
       </div>
-      </>
-      )}
 
       {/* Add/Edit Lead Modal */}
       <Modal

@@ -190,12 +190,6 @@ export default function Unsold() {
         <div className={CARD}>
           <p className="text-sm text-slate-400">Loading unsold…</p>
         </div>
-      ) : rows.length === 0 ? (
-        <div className={CARD}>
-          <p className="text-sm text-slate-400">
-            No unsold units recorded yet. Expired stock recorded by agents (and, later, partners) will appear here.
-          </p>
-        </div>
       ) : (
         <>
           {/* Totals */}

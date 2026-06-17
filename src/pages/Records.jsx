@@ -281,10 +281,6 @@ export default function Records() {
         <div className={CARD}>
           <p className="text-sm text-slate-400">Loading records…</p>
         </div>
-      ) : rows.length === 0 ? (
-        <div className={CARD}>
-          <p className="text-sm text-slate-400">No past records yet. Assignments you make will appear here as they progress.</p>
-        </div>
       ) : (
         <>
           {/* Timeframe filter */}
