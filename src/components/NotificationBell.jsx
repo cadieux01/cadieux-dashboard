@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Bell, X } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import {
@@ -7,12 +8,21 @@ import {
   relativeTime,
 } from '../lib/notifications'
 
+// Notification types that should deep-link into a specific dashboard view
+// when tapped. Customer-side requests (delivery / items / address edits +
+// pincode coverage asks) all land on the Customer Requests tab.
+const NOTIF_ROUTES = {
+  order_change_request_new: '/admin/requests?tab=customer',
+  delivery_request_new: '/admin/requests?tab=customer',
+}
+
 // Phone-style notification bell + unread badge, fixed top-right on every
 // portal. Tap opens a panel (dropdown on desktop, full-width sheet on mobile)
 // listing the caller's own notifications newest-first; opening marks them read
 // so the badge clears. Each role sees ONLY its own feed (RLS-scoped RPC).
 export default function NotificationBell() {
   const { user, isDemo } = useAuth()
+  const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [items, setItems] = useState([])
   const [unread, setUnread] = useState(0)
@@ -66,6 +76,14 @@ export default function NotificationBell() {
     setTimeout(load, 0)
   }
 
+  // Tapping a notification with a known deep-link routes there + closes the
+  // panel. Unknown types just close (preserves the existing no-op default).
+  const handleItemClick = (notif) => {
+    const dest = NOTIF_ROUTES[notif?.type]
+    if (dest) navigate(dest)
+    handleClose()
+  }
+
   if (isDemo || !user) return null
 
   return (
@@ -112,12 +130,15 @@ export default function NotificationBell() {
                 </div>
               ) : (
                 <ul className="divide-y divide-[#F0EAE0]">
-                  {items.map((n) => (
+                  {items.map((n) => {
+                    const clickable = !!NOTIF_ROUTES[n.type]
+                    return (
                     <li
                       key={n.id}
+                      onClick={clickable ? () => handleItemClick(n) : undefined}
                       className={`flex gap-3 px-4 py-3 ${
                         n.is_read ? '' : 'bg-[rgba(2,70,40,0.05)]'
-                      }`}
+                      } ${clickable ? 'cursor-pointer hover:bg-[rgba(2,70,40,0.08)]' : ''}`}
                     >
                       {!n.is_read && (
                         <span className="mt-1.5 h-2 w-2 flex-shrink-0 rounded-full bg-[#024628]" />
@@ -138,7 +159,8 @@ export default function NotificationBell() {
                         )}
                       </div>
                     </li>
-                  ))}
+                    )
+                  })}
                 </ul>
               )}
             </div>
