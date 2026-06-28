@@ -324,7 +324,7 @@ export function AuthProvider({ children }) {
     }
   }
 
-  const signOut = async () => {
+  const signOut = async (options = {}) => {
     // Clear the idle-activity timestamp + any cached PIN verification so the
     // next login (or a different user on this device) starts clean.
     try {
@@ -340,7 +340,7 @@ export function AuthProvider({ children }) {
       setProfile(null)
       return { error: null }
     }
-    const { error } = await supabase.auth.signOut()
+    const { error } = await supabase.auth.signOut(options)
     if (!error) {
       setUser(null)
       setProfile(null)

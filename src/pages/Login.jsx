@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
@@ -15,11 +15,21 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const { signIn } = useAuth()
+  const { signIn, user, profile } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
 
   const from = location.state?.from?.pathname || '/overview'
+
+  // If already authenticated, skip the login form entirely.
+  useEffect(() => {
+    if (!user) return
+    const role = profile?.role
+    if (role === 'admin') navigate('/admin/overview', { replace: true })
+    else if (role === 'sales') navigate('/admin/sales', { replace: true })
+    else if (role === 'partner') navigate('/partner/dashboard', { replace: true })
+    else if (role) navigate(from, { replace: true })
+  }, [user, profile, navigate, from])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -111,40 +121,39 @@ export default function Login() {
       const userId = data?.user?.id
 
       if (userId) {
-        // Give it a moment for the auth state to update, then redirect based on role
-        setTimeout(async () => {
-          // Fetch profile to determine role
-          const { data: profileData, error: profileError } = await supabase
-            .from('profiles')
-            .select('role')
-            .eq('id', userId)
-            .single()
+        // Fetch profile to determine role — no delay needed; signIn() awaits
+        // Supabase storing the session before returning, so the profile read
+        // is safe to issue immediately.
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', userId)
+          .single()
 
-          if (profileError) {
-            console.error('Profile fetch error:', profileError)
-            // If profile doesn't exist or RLS blocks access, show error
-            if (profileError.code === 'PGRST116') {
-              setError('Profile not found. Please contact administrator to create your profile.')
-            } else if (profileError.message.includes('permission') || profileError.message.includes('policy')) {
-              setError('Access denied. RLS policies may be blocking profile access.')
-            } else {
-              setError(`Failed to load profile: ${profileError.message}`)
-            }
-            setLoading(false)
-            return
-          }
-
-          if (profileData?.role === 'admin') {
-            navigate('/admin/overview', { replace: true })
-          } else if (profileData?.role === 'sales') {
-            navigate('/admin/sales', { replace: true })
-          } else if (profileData?.role === 'partner') {
-            navigate('/partner/dashboard', { replace: true })
+        if (profileError) {
+          console.error('Profile fetch error:', profileError)
+          // If profile doesn't exist or RLS blocks access, show error
+          if (profileError.code === 'PGRST116') {
+            setError('Profile not found. Please contact administrator to create your profile.')
+          } else if (profileError.message.includes('permission') || profileError.message.includes('policy')) {
+            setError('Access denied. RLS policies may be blocking profile access.')
           } else {
-            setError('Invalid user role. Please contact administrator.')
-            setLoading(false)
+            setError(`Failed to load profile: ${profileError.message}`)
           }
-        }, 500)
+          setLoading(false)
+          return
+        }
+
+        if (profileData?.role === 'admin') {
+          navigate('/admin/overview', { replace: true })
+        } else if (profileData?.role === 'sales') {
+          navigate('/admin/sales', { replace: true })
+        } else if (profileData?.role === 'partner') {
+          navigate('/partner/dashboard', { replace: true })
+        } else {
+          setError('Invalid user role. Please contact administrator.')
+          setLoading(false)
+        }
       }
     } catch (err) {
       setError('An unexpected error occurred')

@@ -32,7 +32,7 @@ export default function SessionTimeout({
       ),
     onTimeout: async () => {
       try {
-        await signOut()
+        await signOut({ scope: 'local' })
       } catch {
         /* ignore — we still redirect */
       }
