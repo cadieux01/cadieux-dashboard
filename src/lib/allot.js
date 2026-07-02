@@ -50,24 +50,70 @@ async function fetchProfileMap(ids) {
 
 // --- Central pool ----------------------------------------------------------
 
-// Pool totals + currently-available (total − reserved by pending/accepted).
-// Returns { multigrain: { total, available }, plain: { total, available } }.
+// Per-variant stock breakdown (DISPLAY-ONLY; nothing here changes what
+// central_available or allot_guard enforce). Returns:
+//   {
+//     multigrain|plain: {
+//       total,      // Σ quantity_remaining across ALL batches, incl. expired
+//       active,     // Σ quantity_remaining of NON-EXPIRED batches (= stock_pool.total_stock,
+//                   //   kept in sync by the sync_stock_pool_after_batch_change trigger)
+//       expired,    // total − active (units in expired batches; still counted in `total`)
+//       pending,    // Σ units of allotments with status='pending' (reserved from active)
+//       available,  // logistics.central_available(v) → max(0, active − pending)
+//     }
+//   }
+// `total` used to mean "active" (from stock_pool.total_stock); it now includes
+// expired stock so the admin can see the full picture. The only field the Allot
+// page reads is `available`, so no existing behaviour changes.
 export async function getStockPool() {
+  // Active per variant (kept in sync by the batch-change trigger).
   const { data: pool, error: pErr } = await supabase
     .from('stock_pool')
     .select('variant, total_stock')
   if (pErr) throw pErr
 
-  const totals = Object.fromEntries(VARIANT_KEYS.map((v) => [v, 0]))
+  // Total (incl. expired): sum quantity_remaining across ALL batches — expired
+  // batches remain counted here. Nothing is cleaned up or hidden.
+  const { data: allBatches, error: bErr } = await supabase
+    .from('central_stock_batches')
+    .select('variant, quantity_remaining')
+  if (bErr) throw bErr
+
+  // Pending allotments reserving units from active (used to explain why
+  // Available < Active). Accepted/rejected/withdrawn are not counted here —
+  // central_available itself only subtracts 'pending'.
+  const { data: pendingRows, error: alErr } = await supabase
+    .from('allotments')
+    .select('variant, units')
+    .eq('status', 'pending')
+  if (alErr) throw alErr
+
+  const active = Object.fromEntries(VARIANT_KEYS.map((v) => [v, 0]))
   for (const row of pool || []) {
-    if (totals[row.variant] !== undefined) totals[row.variant] = row.total_stock || 0
+    if (active[row.variant] !== undefined) active[row.variant] = row.total_stock || 0
+  }
+
+  const total = Object.fromEntries(VARIANT_KEYS.map((v) => [v, 0]))
+  for (const row of allBatches || []) {
+    if (total[row.variant] !== undefined) total[row.variant] += row.quantity_remaining || 0
+  }
+
+  const pending = Object.fromEntries(VARIANT_KEYS.map((v) => [v, 0]))
+  for (const row of pendingRows || []) {
+    if (pending[row.variant] !== undefined) pending[row.variant] += row.units || 0
   }
 
   const out = {}
   for (const v of VARIANT_KEYS) {
     const { data: avail, error: aErr } = await supabase.rpc('central_available', { p_variant: v })
     if (aErr) throw aErr
-    out[v] = { total: totals[v], available: avail ?? 0 }
+    out[v] = {
+      total: total[v],
+      active: active[v],
+      expired: Math.max(0, total[v] - active[v]),
+      pending: pending[v],
+      available: avail ?? 0,
+    }
   }
   return out
 }
