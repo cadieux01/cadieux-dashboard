@@ -216,66 +216,58 @@ export async function recordReceived({ agentId, variant, units, note = null }) {
   return data
 }
 
-// Agent delivers their own stock to a partner. Reuses the partner_assignments
-// workflow (createAssignment) for the partner-facing record, then writes the
-// matching 'delivered' (−) ledger entry linked by assignment_id. The DB trigger
-// blocks this if the agent's available balance is too low.
+// Agent delivers their own stock to a partner. Routed through the bounded
+// SECURITY DEFINER RPC (create_partner_assignment_from_agent) which:
+//   * verifies agent has enough non-expired in-hand units (raises
+//     'agent_insufficient_stock' otherwise — the DB gate, not just the trigger)
+//   * FIFO-picks a non-expired batch to stamp on the assignment
+//   * atomically writes both the partner_assignments row AND the matching
+//     agent_inventory_ledger 'delivered' (−) row
+// Direct client INSERTs into partner_assignments are blocked by RLS.
 export async function deliverToPartner({
   agentId,
   partnerId,
   variant,
   units,
   sourceRequestId = null,
+  // note is retained in the signature for API compatibility, but the RPC
+  // writes a standard note on the ledger row itself.
+  // eslint-disable-next-line no-unused-vars
   note = null,
 }) {
-  const { data: { user } } = await supabase.auth.getUser()
-
-  // 1) Operational delivery record (reused drafted workflow).
-  const { data: assignment, error: aErr } = await supabase
-    .from('partner_assignments')
-    .insert({
-      partner_id: partnerId,
-      salesperson_id: agentId,
-      variant,
-      units,
-      status: 'pending',
-      source_request_id: sourceRequestId,
-      assigned_by: user?.id || null,
-    })
-    .select()
-    .single()
-  if (aErr) throw aErr
-
-  // 2) Inventory accounting entry (single source of truth for balance).
-  const { data: ledger, error: lErr } = await supabase
-    .from('agent_inventory_ledger')
-    .insert({
-      agent_id: agentId,
-      variant,
-      entry_type: 'delivered',
-      units,
-      partner_id: partnerId,
-      assignment_id: assignment.id,
-      created_by: user?.id || null,
-      note,
-    })
-    .select()
-    .single()
-  if (lErr) {
-    // Roll back the orphan assignment so the two stay consistent.
-    await supabase.from('partner_assignments').delete().eq('id', assignment.id)
-    throw lErr
+  const { data: assignment, error } = await supabase.rpc(
+    'create_partner_assignment_from_agent',
+    {
+      p_partner: partnerId,
+      p_agent: agentId,
+      p_variant: variant,
+      p_units: units,
+      p_source_request_id: sourceRequestId,
+      p_batch_id: null,
+    },
+  )
+  if (error) {
+    const msg = error.message || ''
+    if (msg.startsWith('agent_insufficient_stock')) {
+      const err = new Error(msg)
+      err.code = 'agent_insufficient_stock'
+      throw err
+    }
+    throw error
   }
 
   await logAuditEvent({
     actionType: 'CREATE',
     entityType: 'agent_inventory',
-    entityId: ledger.id,
+    entityId: assignment.id,
     category: 'partner',
     description: `Delivered ${units} × ${variantLabel(variant)} to partner`,
-    newValues: { agent_id: agentId, partner_id: partnerId, variant, units, entry_type: 'delivered', assignment_id: assignment.id },
+    newValues: {
+      agent_id: agentId, partner_id: partnerId, variant, units,
+      entry_type: 'delivered', assignment_id: assignment.id, batch_id: assignment.batch_id,
+    },
   })
-  return { assignment, ledger }
+  return { assignment, ledger: null }
 }
 
 // Partner returns/retracts stock back to the agent → 'returned' (+). The agent

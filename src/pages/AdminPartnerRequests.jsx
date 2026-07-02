@@ -9,9 +9,9 @@ import {
   listSupply,
   listSalespeople,
   listAllAssignments,
-  acceptRequest,
   createAssignment,
   confirmAssignment,
+  getAgentAvailableForVariant,
 } from '../lib/partnerWorkflow'
 
 function timeAgo(dateStr) {
@@ -38,6 +38,10 @@ export default function AdminPartnerRequests({ embedded = false }) {
   // Admin-only salesperson picker (when accepting a request).
   const [pickerReq, setPickerReq] = useState(null)
   const [pickedSalesperson, setPickedSalesperson] = useState('')
+  // Available-units preview for the picked salesperson (RPC's stock gate).
+  const [pickerAvailable, setPickerAvailable] = useState(null)
+  // Available-units preview for sales-user's own stock on each pending row.
+  const [selfAvailable, setSelfAvailable] = useState({}) // { variant: units }
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2800) }
 
@@ -66,36 +70,67 @@ export default function AdminPartnerRequests({ embedded = false }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDemo, isAdmin])
 
+  // Sales user: preview own available units per variant so the Accept button
+  // can be disabled when they don't have enough stock (RPC would raise
+  // agent_insufficient_stock; better UX to show it upfront).
+  useEffect(() => {
+    if (isDemo || isAdmin || !profile?.id) return
+    let cancelled = false
+    ;(async () => {
+      const [mg, pl] = await Promise.all([
+        getAgentAvailableForVariant(profile.id, 'multigrain'),
+        getAgentAvailableForVariant(profile.id, 'plain'),
+      ])
+      if (!cancelled) setSelfAvailable({ multigrain: mg, plain: pl })
+    })()
+    return () => { cancelled = true }
+  }, [isDemo, isAdmin, profile?.id, pending.length])
+
+  // Admin picker: refresh available for picked agent + request variant.
+  useEffect(() => {
+    if (!pickerReq || !pickedSalesperson) { setPickerAvailable(null); return }
+    let cancelled = false
+    ;(async () => {
+      const n = await getAgentAvailableForVariant(pickedSalesperson, pickerReq.variant)
+      if (!cancelled) setPickerAvailable(n)
+    })()
+    return () => { cancelled = true }
+  }, [pickerReq, pickedSalesperson])
+
   // --- Accept -------------------------------------------------------------
-  // Accepting now ALSO credits the partner immediately: it flips the request to
-  // 'accepted' AND creates the partner_assignment (the same record the Supply
-  // "Assign" step used to create), so the partner's Home — big Available number
-  // and the per-variant Assigned/Left + day-cards — reflects the units right
-  // away (per variant) without a manual reload. Because the assignment now
-  // exists at accept time, the Supply tab skips straight to the Confirm step, so
-  // no second assignment is ever created (no double counting). This stays within
-  // partner_assignments and never writes sales, so Overview ASSIGNED is untouched.
+  // The bounded RPC (create_partner_assignment_from_agent) flips the request
+  // to 'accepted' AND creates the partner_assignment AND writes the matching
+  // agent_inventory_ledger 'delivered' row in ONE atomic transaction. It also
+  // debits the agent's non-expired in-hand stock — an under-stocked agent
+  // gets 'agent_insufficient_stock: has X, needs Y' and NOTHING is written.
   const doAccept = async (req, salespersonId) => {
     setBusyId(req.id)
     try {
-      await acceptRequest({ requestId: req.id, salespersonId })
       await createAssignment({
         partnerId: req.partner_id,
         salespersonId,
         variant: req.variant,
         units: req.units_requested,
         sourceRequestId: req.id,
-        assignedBy: profile.id,
       })
       showToast('Request accepted — units credited')
       await load()
     } catch (err) {
       console.error('acceptRequest failed:', err)
-      showToast(err.message || 'Could not accept')
+      if (err.code === 'agent_insufficient_stock') {
+        // Message format: 'agent_insufficient_stock: has X, needs Y'
+        const m = /has\s+(\d+).*needs\s+(\d+)/.exec(err.message || '')
+        const has = m ? m[1] : '?'
+        const needs = m ? m[2] : req.units_requested
+        showToast(`Agent has only ${has} units — request needs ${needs}. Cannot accept.`)
+      } else {
+        showToast(err.message || 'Could not accept')
+      }
     } finally {
       setBusyId(null)
       setPickerReq(null)
       setPickedSalesperson('')
+      setPickerAvailable(null)
     }
   }
 
@@ -109,6 +144,10 @@ export default function AdminPartnerRequests({ embedded = false }) {
   }
 
   // --- Assign (Supply) ----------------------------------------------------
+  // Only fires for Supply-tab orphans (accepted request with no assignment yet
+  // — pre-Phase-2 data). The RPC allows re-using an already-accepted request
+  // as long as no partner_assignments row references it yet, and still runs
+  // the same stock check on the responsible salesperson's ledger.
   const doAssign = async (row) => {
     setBusyId(row.id)
     try {
@@ -118,13 +157,19 @@ export default function AdminPartnerRequests({ embedded = false }) {
         variant: row.variant,
         units: row.units_requested,
         sourceRequestId: row.id,
-        assignedBy: profile.id,
       })
       showToast('Assignment created')
       await load()
     } catch (err) {
       console.error('createAssignment failed:', err)
-      showToast(err.message || 'Could not assign')
+      if (err.code === 'agent_insufficient_stock') {
+        const m = /has\s+(\d+).*needs\s+(\d+)/.exec(err.message || '')
+        const has = m ? m[1] : '?'
+        const needs = m ? m[2] : row.units_requested
+        showToast(`Agent has only ${has} units — request needs ${needs}. Cannot assign.`)
+      } else {
+        showToast(err.message || 'Could not assign')
+      }
     } finally {
       setBusyId(null)
     }
@@ -238,26 +283,36 @@ export default function AdminPartnerRequests({ embedded = false }) {
           </div>
         ) : (
           <div className="space-y-2">
-            {pending.map((r) => (
-              <div key={r.id} className="dashboard-panel flex flex-wrap items-center justify-between gap-3 rounded-2xl px-4 py-3">
-                <div className="min-w-0">
-                  <p className="font-semibold text-slate-100">{r.partner_name}</p>
-                  <p className="mt-0.5 text-sm text-slate-300">
-                    {r.units_requested} × {variantLabel(r.variant)}
-                  </p>
-                  <p className="mt-0.5 text-xs text-slate-500">{timeAgo(r.created_at)}</p>
+            {pending.map((r) => {
+              const selfAvail = !isAdmin ? (selfAvailable[r.variant] ?? null) : null
+              const short = !isAdmin && selfAvail !== null && selfAvail < r.units_requested
+              return (
+                <div key={r.id} className="dashboard-panel flex flex-wrap items-center justify-between gap-3 rounded-2xl px-4 py-3">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-slate-100">{r.partner_name}</p>
+                    <p className="mt-0.5 text-sm text-slate-300">
+                      {r.units_requested} × {variantLabel(r.variant)}
+                    </p>
+                    <p className="mt-0.5 text-xs text-slate-500">{timeAgo(r.created_at)}</p>
+                    {!isAdmin && selfAvail !== null && (
+                      <p className={`mt-1 text-[11px] font-semibold ${short ? 'text-rose-300' : 'text-slate-400'}`}>
+                        You have {selfAvail} × {variantLabel(r.variant)} available
+                        {short ? ' — not enough' : ''}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onAcceptClick(r)}
+                    disabled={busyId === r.id || isDemo || short}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-[#024628] px-4 py-2 text-sm font-semibold text-[#fbf3d4] transition hover:bg-[#035c36] disabled:opacity-50"
+                  >
+                    <Check size={15} />
+                    {busyId === r.id ? 'Accepting…' : 'Accept'}
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => onAcceptClick(r)}
-                  disabled={busyId === r.id || isDemo}
-                  className="inline-flex items-center gap-1.5 rounded-xl bg-[#024628] px-4 py-2 text-sm font-semibold text-[#fbf3d4] transition hover:bg-[#035c36] disabled:opacity-50"
-                >
-                  <Check size={15} />
-                  {busyId === r.id ? 'Accepting…' : 'Accept'}
-                </button>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )
       ) : (
@@ -318,7 +373,7 @@ export default function AdminPartnerRequests({ embedded = false }) {
       )}
 
       {/* Admin salesperson picker (accept) */}
-      <Modal isOpen={!!pickerReq} onClose={() => setPickerReq(null)} title="Assign to salesperson">
+      <Modal isOpen={!!pickerReq} onClose={() => { setPickerReq(null); setPickerAvailable(null) }} title="Assign to salesperson">
         {pickerReq && (
           <div>
             <p className="mb-3 text-sm text-slate-300">
@@ -329,7 +384,7 @@ export default function AdminPartnerRequests({ embedded = false }) {
             <select
               value={pickedSalesperson}
               onChange={(e) => setPickedSalesperson(e.target.value)}
-              className="dashboard-select mb-4"
+              className="dashboard-select mb-2"
             >
               <option value="">Select salesperson</option>
               {salespeople.map((s) => (
@@ -338,9 +393,25 @@ export default function AdminPartnerRequests({ embedded = false }) {
                 </option>
               ))}
             </select>
+            {pickedSalesperson && pickerAvailable !== null && (() => {
+              const short = pickerAvailable < pickerReq.units_requested
+              return (
+                <p className={`mb-4 text-xs font-semibold ${short ? 'text-rose-300' : 'text-slate-400'}`}>
+                  Available with this salesperson: {pickerAvailable} × {variantLabel(pickerReq.variant)}
+                  {short ? ` — not enough for ${pickerReq.units_requested}` : ''}
+                </p>
+              )
+            })()}
+            {pickedSalesperson && pickerAvailable === null && (
+              <p className="mb-4 text-xs text-slate-500">Checking available stock…</p>
+            )}
             <button
               type="button"
-              disabled={!pickedSalesperson || busyId === pickerReq.id}
+              disabled={
+                !pickedSalesperson
+                || busyId === pickerReq.id
+                || (pickerAvailable !== null && pickerAvailable < pickerReq.units_requested)
+              }
               onClick={() => doAccept(pickerReq, pickedSalesperson)}
               className="w-full rounded-xl bg-[#024628] px-4 py-2.5 text-sm font-semibold text-[#fbf3d4] transition hover:bg-[#035c36] disabled:opacity-50"
             >

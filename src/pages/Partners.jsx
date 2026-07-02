@@ -435,7 +435,13 @@ export default function Partners() {
       setAssignPartner(null)
     } catch (err) {
       console.error('createAssignment failed:', err)
-      setBanner({ type: 'error', message: err.message || 'Could not create assignment.' })
+      let message = err.message || 'Could not create assignment.'
+      if (err.code === 'agent_insufficient_stock' || (err.message || '').startsWith('agent_insufficient_stock')) {
+        const m = /has\s+(\d+),\s*needs\s+(\d+)/i.exec(err.message || '')
+        const has = m ? m[1] : '?'
+        message = `Salesperson has only ${has} × ${variantLabel(assignForm.variant)} available — cannot assign ${units}.`
+      }
+      setBanner({ type: 'error', message })
     } finally {
       setAssignSaving(false)
     }

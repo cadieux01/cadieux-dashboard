@@ -199,40 +199,81 @@ export async function listMyAssignments(partnerId) {
 
 // --- Assignments ------------------------------------------------------------
 
-// Create an assignment (admin/sales). sourceRequestId links it back to the
-// originating request (null for a proactive assign from the Partners page).
+// Create an assignment (admin/sales) by routing through the bounded SECURITY
+// DEFINER RPC. The RPC:
+//   * verifies the caller role is admin/sales
+//   * verifies the AGENT (salespersonId) actually has that many non-expired
+//     in-hand units for the variant, and picks a FIFO non-expired batch to
+//     stamp on batch_id — otherwise raises 'agent_insufficient_stock'
+//   * writes the partner_assignments row AND the matching agent_inventory_ledger
+//     'delivered' (−) row in a single transaction (all-or-nothing)
+//   * if sourceRequestId is set, flips the partner_request to 'accepted' in
+//     the same tx (or accepts a previously-accepted request that has no
+//     assignment yet — Supply-tab orphans from pre-Phase-2 data)
+// Direct client INSERTs into partner_assignments are blocked by RLS.
+//
+// `assignedBy` is retained for backward-compat but ignored — the RPC always
+// records auth.uid() (the acting user) as assigned_by.
 export async function createAssignment({
   partnerId,
   salespersonId,
   variant,
   units,
   sourceRequestId = null,
+  // eslint-disable-next-line no-unused-vars
   assignedBy,
+  batchId = null,
 }) {
-  const { data, error } = await supabase
-    .from('partner_assignments')
-    .insert({
-      partner_id: partnerId,
-      salesperson_id: salespersonId,
-      variant,
-      units,
-      status: 'pending',
-      source_request_id: sourceRequestId,
-      assigned_by: assignedBy,
-    })
-    .select()
-    .single()
-  if (error) throw error
+  const { data, error } = await supabase.rpc('create_partner_assignment_from_agent', {
+    p_partner: partnerId,
+    p_agent: salespersonId,
+    p_variant: variant,
+    p_units: units,
+    p_source_request_id: sourceRequestId,
+    p_batch_id: batchId,
+  })
+  if (error) {
+    // Surface the friendly error class up to the caller.
+    const msg = error.message || ''
+    if (msg.startsWith('agent_insufficient_stock')) {
+      const err = new Error(msg)
+      err.code = 'agent_insufficient_stock'
+      throw err
+    }
+    throw error
+  }
 
   await logAuditEvent({
     actionType: 'CREATE',
     entityType: 'partner_assignment',
     entityId: data.id,
     category: 'partner',
-    description: `Assigned ${units} × ${variantLabel(variant)} to partner`,
-    newValues: { variant, units, status: 'pending', source_request_id: sourceRequestId },
+    description: sourceRequestId
+      ? `Accepted request + credited ${units} × ${variantLabel(variant)} to partner`
+      : `Assigned ${units} × ${variantLabel(variant)} to partner`,
+    newValues: { variant, units, status: 'pending', source_request_id: sourceRequestId, batch_id: data.batch_id },
   })
   return data
+}
+
+// Agent's variant-scoped available units, from the ledger. Cheap read used by
+// the UI to preview how much the agent can accept BEFORE they click Accept.
+// Non-admin/sales callers see empty due to RLS on agent_inventory_ledger.
+export async function getAgentAvailableForVariant(agentId, variant) {
+  if (!agentId || !variant) return 0
+  const { data, error } = await supabase
+    .from('agent_inventory_ledger')
+    .select('entry_type, units, variant')
+    .eq('agent_id', agentId)
+    .eq('variant', variant)
+  if (error) return 0
+  let bal = 0
+  for (const r of data || []) {
+    const u = r.units || 0
+    if (r.entry_type === 'received' || r.entry_type === 'returned') bal += u
+    else if (r.entry_type === 'delivered' || r.entry_type === 'expired' || r.entry_type === 'withdrawn') bal -= u
+  }
+  return Math.max(0, bal)
 }
 
 // Confirm delivery of an assignment → status 'confirmed' + confirmed_by/at.
