@@ -14,11 +14,26 @@ import {
 
 // ============================================================================
 // Phase 4 (Change 4): Agent (or admin) records a sale ON BEHALF of a partner.
-// The partner's variant-scoped in-hand aggregate is fetched server-side via
-// partner_variant_available (Phase 3 helper), the input is capped at that
-// number, and submit calls record_agent_sale_for_partner (which then delegates
-// to record_partner_sale with agent attribution). Partner-in-hand cap is
-// enforced authoritatively server-side; the UI display is advisory.
+//
+// THREE-BOX CASCADING FLOW (Raja's spec):
+//   Box 1  SELECT PARTNER — lists ALL active partners, each option shows the
+//          partner's current holdings summary ("Jat — MG 4 · PL 2", or
+//          "— no units"). Selecting a partner populates Box 2.
+//   Box 2  SELECT VARIANT — only variants the partner actually holds appear
+//          (with unit count). Auto-selects if the partner holds exactly one.
+//          Empty state ("This partner holds no units") + Box 3 disabled when
+//          the partner holds nothing.
+//   Box 3  SELECT UNITS  — capped at the partner's real available for the
+//          selected variant. Resets whenever partner or variant changes.
+//
+// DATA: per-partner holdings come from the Phase-3 helper
+// `partner_variant_available(p_partner, p_variant)` — the exact same RPC the
+// atomic record_partner_sale / retract_from_partner guards use. Both admin +
+// sales see all partners (per Raja's decision); record_agent_sale_for_partner
+// itself already permits either caller for any partner.
+//
+// Nothing here changes the RPC or the stock logic. The `partner_insufficient_stock`
+// bound remains the authoritative enforcement — this UI is belt-and-suspenders.
 // ============================================================================
 
 const CARD = 'rounded-xl border border-slate-800 bg-slate-900 p-4 sm:p-6 mb-6'
@@ -28,10 +43,12 @@ const VARIANTS = {
   plain: { name: 'Plain High Protein Bread', short: 'Plain', price: 109 },
 }
 
+const VARIANT_KEYS = ['multigrain', 'plain']
+
 function emptyForm() {
   return {
     partner_id: '',
-    variant: 'multigrain',
+    variant: '',
     units: 0,
     buyer_name: '',
     buyer_contact: '',
@@ -49,11 +66,34 @@ async function listActivePartners() {
   return (data || []).filter((p) => (p.status || 'active') === 'active')
 }
 
+// Fetch one partner's per-variant holdings via the Phase-3 partner-available
+// RPC. Kept in one place so Box 1's dropdown summaries + Box 3's cap always
+// agree byte-for-byte with the server's atomic cap.
+async function fetchHoldingsForPartner(partnerId) {
+  const [mg, pl] = await Promise.all([
+    getPartnerVariantAvailable(partnerId, 'multigrain'),
+    getPartnerVariantAvailable(partnerId, 'plain'),
+  ])
+  return { multigrain: mg || 0, plain: pl || 0 }
+}
+
+function summariseHoldings(h) {
+  if (!h) return '…'
+  const total = (h.multigrain || 0) + (h.plain || 0)
+  if (total <= 0) return '— no units'
+  return `MG ${h.multigrain} · PL ${h.plain}`
+}
+
 export default function SellForPartner() {
   const { profile, isDemo } = useAuth()
   const [partners, setPartners] = useState([])
   const [loading, setLoading] = useState(true)
-  const [availability, setAvailability] = useState({ multigrain: null, plain: null })
+  // Per-partner holdings map { [partnerId]: { multigrain, plain } }. Fetched
+  // once on mount for the Box-1 dropdown summaries; the SELECTED partner is
+  // additionally refreshed on select + on the 30s poll so the Box-3 cap is
+  // always live vs. concurrent sales/retracts elsewhere.
+  const [holdingsByPartner, setHoldingsByPartner] = useState({})
+  const [holdingsLoading, setHoldingsLoading] = useState(false)
   const [availLoading, setAvailLoading] = useState(false)
   const [form, setForm] = useState(emptyForm())
   const [submitting, setSubmitting] = useState(false)
@@ -78,21 +118,37 @@ export default function SellForPartner() {
     }
   }, [isDemo])
 
-  const loadAvailability = useCallback(async (partnerId) => {
-    if (!partnerId) {
-      setAvailability({ multigrain: null, plain: null })
-      return
+  // Batch-load holdings for every partner in the dropdown. For a small partner
+  // roster (typically <10) this is a handful of parallel RPCs and lets Box 1
+  // show real numbers on FIRST render, not after each partner is picked.
+  const loadAllHoldings = useCallback(async (partnerList) => {
+    if (!partnerList || partnerList.length === 0) return
+    setHoldingsLoading(true)
+    try {
+      const entries = await Promise.all(
+        partnerList.map(async (p) => {
+          try {
+            return [p.id, await fetchHoldingsForPartner(p.id)]
+          } catch (e) {
+            console.warn(`SellForPartner: holdings load failed for ${p.id}`, e.message)
+            return [p.id, { multigrain: 0, plain: 0 }]
+          }
+        }),
+      )
+      setHoldingsByPartner(Object.fromEntries(entries))
+    } finally {
+      setHoldingsLoading(false)
     }
+  }, [])
+
+  const refreshOnePartner = useCallback(async (partnerId) => {
+    if (!partnerId) return
     setAvailLoading(true)
     try {
-      const [mg, pl] = await Promise.all([
-        getPartnerVariantAvailable(partnerId, 'multigrain'),
-        getPartnerVariantAvailable(partnerId, 'plain'),
-      ])
-      setAvailability({ multigrain: mg, plain: pl })
+      const h = await fetchHoldingsForPartner(partnerId)
+      setHoldingsByPartner((prev) => ({ ...prev, [partnerId]: h }))
     } catch (e) {
-      console.error('SellForPartner: availability lookup failed', e)
-      setAvailability({ multigrain: 0, plain: 0 })
+      console.error('SellForPartner: refresh availability failed', e)
     } finally {
       setAvailLoading(false)
     }
@@ -103,28 +159,74 @@ export default function SellForPartner() {
   }, [loadPartners])
 
   useEffect(() => {
-    loadAvailability(form.partner_id)
-  }, [form.partner_id, loadAvailability])
+    if (!loading && partners.length > 0) loadAllHoldings(partners)
+  }, [loading, partners, loadAllHoldings])
 
-  // Auto-refresh availability so a concurrent sale/retract elsewhere is
-  // reflected quickly (30s poll + focus/visibility, matching sibling pages).
+  // Refresh the selected partner's holdings on selection change so the Box 3
+  // cap is guaranteed current (initial batch may have been minutes ago).
+  useEffect(() => {
+    if (form.partner_id) refreshOnePartner(form.partner_id)
+  }, [form.partner_id, refreshOnePartner])
+
+  // 30s poll of the selected partner (focus/visibility included via hook)
+  // keeps the cap live against concurrent sales/retracts elsewhere.
   useRefreshable(
-    () => (form.partner_id ? loadAvailability(form.partner_id) : Promise.resolve()),
-    { auto: !!form.partner_id, intervalMs: 30000 }
+    () => (form.partner_id ? refreshOnePartner(form.partner_id) : Promise.resolve()),
+    { auto: !!form.partner_id, intervalMs: 30000 },
   )
-
-  const cap = form.variant === 'multigrain' ? availability.multigrain : availability.plain
-  const maxUnits = Number.isFinite(cap) ? Math.max(0, cap) : 0
-  const canSubmit =
-    !!form.partner_id && form.units > 0 && form.units <= maxUnits && !submitting && !isDemo
 
   const selectedPartner = useMemo(
-    () => partners.find((p) => p.id === form.partner_id),
-    [partners, form.partner_id]
+    () => partners.find((p) => p.id === form.partner_id) || null,
+    [partners, form.partner_id],
   )
+
+  const selectedHoldings = form.partner_id ? holdingsByPartner[form.partner_id] : null
+
+  // Only variants the partner ACTUALLY holds appear in Box 2. Auto-select the
+  // sole held variant when there's exactly one so the flow moves in one tap.
+  const heldVariants = useMemo(() => {
+    if (!selectedHoldings) return []
+    return VARIANT_KEYS.filter((v) => (selectedHoldings[v] || 0) > 0)
+  }, [selectedHoldings])
+
+  useEffect(() => {
+    // Auto-select the sole held variant; else drop back to '' so Box 2 always
+    // reflects real held-only options.
+    if (!form.partner_id) {
+      if (form.variant !== '') setForm((f) => ({ ...f, variant: '', units: 0 }))
+      return
+    }
+    if (heldVariants.length === 1 && form.variant !== heldVariants[0]) {
+      setForm((f) => ({ ...f, variant: heldVariants[0], units: 0 }))
+    } else if (heldVariants.length === 0 && form.variant !== '') {
+      setForm((f) => ({ ...f, variant: '', units: 0 }))
+    } else if (form.variant && !heldVariants.includes(form.variant)) {
+      // Previously-picked variant is no longer held → reset.
+      setForm((f) => ({ ...f, variant: '', units: 0 }))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.partner_id, heldVariants.join(',')])
+
+  const cap = form.variant && selectedHoldings ? selectedHoldings[form.variant] : 0
+  const maxUnits = Number.isFinite(cap) ? Math.max(0, cap) : 0
+
+  const canSubmit =
+    !!form.partner_id &&
+    !!form.variant &&
+    form.units > 0 &&
+    form.units <= maxUnits &&
+    !submitting &&
+    !isDemo
 
   const onChange = (field, value) => {
     setForm((f) => ({ ...f, [field]: value }))
+    setErrMsg(null)
+  }
+
+  const onPartnerChange = (partnerId) => {
+    // New partner → reset the cascade (variant + units) so Box 2/3 don't carry
+    // stale selections from the previous partner's holdings.
+    setForm((f) => ({ ...f, partner_id: partnerId, variant: '', units: 0 }))
     setErrMsg(null)
   }
 
@@ -172,7 +274,7 @@ export default function SellForPartner() {
       })
 
       setToast(
-        `Recorded ${form.units} × ${variantDef.short} sale for ${selectedPartner?.full_name || 'partner'}`
+        `Recorded ${form.units} × ${variantDef.short} sale for ${selectedPartner?.full_name || 'partner'}`,
       )
       setTimeout(() => setToast(null), 3000)
 
@@ -185,7 +287,7 @@ export default function SellForPartner() {
         buyer_contact: '',
         customer_notes: '',
       }))
-      await loadAvailability(form.partner_id)
+      await refreshOnePartner(form.partner_id)
     } catch (err) {
       const msg = err?.message || String(err)
       if (msg.includes('partner_insufficient_stock')) {
@@ -221,74 +323,139 @@ export default function SellForPartner() {
             <ShoppingCart className="h-6 w-6" /> Sell for Partner
           </h1>
           <p className="mt-1 text-sm text-slate-400">
-            Record a sale from the partner's in-hand units. Draws down real assigned stock
-            (bounded by the partner's aggregate) — no phantom rows can be created.
+            Record a sale from the partner&apos;s in-hand units. Draws down real assigned stock
+            (bounded by the partner&apos;s aggregate) — no phantom rows can be created.
           </p>
         </div>
-        <RefreshButton onClick={() => form.partner_id && loadAvailability(form.partner_id)} />
+        <RefreshButton onClick={() => loadAllHoldings(partners)} />
       </div>
 
       <form onSubmit={onSubmit} className={CARD}>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        {/* ---------------------------------------------------------------- */}
+        {/* BOX 1 — SELECT PARTNER                                            */}
+        {/* All partners; each option shows the real holdings summary from    */}
+        {/* partner_variant_available (Phase-3 RPC). Selecting cascades.      */}
+        {/* ---------------------------------------------------------------- */}
+        <section className="rounded-lg border border-slate-800 bg-slate-950/40 p-4">
+          <header className="mb-2 flex items-baseline justify-between gap-2">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-400">
+                Step 1
+              </p>
+              <h2 className="text-sm font-semibold text-slate-100">Select partner</h2>
+            </div>
+            <p className="text-[11px] text-slate-500">
+              {holdingsLoading ? 'Loading holdings…' : 'Numbers show real in-hand units'}
+            </p>
+          </header>
           <FormField label="Partner" required>
             <select
               className="dashboard-select"
               value={form.partner_id}
-              onChange={(e) => onChange('partner_id', e.target.value)}
+              onChange={(e) => onPartnerChange(e.target.value)}
               disabled={loading}
               required
             >
               <option value="">
                 {loading ? 'Loading partners…' : 'Choose a partner'}
               </option>
-              {partners.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.full_name || 'Unnamed'} {p.phone ? `· ${p.phone}` : ''}
-                </option>
-              ))}
+              {partners.map((p) => {
+                const summary = summariseHoldings(holdingsByPartner[p.id])
+                return (
+                  <option key={p.id} value={p.id}>
+                    {p.full_name || 'Unnamed'} — {summary}
+                  </option>
+                )
+              })}
             </select>
           </FormField>
+        </section>
 
-          <FormField label="Variant" required>
-            <div className="flex gap-2">
-              {Object.entries(VARIANTS).map(([key, v]) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => onVariantChange(key)}
-                  className={`flex-1 rounded-lg border px-3 py-2 text-sm font-semibold transition ${
-                    form.variant === key
-                      ? 'border-emerald-500 bg-emerald-950/40 text-emerald-200'
-                      : 'border-slate-700 bg-slate-800 text-slate-300 hover:border-slate-600'
-                  }`}
-                >
-                  {v.short}
-                </button>
-              ))}
+        {/* ---------------------------------------------------------------- */}
+        {/* BOX 2 — SELECT VARIANT                                            */}
+        {/* Only variants this partner actually holds. Auto-selects if only  */}
+        {/* one is held. Empty state when they hold nothing.                  */}
+        {/* ---------------------------------------------------------------- */}
+        <section className="mt-4 rounded-lg border border-slate-800 bg-slate-950/40 p-4">
+          <header className="mb-2 flex items-baseline justify-between gap-2">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-400">
+                Step 2
+              </p>
+              <h2 className="text-sm font-semibold text-slate-100">Select variant</h2>
             </div>
-          </FormField>
-        </div>
+            <p className="text-[11px] text-slate-500">
+              {selectedPartner
+                ? availLoading
+                  ? 'Refreshing…'
+                  : `From ${selectedPartner.full_name || 'partner'}'s in-hand only`
+                : 'Pick a partner first'}
+            </p>
+          </header>
 
-        <div className="mt-4 rounded-lg border border-slate-800 bg-slate-950/40 p-3">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-slate-400">Partner's in-hand for {VARIANTS[form.variant].short}:</span>
-            <span className="font-mono font-bold text-emerald-400">
+          {!form.partner_id ? (
+            <div className="rounded-md border border-dashed border-slate-700 bg-slate-950/30 px-3 py-4 text-center text-sm text-slate-500">
+              Pick a partner in Step 1 to see their held variants.
+            </div>
+          ) : heldVariants.length === 0 ? (
+            <div className="rounded-md border border-slate-800 bg-slate-950/40 px-3 py-4 text-center text-sm text-amber-300">
+              This partner holds no units. Nothing to sell.
+            </div>
+          ) : (
+            <FormField label="Variant" required>
+              <select
+                className="dashboard-select"
+                value={form.variant}
+                onChange={(e) => onVariantChange(e.target.value)}
+                required
+              >
+                {heldVariants.length > 1 && (
+                  <option value="">Choose a variant</option>
+                )}
+                {heldVariants.map((v) => (
+                  <option key={v} value={v}>
+                    {VARIANTS[v].short} ({selectedHoldings?.[v] || 0} available)
+                  </option>
+                ))}
+              </select>
+            </FormField>
+          )}
+        </section>
+
+        {/* ---------------------------------------------------------------- */}
+        {/* BOX 3 — SELECT UNITS                                              */}
+        {/* Capped at partner_variant_available for the (partner, variant).   */}
+        {/* Server-side bound still enforces partner_insufficient_stock.      */}
+        {/* ---------------------------------------------------------------- */}
+        <section className="mt-4 rounded-lg border border-slate-800 bg-slate-950/40 p-4">
+          <header className="mb-2 flex items-baseline justify-between gap-2">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-400">
+                Step 3
+              </p>
+              <h2 className="text-sm font-semibold text-slate-100">Select units</h2>
+            </div>
+            <p className="text-[11px] text-slate-500">
+              {form.partner_id && form.variant
+                ? `${maxUnits} available`
+                : 'Complete Steps 1 & 2'}
+            </p>
+          </header>
+
+          {!form.partner_id || !form.variant ? (
+            <div className="rounded-md border border-dashed border-slate-700 bg-slate-950/30 px-3 py-4 text-center text-sm text-slate-500">
               {!form.partner_id
-                ? '—'
-                : availLoading
-                ? 'Loading…'
-                : `${maxUnits} units available`}
-            </span>
-          </div>
-          <p className="mt-1 text-[11px] text-slate-500">
-            Aggregate across the partner's sales rows and pending/confirmed shipments. Server
-            enforces this cap on submit.
-          </p>
-        </div>
-
-        <div className="mt-4">
-          <FormField label={`Units to record as sold (max ${maxUnits})`} required>
-            {maxUnits > 0 ? (
+                ? 'Pick a partner in Step 1.'
+                : heldVariants.length === 0
+                ? 'Partner holds no units.'
+                : 'Pick a variant in Step 2.'}
+            </div>
+          ) : maxUnits <= 0 ? (
+            <div className="rounded-md border border-slate-800 bg-slate-950/40 px-3 py-4 text-center text-sm text-slate-500">
+              Partner has 0 units in hand for {VARIANTS[form.variant].short}.
+            </div>
+          ) : (
+            <FormField label={`Units to record as sold (max ${maxUnits})`} required>
               <UnitWheel
                 value={form.units}
                 onChange={(v) => onChange('units', v)}
@@ -296,16 +463,11 @@ export default function SellForPartner() {
                 max={maxUnits}
                 hint="Server enforces the cap"
               />
-            ) : (
-              <div className="rounded-md border border-slate-800 bg-slate-950/40 px-3 py-4 text-center text-sm text-slate-500">
-                {form.partner_id
-                  ? 'Partner has 0 units in hand for this variant.'
-                  : 'Pick a partner to see availability.'}
-              </div>
-            )}
-          </FormField>
-        </div>
+            </FormField>
+          )}
+        </section>
 
+        {/* Buyer / notes — optional metadata for the sale. */}
         <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
           <FormField label="Buyer name (optional)">
             <input
@@ -349,7 +511,10 @@ export default function SellForPartner() {
 
         <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
           <div className="text-xs text-slate-500">
-            Attributed to <span className="font-semibold text-slate-300">{profile?.full_name || 'you'}</span>{' '}
+            Attributed to{' '}
+            <span className="font-semibold text-slate-300">
+              {profile?.full_name || 'you'}
+            </span>{' '}
             (agent_id stamped on any converted rows)
           </div>
           <button
