@@ -22,6 +22,7 @@ const Records = lazy(() => import('./pages/Records'))
 const Payments = lazy(() => import('./pages/Payments'))
 const Unsold = lazy(() => import('./pages/Unsold'))
 const Reconcile = lazy(() => import('./pages/Reconcile'))
+const SellForPartner = lazy(() => import('./pages/SellForPartner'))
 const Onboarding = lazy(() => import('./pages/Onboarding'))
 const OverviewPartners   = lazy(() => import('./pages/admin/OverviewPartners'))
 const OverviewAssigned   = lazy(() => import('./pages/admin/OverviewAssigned'))
@@ -176,6 +177,11 @@ export const router = createBrowserRouter([
       {
         path: 'reconcile',
         element: <ProtectedRoute requiredRole="admin">{withSuspense(Reconcile)}</ProtectedRoute>,
+      },
+      {
+        // Phase 4 Change 4: agent/admin records a sale on behalf of a partner
+        path: 'sell-for-partner',
+        element: <ProtectedRoute allowedRoles={['admin', 'sales']}>{withSuspense(SellForPartner)}</ProtectedRoute>,
       },
       {
         path: 'audit-logs',

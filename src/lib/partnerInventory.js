@@ -140,3 +140,104 @@ export async function retractFromPartner({ partnerId, variant, units, reason = n
   })
   return Number(data) || units
 }
+
+// Phase 4 (SEAL LEAK #3): atomic bounded partner sale recording. FIFO walks
+// the partner's own sources (sales + partner_assignments) oldest-first and
+// either bumps units_sold on an existing sales row or converts a
+// partner_assignment into a real sales row (PA drained by v_take + new sales
+// row with u_a=u_s=v_take). Refuses if requested units exceed the partner's
+// in-hand aggregate (partner_insufficient_stock).
+//
+// Callable by the partner themselves OR admin/sales. No more direct INSERTs
+// into logistics.sales from the client — the partner INSERT RLS policy was
+// dropped in this phase.
+export async function recordPartnerSale({
+  partnerId,
+  variant,
+  units,
+  unitPrice = null,
+  buyerName = null,
+  buyerContact = null,
+  pictureUrl = null,
+  qrCodeUrl = null,
+  customerNotes = null,
+}) {
+  const { data, error } = await supabase.rpc('record_partner_sale', {
+    p_partner: partnerId,
+    p_variant: variant,
+    p_units: units,
+    p_unit_price: unitPrice,
+    p_buyer_name: buyerName,
+    p_buyer_contact: buyerContact,
+    p_picture_url: pictureUrl,
+    p_qr_code_url: qrCodeUrl,
+    p_customer_notes: customerNotes,
+    p_agent_override: null,
+  })
+  if (error) throw error
+  await logAuditEvent({
+    actionType: 'CREATE',
+    entityType: 'sale',
+    entityId: data?.last_sale_id || partnerId,
+    category: 'partner',
+    description: `Recorded ${units} × ${variantLabel(variant)} sale for partner${buyerName ? ` (buyer: ${buyerName})` : ''}`,
+    newValues: {
+      partner_id: partnerId,
+      variant,
+      units,
+      unit_price: unitPrice,
+      buyer_name: buyerName,
+      buyer_contact: buyerContact,
+      customer_notes: customerNotes,
+    },
+  })
+  return data
+}
+
+// Phase 4 (Change 4): admin/sales records a sale on behalf of a partner. Thin
+// wrapper over recordPartnerSale that stamps the operating agent as attribution
+// on any PA→sale conversion rows. Same partner-in-hand cap.
+export async function recordAgentSaleForPartner({
+  agentId,
+  partnerId,
+  variant,
+  units,
+  unitPrice = null,
+  buyerName = null,
+  buyerContact = null,
+  pictureUrl = null,
+  qrCodeUrl = null,
+  customerNotes = null,
+}) {
+  const { data, error } = await supabase.rpc('record_agent_sale_for_partner', {
+    p_agent: agentId,
+    p_partner: partnerId,
+    p_variant: variant,
+    p_units: units,
+    p_unit_price: unitPrice,
+    p_buyer_name: buyerName,
+    p_buyer_contact: buyerContact,
+    p_picture_url: pictureUrl,
+    p_qr_code_url: qrCodeUrl,
+    p_customer_notes: customerNotes,
+  })
+  if (error) throw error
+  await logAuditEvent({
+    actionType: 'CREATE',
+    entityType: 'sale',
+    entityId: data?.last_sale_id || partnerId,
+    category: 'partner',
+    description: `Agent-recorded sale for partner: ${units} × ${variantLabel(variant)}${buyerName ? ` (buyer: ${buyerName})` : ''}`,
+    newValues: {
+      agent_id: agentId,
+      partner_id: partnerId,
+      variant,
+      units,
+      unit_price: unitPrice,
+      buyer_name: buyerName,
+      buyer_contact: buyerContact,
+      customer_notes: customerNotes,
+    },
+  })
+  return data
+}

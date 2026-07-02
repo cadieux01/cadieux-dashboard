@@ -12,6 +12,7 @@ import { logAuditEvent } from '../lib/audit'
 import { formatDateDDMMYY } from '../lib/date'
 import { demoBlock, demoPartnerSales } from '../lib/demoData'
 import { listMyAssignments, listMyRequests } from '../lib/partnerWorkflow'
+import { recordPartnerSale } from '../lib/partnerInventory'
 import PartnerUnsold from '../components/PartnerUnsold'
 import PartnerPayments from '../components/PartnerPayments'
 import {
@@ -320,53 +321,59 @@ export default function PartnerDashboard() {
           newValues: updatePayload,
         })
       } else {
-        // Create new sale — one row per selected variant (mirrors Quick Sale),
-        // so existing per-variant Sold/Left + revenue reporting stays correct.
+        // Create new sale via SECURITY DEFINER RPC (Phase 4). Each selected
+        // variant is drained FIFO from the partner's real in-hand aggregate
+        // (existing sales rows' units_sold bumped, or partner_assignments
+        // converted). Server enforces the partner_variant_available cap;
+        // client-side summary display is advisory only.
         if (!currentTrainerId) {
           alert('Partner profile not found. Please contact admin.')
           return
         }
 
-        const today = new Date().toISOString().split('T')[0]
-        const rows = lines.map((l) => ({
-          ...basePayload,
-          trainer_id: currentTrainerId,
-          units_sold: l.units,
-          units_assigned: l.units,
-          product_variant: l.variant.name,
-          unit_price: l.variant.price,
-          date_of_assignment: customerFormData.purchase_date || today,
-        }))
-
-        const { error, data } = await supabase
-          .from('sales')
-          .insert(rows)
-          .select()
-
-        if (error) {
-          console.error('Insert error:', error)
-          console.error('Trainer ID:', currentTrainerId)
-          console.error('Profile:', profile)
-          console.error('Payload:', rows)
-
-          // Provide more helpful error message
-          if (error.message && error.message.includes('customer_notes')) {
-            throw new Error('Database schema missing required columns. Please contact admin to run the database migration script.')
+        const variantKeyOf = (name) => (name === VARIANTS.multigrain.name ? 'multigrain' : 'plain')
+        // First line carries buyer info; subsequent lines pass null to avoid
+        // duplicating buyer_name across multiple rows.
+        let attachedBuyer = false
+        for (const l of lines) {
+          try {
+            await recordPartnerSale({
+              partnerId: currentTrainerId,
+              variant: variantKeyOf(l.variant.name),
+              units: l.units,
+              unitPrice: l.variant.price,
+              buyerName: attachedBuyer ? null : (basePayload.buyer_name || null),
+              buyerContact: attachedBuyer ? null : (basePayload.buyer_contact || null),
+              pictureUrl: attachedBuyer ? null : (basePayload.picture_url || null),
+              customerNotes: attachedBuyer ? null : (basePayload.customer_notes || null),
+            })
+            attachedBuyer = true
+          } catch (err) {
+            const msg = err?.message || ''
+            if (msg.includes('partner_insufficient_stock')) {
+              throw new Error(`Not enough ${l.variant.short} in hand — the partner's available stock is short of ${l.units} units.`)
+            }
+            if (err?.code === '42501' || msg.includes('Not authorized')) {
+              throw new Error('Permission denied. Only the partner (or admin/sales) can record this sale.')
+            }
+            throw err
           }
-          if (error.code === '42501' || error.message.includes('permission') || error.message.includes('policy')) {
-            throw new Error('Permission denied. Please ensure your partner profile is configured correctly. Contact admin if issue persists.')
-          }
-          throw error
         }
 
-        // Audit log: sale created
-        await logAuditEvent({
-          actionType: 'CREATE',
-          entityType: 'sale',
-          entityId: data?.[0]?.id || null,
-          description: `Created customer sale: ${customerFormData.buyer_name || 'Unknown'} | ${lines.map((l) => `${l.units}×${l.variant.short}`).join(' + ')} | ₹${totalRevenue}`,
-          newValues: { rows },
-        })
+        // Audit log per-call is already recorded by recordPartnerSale; add a
+        // grouped summary event for the multi-line case.
+        if (lines.length > 1) {
+          await logAuditEvent({
+            actionType: 'CREATE',
+            entityType: 'sale',
+            entityId: currentTrainerId,
+            description: `Created customer sale (multi-variant): ${customerFormData.buyer_name || 'Unknown'} | ${lines.map((l) => `${l.units}×${l.variant.short}`).join(' + ')} | ₹${totalRevenue}`,
+            newValues: {
+              partner_id: currentTrainerId,
+              lines: lines.map((l) => ({ variant: l.variant.short, units: l.units, price: l.variant.price })),
+            },
+          })
+        }
       }
 
       // Reset the form ready for the next entry (clears variants, units,
@@ -409,46 +416,31 @@ export default function PartnerDashboard() {
 
       const buyerName = quickSaleData.customer_name.trim() || null
       const buyerContact = quickSaleData.customer_phone.trim() || null
-      const today = new Date().toISOString().split('T')[0]
 
-      const rows = []
-      if (quickMgUnits > 0) {
-        rows.push({
-          trainer_id: tid,
-          buyer_name: buyerName,
-          buyer_contact: buyerContact,
-          units_sold: quickMgUnits,
-          units_assigned: quickMgUnits,
-          product_variant: VARIANTS.multigrain.name,
-          unit_price: VARIANTS.multigrain.price,
-          purchase_date: today,
-          date_of_assignment: today,
-        })
+      // Quick Sale → SECURITY DEFINER RPC (Phase 4). Server draws down real
+      // in-hand units FIFO and caps by partner_variant_available.
+      let attachedBuyer = false
+      const submitLine = async (variantKey, units, price) => {
+        try {
+          await recordPartnerSale({
+            partnerId: tid,
+            variant: variantKey,
+            units,
+            unitPrice: price,
+            buyerName: attachedBuyer ? null : buyerName,
+            buyerContact: attachedBuyer ? null : buyerContact,
+          })
+          attachedBuyer = true
+        } catch (err) {
+          const msg = err?.message || ''
+          if (msg.includes('partner_insufficient_stock')) {
+            throw new Error(`Not enough ${variantKey === 'multigrain' ? 'Multigrain' : 'Plain'} in hand — your available stock is short of ${units} units.`)
+          }
+          throw err
+        }
       }
-      if (quickPlUnits > 0) {
-        rows.push({
-          trainer_id: tid,
-          buyer_name: buyerName,
-          buyer_contact: buyerContact,
-          units_sold: quickPlUnits,
-          units_assigned: quickPlUnits,
-          product_variant: VARIANTS.plain.name,
-          unit_price: VARIANTS.plain.price,
-          purchase_date: today,
-          date_of_assignment: today,
-        })
-      }
-
-      const { data, error } = await supabase.from('sales').insert(rows).select()
-      if (error) throw error
-
-      await logAuditEvent({
-        actionType: 'CREATE',
-        entityType: 'sale',
-        entityId: data?.[0]?.id || null,
-        description: `Quick sale: ${buyerName || 'walk-in'} | ${quickMgUnits} MG + ${quickPlUnits} Plain | ₹${quickTotal}`,
-        newValues: { rows },
-      })
+      if (quickMgUnits > 0) await submitLine('multigrain', quickMgUnits, VARIANTS.multigrain.price)
+      if (quickPlUnits > 0) await submitLine('plain', quickPlUnits, VARIANTS.plain.price)
 
       closeQuickSale()
       setQuickToast(`Sale recorded: ₹${quickTotal.toLocaleString()}`)

@@ -15,6 +15,7 @@ import {
   Wallet,
   Trash2,
   Scale,
+  ShoppingCart,
   Home,
   LogOut,
   Shield,
@@ -64,6 +65,7 @@ function DemoBadge() {
 const adminNavigation = [
   { name: 'Overview', href: '/admin/overview', Icon: LayoutDashboard },
   { name: 'Assignment', href: '/admin/sales', Icon: TrendingUp },
+  { name: 'Sell for Partner', href: '/admin/sell-for-partner', Icon: ShoppingCart },
   { name: 'CTA', href: '/admin/cta', Icon: Megaphone },
   { name: 'Team', href: '/admin/team', Icon: Users },
   { name: 'Requests', href: '/admin/requests', badge: 'pendingRequests', Icon: Inbox },
@@ -79,6 +81,7 @@ const salesNavigation = [
   { name: 'Overview', href: '/admin/overview', Icon: LayoutDashboard },
   { name: 'Stock', href: '/admin/units', Icon: Boxes },
   { name: 'Assignment', href: '/admin/sales', Icon: TrendingUp },
+  { name: 'Sell for Partner', href: '/admin/sell-for-partner', Icon: ShoppingCart },
   { name: 'CTA', href: '/admin/cta', Icon: Megaphone },
   { name: 'Requests', href: '/admin/requests', badge: 'pendingRequests', Icon: Inbox },
   { name: 'Records', href: '/admin/records', Icon: History },
