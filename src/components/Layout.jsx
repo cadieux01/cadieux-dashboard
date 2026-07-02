@@ -14,6 +14,7 @@ import {
   History,
   Wallet,
   Trash2,
+  Scale,
   Home,
   LogOut,
   Shield,
@@ -69,6 +70,7 @@ const adminNavigation = [
   { name: 'Stock', href: '/admin/stock', Icon: Package },
   { name: 'Payments', href: '/admin/payments', Icon: Wallet },
   { name: 'Unsold', href: '/admin/unsold', Icon: Trash2 },
+  { name: 'Reconcile', href: '/admin/reconcile', Icon: Scale },
   { name: 'Audit', href: '/admin/audit-logs', Icon: FileText },
   { name: 'Profile', href: '/admin/profile', Icon: User },
 ]
