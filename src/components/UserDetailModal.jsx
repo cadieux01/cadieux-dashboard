@@ -11,7 +11,47 @@ import { displayLogin, isValidPhone, normalizePhone } from '../lib/phone'
 import { demoBlock, PARTNER_TYPES, PARTNER_TYPE_LABELS } from '../lib/demoData'
 import { useAuth } from '../context/AuthContext'
 import usePinGate from '../lib/usePinGate'
-import { Pencil, KeyRound, Send } from 'lucide-react'
+import { Pencil, KeyRound, Send, Sparkles, Copy, Check } from 'lucide-react'
+
+// Generate a strong, readable password. Uses crypto.getRandomValues (never
+// Math.random), 14 chars from an ambiguity-free alphabet (no 0/O/o/1/l/I),
+// and guarantees at least one lowercase, one uppercase, one digit, and one
+// punctuation char so the result meets any downstream complexity rule.
+const PW_LOWER  = 'abcdefghijkmnpqrstuvwxyz'
+const PW_UPPER  = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
+const PW_DIGITS = '23456789'
+const PW_PUNCT  = '-_@#!$%&'
+const PW_ALL    = PW_LOWER + PW_UPPER + PW_DIGITS + PW_PUNCT
+const PW_LEN    = 14
+
+function pickChar(alphabet) {
+  const buf = new Uint32Array(1)
+  crypto.getRandomValues(buf)
+  return alphabet[buf[0] % alphabet.length]
+}
+
+function shuffleString(s) {
+  const arr = s.split('')
+  for (let i = arr.length - 1; i > 0; i--) {
+    const buf = new Uint32Array(1)
+    crypto.getRandomValues(buf)
+    const j = buf[0] % (i + 1)
+    ;[arr[i], arr[j]] = [arr[j], arr[i]]
+  }
+  return arr.join('')
+}
+
+function generateStrongPassword() {
+  const required = [
+    pickChar(PW_LOWER),
+    pickChar(PW_UPPER),
+    pickChar(PW_DIGITS),
+    pickChar(PW_PUNCT),
+  ]
+  const rest = []
+  for (let i = required.length; i < PW_LEN; i++) rest.push(pickChar(PW_ALL))
+  return shuffleString(required.concat(rest).join(''))
+}
 
 // Real phone for a profile: prefer the dedicated column, then the legacy
 // free-form field, then the digits in the synthetic `<phone>@cadieux.<role>`
@@ -99,6 +139,38 @@ export default function UserDetailModal({
   const [confirmPassword, setConfirmPassword] = useState('')
   const [resetting, setResetting] = useState(false)
   const [resetError, setResetError] = useState(null)
+  // When set, the admin used GENERATE — surface the plaintext so it can be
+  // copied/shared before the modal closes. Manually editing either field
+  // clears this (the shown value would no longer match).
+  const [generatedPassword, setGeneratedPassword] = useState('')
+  const [copied, setCopied] = useState(false)
+
+  const onNewPasswordChange = (value) => {
+    setNewPassword(value)
+    if (generatedPassword && value !== generatedPassword) setGeneratedPassword('')
+  }
+  const onConfirmPasswordChange = (value) => {
+    setConfirmPassword(value)
+    if (generatedPassword && value !== generatedPassword) setGeneratedPassword('')
+  }
+  const handleGenerate = () => {
+    const pw = generateStrongPassword()
+    setNewPassword(pw)
+    setConfirmPassword(pw)
+    setGeneratedPassword(pw)
+    setCopied(false)
+    setResetError(null)
+  }
+  const handleCopyGenerated = async () => {
+    if (!generatedPassword) return
+    try {
+      await navigator.clipboard.writeText(generatedPassword)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // Clipboard blocked (e.g. insecure context) — leave visible for manual copy.
+    }
+  }
 
   const status = current.status || 'active'
   const phone = phoneOf(current)
@@ -243,8 +315,8 @@ export default function UserDetailModal({
       return
     }
     setResetError(null)
-    if (!newPassword || newPassword.length < 6) {
-      setResetError('Password must be at least 6 characters.')
+    if (!newPassword || newPassword.length < 8) {
+      setResetError('Password must be at least 8 characters.')
       return
     }
     if (newPassword !== confirmPassword) {
@@ -268,6 +340,8 @@ export default function UserDetailModal({
       const pw = newPassword
       setNewPassword('')
       setConfirmPassword('')
+      setGeneratedPassword('')
+      setCopied(false)
       setMode('view')
       setBanner({
         type: 'success',
@@ -339,7 +413,7 @@ export default function UserDetailModal({
             {isAdmin && (
               <button
                 type="button"
-                onClick={() => { setResetError(null); setNewPassword(''); setConfirmPassword(''); setMode('reset') }}
+                onClick={() => { setResetError(null); setNewPassword(''); setConfirmPassword(''); setGeneratedPassword(''); setCopied(false); setMode('reset') }}
                 className="flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-[#fbf3d4] transition-colors hover:bg-indigo-500"
               >
                 <KeyRound size={16} /> Change Password
@@ -502,25 +576,56 @@ export default function UserDetailModal({
             label="New Password"
             type="password"
             value={newPassword}
-            onChange={setNewPassword}
-            placeholder="Minimum 6 characters"
-            minLength={6}
+            onChange={onNewPasswordChange}
+            placeholder="Minimum 8 characters"
+            minLength={8}
             required
           />
           <FormField
             label="Confirm New Password"
             type="password"
             value={confirmPassword}
-            onChange={setConfirmPassword}
+            onChange={onConfirmPasswordChange}
             placeholder="Re-enter the new password"
-            minLength={6}
+            minLength={8}
             required
           />
+
+          <div className="mt-3">
+            <button
+              type="button"
+              onClick={handleGenerate}
+              disabled={resetting}
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-indigo-500/40 bg-indigo-500/10 px-4 py-2 text-sm font-medium text-indigo-200 transition-colors hover:bg-indigo-500/20 disabled:opacity-50"
+            >
+              <Sparkles size={16} /> Generate strong password
+            </button>
+          </div>
+
+          {generatedPassword && (
+            <div className="mt-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5">
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-emerald-300">
+                Generated — copy now, it won't be shown again
+              </p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 select-all rounded bg-slate-900/60 px-2 py-1.5 font-mono text-sm text-emerald-100 break-all">
+                  {generatedPassword}
+                </code>
+                <button
+                  type="button"
+                  onClick={handleCopyGenerated}
+                  className="flex items-center gap-1 rounded-md bg-emerald-500/20 px-2.5 py-1.5 text-xs font-medium text-emerald-200 transition-colors hover:bg-emerald-500/30"
+                >
+                  {copied ? <><Check size={14} /> Copied</> : <><Copy size={14} /> Copy</>}
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="mt-6 flex gap-3">
             <button
               type="button"
-              onClick={() => { setMode('view'); setResetError(null); setNewPassword(''); setConfirmPassword('') }}
+              onClick={() => { setMode('view'); setResetError(null); setNewPassword(''); setConfirmPassword(''); setGeneratedPassword(''); setCopied(false) }}
               className="flex-1 rounded-lg bg-slate-800 px-4 py-2 text-slate-100 transition-colors hover:bg-slate-700"
               disabled={resetting}
             >
