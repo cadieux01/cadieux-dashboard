@@ -38,6 +38,161 @@ function batchClockMax() {
   return new Date(Math.min(plusHour, endOfToday.getTime()))
 }
 
+// ---------------------------------------------------------------------------
+// Shared batch-row renderer used by both the Active and Expired sections
+// below. Kept as a module-level function so both sections render identical
+// columns (Batch / Variant / Units / Assigned to / Started / Countdown /
+// Edit) with the same live-countdown + inline-edit form behaviour.
+// DISPLAY ONLY — no writes / RPCs / logic changes vs. the pre-split table.
+// ---------------------------------------------------------------------------
+function renderBatchSection({
+  title,
+  caption,
+  dotCls,
+  countCls,
+  emptyText,
+  batches,
+  unitsTotal,
+  isExpiredSection,
+  now,
+  batchHolders,
+  editId,
+  openEdit,
+  setEditId,
+  editForm,
+  setEditForm,
+  editBusy,
+  editErr,
+  submitEdit,
+}) {
+  return (
+    <div>
+      <div className="mb-2 flex items-center gap-2">
+        <span className={`h-2 w-2 rounded-full ${dotCls}`} />
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-200">{title}</p>
+        <p className="text-xs text-slate-500">· {caption}</p>
+        <span className={`ml-auto text-xs font-semibold tabular-nums ${countCls}`}>
+          {batches.length} batch{batches.length === 1 ? '' : 'es'} · {unitsTotal} unit
+          {unitsTotal === 1 ? '' : 's'} remaining
+        </span>
+      </div>
+      {batches.length === 0 ? (
+        <p className="rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm text-slate-500">
+          {emptyText}
+        </p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[48rem] border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-slate-800 text-left text-xs uppercase tracking-wide text-slate-400">
+                <th className="py-2 pr-3 font-medium">Batch</th>
+                <th className="py-2 pr-3 font-medium">Variant</th>
+                <th className="py-2 pr-3 font-medium">Units</th>
+                <th className="py-2 pr-3 font-medium">Assigned to</th>
+                <th className="py-2 pr-3 font-medium">Started</th>
+                <th className="py-2 pr-3 font-medium">Countdown</th>
+                <th className="py-2 font-medium text-right">Edit</th>
+              </tr>
+            </thead>
+            <tbody>
+              {batches.map((b) => {
+                const exp = b.expiry_at ? new Date(b.expiry_at).getTime() : null
+                const ms = exp != null ? exp - now : null
+                const expired = ms != null && ms <= 0
+                // The shelf-life clock is only meaningful while units are
+                // unsold. Once a batch's remaining hits 0, stop the timer.
+                const soldOut = (b.quantity_remaining || 0) <= 0
+                return (
+                  <Fragment key={b.id}>
+                    <tr
+                      className={`border-b border-slate-800/70 ${
+                        isExpiredSection && !soldOut ? 'bg-rose-950/20' : ''
+                      }`}
+                    >
+                      <td className="py-2.5 pr-3 font-medium text-slate-100">#{b.batch_number}</td>
+                      <td className="py-2.5 pr-3 text-slate-300">{b.variant_label}</td>
+                      <td className="py-2.5 pr-3 text-slate-300">
+                        {b.quantity_remaining}
+                        <span className="text-slate-500">/{b.quantity}</span>
+                      </td>
+                      <td className="py-2.5 pr-3 align-top">
+                        <BatchHoldersCell holders={batchHolders[b.id]} />
+                      </td>
+                      <td className="py-2.5 pr-3 text-slate-400">
+                        {formatDateTimeDDMMYY(b.created_at)}
+                      </td>
+                      <td
+                        className={`py-2.5 pr-3 font-semibold ${
+                          soldOut ? 'text-slate-500' : expired ? 'text-rose-400' : 'text-emerald-400'
+                        }`}
+                      >
+                        {soldOut ? 'Sold out' : ms == null ? '—' : fmtBatchLeft(ms)}
+                      </td>
+                      <td className="py-2.5 text-right">
+                        <button
+                          type="button"
+                          onClick={() => (editId === b.id ? setEditId(null) : openEdit(b))}
+                          className="rounded-md bg-slate-800 px-2.5 py-1 text-xs font-semibold text-slate-200 hover:bg-slate-700"
+                        >
+                          {editId === b.id ? 'Close' : 'Edit'}
+                        </button>
+                      </td>
+                    </tr>
+                    {editId === b.id && (
+                      <tr>
+                        <td colSpan={7} className="pb-3">
+                          <form
+                            onSubmit={submitEdit}
+                            className="space-y-3 rounded-lg border border-slate-800 bg-slate-950/40 p-3"
+                          >
+                            <div>
+                              <label className="mb-1 block text-xs text-slate-400">Quantity</label>
+                              <input
+                                type="number"
+                                min="1"
+                                value={editForm.quantity}
+                                onChange={(e) => setEditForm({ ...editForm, quantity: e.target.value })}
+                                className="dashboard-input"
+                              />
+                            </div>
+                            <WheelDateTime
+                              label="Batch start (clock)"
+                              value={editForm.when}
+                              max={batchClockMax()}
+                              onChange={(dt) => setEditForm({ ...editForm, when: dt })}
+                            />
+                            {editErr && <p className="text-sm font-semibold text-rose-400">{editErr}</p>}
+                            <div className="flex gap-2">
+                              <button
+                                type="submit"
+                                disabled={editBusy}
+                                className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-[#fbf3d4] hover:bg-emerald-500 disabled:opacity-50"
+                              >
+                                {editBusy ? '…' : 'Save'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditId(null)}
+                                className="rounded-lg bg-slate-800 px-3 py-2 text-sm text-slate-300 hover:bg-slate-700"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </form>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function CentralStock({ embedded = false }) {
   const { isDemo } = useAuth()
 
@@ -103,6 +258,29 @@ export default function CentralStock({ embedded = false }) {
   }, [isDemo])
 
   const visibleBatches = batches.filter((b) => filter === 'all' || b.variant === filter)
+
+  // ---------------------------------------------------------------------------
+  // Split batches into ACTIVE (non-expired) and EXPIRED sections, DISPLAY ONLY.
+  //   • Active preserves the existing FIFO order (view returns oldest-created
+  //     first) so allotment order is still visually obvious.
+  //   • Expired is sorted by expiry_at ASC = oldest-expired first, per spec.
+  //   • Batches with no expiry_at (should not happen post-Stage-1 but kept
+  //     defensively) are treated as never-expired → Active.
+  // ---------------------------------------------------------------------------
+  const activeBatches = visibleBatches.filter((b) => {
+    const exp = b.expiry_at ? new Date(b.expiry_at).getTime() : null
+    return exp == null || exp > now
+  })
+  const expiredBatches = visibleBatches
+    .filter((b) => {
+      const exp = b.expiry_at ? new Date(b.expiry_at).getTime() : null
+      return exp != null && exp <= now
+    })
+    .slice()
+    .sort((a, b) => new Date(a.expiry_at).getTime() - new Date(b.expiry_at).getTime())
+
+  const activeUnits = activeBatches.reduce((s, b) => s + Number(b.quantity_remaining || 0), 0)
+  const expiredUnits = expiredBatches.reduce((s, b) => s + Number(b.quantity_remaining || 0), 0)
 
   // --- handlers ---
   const openShelf = (variant) => {
@@ -295,14 +473,17 @@ export default function CentralStock({ embedded = false }) {
             )}
           </div>
 
-          {/* 3. Batches — per-batch table, FIFO oldest first, live countdown.
+          {/* 3. Batches — split into ACTIVE and EXPIRED sections, DISPLAY ONLY.
+              Active preserves FIFO (oldest-created first, straight from the
+              view). Expired is oldest-expired first (expiry_at ASC), so the
+              first thing an admin sees is what expired longest ago.
               "Assigned to" lists who currently holds unsold units from a batch. */}
           <div className={CARD}>
             <div className="mb-3 flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <h2 className="text-lg font-semibold text-slate-100">Batches</h2>
                 <p className="mt-0.5 text-xs text-slate-500">
-                  Units sent &amp; who holds them now · oldest first (FIFO)
+                  Active first (FIFO), then expired (oldest-expired first)
                 </p>
               </div>
               <div className="flex flex-shrink-0 gap-1">
@@ -324,90 +505,47 @@ export default function CentralStock({ embedded = false }) {
             {visibleBatches.length === 0 ? (
               <p className="text-sm text-slate-400">No batches yet.</p>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[48rem] border-collapse text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-800 text-left text-xs uppercase tracking-wide text-slate-400">
-                      <th className="py-2 pr-3 font-medium">Batch</th>
-                      <th className="py-2 pr-3 font-medium">Variant</th>
-                      <th className="py-2 pr-3 font-medium">Units</th>
-                      <th className="py-2 pr-3 font-medium">Assigned to</th>
-                      <th className="py-2 pr-3 font-medium">Started</th>
-                      <th className="py-2 pr-3 font-medium">Countdown</th>
-                      <th className="py-2 font-medium text-right">Edit</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {visibleBatches.map((b) => {
-                      const exp = b.expiry_at ? new Date(b.expiry_at).getTime() : null
-                      const ms = exp != null ? exp - now : null
-                      const expired = ms != null && ms <= 0
-                      // The shelf-life clock is only meaningful while units are
-                      // unsold. Once a batch's remaining hits 0, stop the timer.
-                      const soldOut = (b.quantity_remaining || 0) <= 0
-                      return (
-                        <Fragment key={b.id}>
-                          <tr className={`border-b border-slate-800/70 ${expired && !soldOut ? 'bg-rose-950/20' : ''}`}>
-                            <td className="py-2.5 pr-3 font-medium text-slate-100">#{b.batch_number}</td>
-                            <td className="py-2.5 pr-3 text-slate-300">{b.variant_label}</td>
-                            <td className="py-2.5 pr-3 text-slate-300">
-                              {b.quantity_remaining}<span className="text-slate-500">/{b.quantity}</span>
-                            </td>
-                            <td className="py-2.5 pr-3 align-top">
-                              <BatchHoldersCell holders={batchHolders[b.id]} />
-                            </td>
-                            <td className="py-2.5 pr-3 text-slate-400">{formatDateTimeDDMMYY(b.created_at)}</td>
-                            <td className={`py-2.5 pr-3 font-semibold ${soldOut ? 'text-slate-500' : expired ? 'text-rose-400' : 'text-emerald-400'}`}>
-                              {soldOut ? 'Sold out' : ms == null ? '—' : fmtBatchLeft(ms)}
-                            </td>
-                            <td className="py-2.5 text-right">
-                              <button
-                                type="button"
-                                onClick={() => (editId === b.id ? setEditId(null) : openEdit(b))}
-                                className="rounded-md bg-slate-800 px-2.5 py-1 text-xs font-semibold text-slate-200 hover:bg-slate-700"
-                              >
-                                {editId === b.id ? 'Close' : 'Edit'}
-                              </button>
-                            </td>
-                          </tr>
-                          {editId === b.id && (
-                            <tr>
-                              <td colSpan={7} className="pb-3">
-                                <form onSubmit={submitEdit} className="space-y-3 rounded-lg border border-slate-800 bg-slate-950/40 p-3">
-                                  <div>
-                                    <label className="mb-1 block text-xs text-slate-400">Quantity</label>
-                                    <input
-                                      type="number"
-                                      min="1"
-                                      value={editForm.quantity}
-                                      onChange={(e) => setEditForm({ ...editForm, quantity: e.target.value })}
-                                      className="dashboard-input"
-                                    />
-                                  </div>
-                                  <WheelDateTime
-                                    label="Batch start (clock)"
-                                    value={editForm.when}
-                                    max={batchClockMax()}
-                                    onChange={(dt) => setEditForm({ ...editForm, when: dt })}
-                                  />
-                                  {editErr && <p className="text-sm font-semibold text-rose-400">{editErr}</p>}
-                                  <div className="flex gap-2">
-                                    <button type="submit" disabled={editBusy} className="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-[#fbf3d4] hover:bg-emerald-500 disabled:opacity-50">
-                                      {editBusy ? '…' : 'Save'}
-                                    </button>
-                                    <button type="button" onClick={() => setEditId(null)} className="rounded-lg bg-slate-800 px-3 py-2 text-sm text-slate-300 hover:bg-slate-700">
-                                      Cancel
-                                    </button>
-                                  </div>
-                                </form>
-                              </td>
-                            </tr>
-                          )}
-                        </Fragment>
-                      )
-                    })}
-                  </tbody>
-                </table>
+              <div className="space-y-6">
+                {renderBatchSection({
+                  title: 'Active',
+                  caption: 'Non-expired · oldest first (FIFO)',
+                  dotCls: 'bg-emerald-400',
+                  countCls: 'text-emerald-300',
+                  emptyText: 'No active batches.',
+                  batches: activeBatches,
+                  unitsTotal: activeUnits,
+                  isExpiredSection: false,
+                  now,
+                  batchHolders,
+                  editId,
+                  openEdit,
+                  setEditId,
+                  editForm,
+                  setEditForm,
+                  editBusy,
+                  editErr,
+                  submitEdit,
+                })}
+                {renderBatchSection({
+                  title: 'Expired',
+                  caption: 'Past expiry · oldest-expired first',
+                  dotCls: 'bg-rose-400',
+                  countCls: 'text-rose-300',
+                  emptyText: 'No expired batches.',
+                  batches: expiredBatches,
+                  unitsTotal: expiredUnits,
+                  isExpiredSection: true,
+                  now,
+                  batchHolders,
+                  editId,
+                  openEdit,
+                  setEditId,
+                  editForm,
+                  setEditForm,
+                  editBusy,
+                  editErr,
+                  submitEdit,
+                })}
               </div>
             )}
           </div>
