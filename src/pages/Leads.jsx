@@ -14,6 +14,7 @@ import { getBatchFreshnessMap, batchMsLeft, fmtBatchLeft, listBatches } from '..
 import { getBatchHolders } from '../lib/batchHolders'
 import BatchHoldersCell from '../components/BatchHoldersCell'
 import { getAgentBalance, getAgentHoldingsByBatch, recordReturn, retractAgentToCentral, retractSaleToCentral } from '../lib/agentInventory'
+import { getPartnerVariantAvailable, retractFromPartner } from '../lib/partnerInventory'
 import { verifyPayment, getProofSignedUrl } from '../lib/payments'
 import { formatDateDDMMYY, formatDateTimeDDMMYY } from '../lib/date'
 import { useAuth } from '../context/AuthContext'
@@ -144,6 +145,11 @@ export default function Leads() {
     reason: 'damaged',
     notes: '',
   })
+  // Phase 3 (SEAL LEAK #1 companion): partner's variant-scoped in-hand aggregate
+  // used to cap the retract input when destination = 'agent' (the new atomic
+  // RPC path). null = unknown (loading or not applicable).
+  const [partnerAvailable, setPartnerAvailable] = useState(null)
+  const [retractSaving, setRetractSaving] = useState(false)
   const [leadFormData, setLeadFormData] = useState({
     trainer_id: '',
     trainer_contact: '',
@@ -222,6 +228,35 @@ export default function Leads() {
   useEffect(() => {
     fetchData()
   }, [])
+
+  // Phase 3: keep partnerAvailable in sync while the retract modal is open on
+  // the partner + return-to-agent path (the only path that hits the atomic RPC).
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      if (isDemo) { setPartnerAvailable(null); return }
+      if (!isAddRetractModalOpen) { setPartnerAvailable(null); return }
+      if (retractFormData.target !== 'partner') { setPartnerAvailable(null); return }
+      if (retractFormData.destination !== 'agent') { setPartnerAvailable(null); return }
+      if (!retractFormData.trainer_id || !retractFormData.variant) { setPartnerAvailable(null); return }
+      try {
+        const n = await getPartnerVariantAvailable(retractFormData.trainer_id, retractFormData.variant)
+        if (!cancelled) setPartnerAvailable(n)
+      } catch (err) {
+        console.warn('getPartnerVariantAvailable failed:', err.message)
+        if (!cancelled) setPartnerAvailable(null)
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [
+    isAddRetractModalOpen,
+    retractFormData.target,
+    retractFormData.destination,
+    retractFormData.trainer_id,
+    retractFormData.variant,
+    isDemo,
+  ])
 
   const fetchData = async () => {
     if (isDemo) {
@@ -1435,34 +1470,32 @@ export default function Leads() {
       return
     }
 
-    // Otherwise we are retracting from a PARTNER (a sales row).
+    // Otherwise we are retracting from a PARTNER.
     if (!retractFormData.trainer_id) {
       alert('Please select a partner')
       return
     }
-    if (!retractFormData.sale_id) {
-      alert('Please select an active shipment')
-      return
-    }
 
-    try {
-      const sale = sales.find(s => s.id === retractFormData.sale_id)
-      if (!sale) {
-        alert('Selected shipment not found')
+    // Admin chose to send the partner's units back to CENTRAL (rule 3b).
+    // This path stays per-sale (retract_sale_to_central bumps a specific sales
+    // row's retract counters AND restores the originating central batch).
+    if (isAdmin && retractFormData.destination === 'central') {
+      if (!retractFormData.sale_id) {
+        alert('Please select an active shipment')
         return
       }
-
-      const remainingUnsold = getRemainingUnsoldUnits(sale)
-      if (units > remainingUnsold) {
-        alert(`Units (${units}) cannot exceed remaining unsold units (${remainingUnsold})`)
-        return
-      }
-
-      // Admin chose to send the partner's units back to CENTRAL (rule 3b).
-      // The atomic RPC bumps the sales row's retracted counters AND restores the
-      // originating batch — no 'returned' ledger write, so the units leave the
-      // agent's chain entirely (agent total drops, agent row leaves active).
-      if (isAdmin && retractFormData.destination === 'central') {
+      try {
+        const sale = sales.find(s => s.id === retractFormData.sale_id)
+        if (!sale) {
+          alert('Selected shipment not found')
+          return
+        }
+        const remainingUnsold = getRemainingUnsoldUnits(sale)
+        if (units > remainingUnsold) {
+          alert(`Units (${units}) cannot exceed remaining unsold units (${remainingUnsold})`)
+          return
+        }
+        setRetractSaving(true)
         await retractSaleToCentral({
           saleId: sale.id,
           variant: retractFormData.variant,
@@ -1472,85 +1505,44 @@ export default function Leads() {
         })
         handleCloseRetractModal()
         await fetchData()
-        return
+      } catch (error) {
+        console.error('Error retracting to central:', error)
+        alert('Error retracting to central: ' + error.message)
+      } finally {
+        setRetractSaving(false)
       }
+      return
+    }
 
-      // Default (agent retract, or admin choosing "return to agent"): units
-      // bounce back to the agent who handed them out (rule 1 / 3a). Unchanged.
-      const isPlain = retractFormData.variant === 'plain'
-      const nowIso = new Date().toISOString()
-
-      const nextValues = {
-        units_sold: sale.units_sold || 0,
-        retracted_units: (sale.retracted_units || 0) + units,
-        // Attribution fields — best-effort. Columns are added by the
-        // attribution-columns.sql migration; if they don't exist yet the
-        // update payload is filtered down to known columns by Supabase.
-        retract_reason: retractFormData.reason,
-        retract_notes: retractFormData.notes || null,
-        retracted_by: user?.id || null,
-        retract_date: nowIso,
-        multigrain_retracted: (sale.multigrain_retracted || 0) + (isPlain ? 0 : units),
-        plain_retracted: (sale.plain_retracted || 0) + (isPlain ? units : 0),
-      }
-
-      const { error } = await supabase
-        .from('sales')
-        .update(nextValues)
-        .eq('id', retractFormData.sale_id)
-
-      if (error) throw error
-
-      // Chain step: retracted units bounce back to the agent who handed them
-      // out, carrying the originating batch clock, so the agent is "holding"
-      // them again (agent row stays/returns to active, central view reflects
-      // the returned in-hand stock). Best-effort: legacy rows with no agent_id
-      // or no batch skip the ledger write (nothing to credit back to).
-      if (sale.agent_id) {
-        try {
-          await recordReturn({
-            agentId: sale.agent_id,
-            partnerId: sale.trainer_id || null,
-            variant: retractFormData.variant,
-            units,
-            batchId: sale.batch_id || null,
-            note: `Retracted from partner (${retractFormData.reason})`,
-          })
-        } catch (returnErr) {
-          console.warn('Retract ledger return failed:', returnErr.message)
-        }
-      }
-
-      const trainer = trainers.find(t => t.id === retractFormData.trainer_id)
-      await logAuditEvent({
-        actionType: 'UPDATE',
-        entityType: 'sale',
-        entityId: retractFormData.sale_id,
-        description: createAuditDescription('UPDATE', 'sale', {
-          units_sold: nextValues.units_sold,
-          retracted_units: nextValues.retracted_units,
-        }, trainer, {
-          units_sold: sale.units_sold || 0,
-          retracted_units: sale.retracted_units || 0,
-        }, nextValues),
-        oldValues: {
-          units_sold: sale.units_sold || 0,
-          retracted_units: sale.retracted_units || 0,
-        },
-        newValues: nextValues,
-        metadata: {
-          trainer_id: retractFormData.trainer_id,
-          trainer_name: trainer?.name,
-          units_delta: units,
-          destination: 'agent',
-        },
+    // Default (agent retract, or admin "return to agent"): atomic
+    // retract_from_partner RPC. Aggregate FIFO across sales rows +
+    // partner_assignments, refuses if p_units exceeds partner's variant-scoped
+    // in-hand, credits each source agent's ledger as 'returned' with the
+    // originating batch_id preserved. Replaces the prior non-atomic path.
+    try {
+      setRetractSaving(true)
+      await retractFromPartner({
+        partnerId: retractFormData.trainer_id,
+        variant: retractFormData.variant,
+        units,
+        reason: retractFormData.reason,
+        notes: retractFormData.notes || null,
       })
-
       handleCloseRetractModal()
       await fetchData()
     } catch (error) {
       console.error('Error saving retract entry:', error)
-      alert('Error saving retract entry: ' + error.message)
+      let message = error.message || 'Could not complete retract.'
+      if ((error.message || '').startsWith('partner_insufficient_stock')) {
+        const m = /has\s+(\d+),\s*needs\s+(\d+)/i.exec(error.message || '')
+        const has = m ? m[1] : '?'
+        const needs = m ? m[2] : units
+        const vLabel = retractFormData.variant === 'plain' ? 'Plain' : 'Multi-Grain'
+        message = `Partner has only ${has} × ${vLabel} in hand — cannot retract ${needs}.`
+      }
+      alert(message)
+    } finally {
+      setRetractSaving(false)
     }
   }
 
@@ -3004,7 +2996,12 @@ export default function Leads() {
                 required
               />
 
-              {retractFormData.trainer_id && (
+              {/* Per-sale Active Shipment picker only makes sense for the
+                  central-restore path (retract_sale_to_central operates on a
+                  single sales row). The default agent-return path uses the
+                  aggregate bounded-retract RPC, which walks FIFO across sources
+                  server-side and has no per-sale UI to pick. */}
+              {retractFormData.trainer_id && retractFormData.destination === 'central' && isAdmin && (
                 <FormField
                   label="Active Shipment"
                   type="select"
@@ -3022,7 +3019,7 @@ export default function Leads() {
                 />
               )}
 
-              {retractFormData.sale_id && (() => {
+              {retractFormData.destination === 'central' && isAdmin && retractFormData.sale_id && (() => {
                 const selectedSale = sales.find(s => s.id === retractFormData.sale_id)
                 const retractedUnits = selectedSale?.retracted_units || 0
                 const remainingUnsold = getRemainingUnsoldUnits(selectedSale)
@@ -3077,14 +3074,34 @@ export default function Leads() {
                 </div>
               )}
 
+              {/* Partner variant-scoped in-hand aggregate — the same formula
+                  the atomic retract RPC uses to enforce the cap. */}
+              {retractFormData.destination === 'agent' && retractFormData.trainer_id && (
+                <div className="mb-4 p-3 bg-slate-800 rounded-lg">
+                  <p className="text-sm text-slate-400 mb-1">Partner in-hand:</p>
+                  <p className="text-sm text-emerald-400">
+                    {partnerAvailable === null
+                      ? 'Loading…'
+                      : `${partnerAvailable} × ${retractFormData.variant === 'multigrain' ? 'Multi-Grain' : 'Plain'} available across all shipments`}
+                  </p>
+                  <p className="text-[11px] text-slate-500 mt-1">FIFO walk across the partner's active shipments oldest-first.</p>
+                </div>
+              )}
+
               {(() => {
-                const selectedSale = retractFormData.sale_id ? sales.find(s => s.id === retractFormData.sale_id) : null
-                const maxUnits = selectedSale ? getRemainingUnsoldUnits(selectedSale) : 100
+                const isCentral = retractFormData.destination === 'central'
+                const selectedSale = isCentral && retractFormData.sale_id ? sales.find(s => s.id === retractFormData.sale_id) : null
+                const maxUnits = isCentral
+                  ? (selectedSale ? getRemainingUnsoldUnits(selectedSale) : 100)
+                  : (partnerAvailable ?? 100)
+                const hint = isCentral
+                  ? (selectedSale ? `Max: ${maxUnits}` : undefined)
+                  : (partnerAvailable === null ? undefined : `Max: ${maxUnits}`)
                 return (
                   <div className="mb-3">
                     <NumberStepper
                       label="Retracted Units"
-                      hint={selectedSale ? `Max: ${maxUnits}` : undefined}
+                      hint={hint}
                       value={retractFormData.units}
                       onChange={(value) => setRetractFormData({ ...retractFormData, units: value })}
                       max={maxUnits}

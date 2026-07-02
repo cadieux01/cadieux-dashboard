@@ -103,3 +103,40 @@ export async function getPartnerUnsoldByVariant(partnerId) {
   }
   return byVariant
 }
+
+// Phase 3 (SEAL LEAK #1 companion): partner's variant-scoped in-hand aggregate
+// across sales rows + partner_assignments. Same formula the atomic retract RPC
+// uses to enforce the cap, so UI display and server enforcement agree.
+export async function getPartnerVariantAvailable(partnerId, variant) {
+  const { data, error } = await supabase.rpc('partner_variant_available', {
+    p_partner: partnerId,
+    p_variant: variant,
+  })
+  if (error) throw error
+  return Number(data) || 0
+}
+
+// Phase 3 (SEAL LEAK #1): atomic partner-side retract. FIFO walks sources
+// (sales + partner_assignments) oldest-first, decrements each, and credits the
+// originating agent's ledger as 'returned' with the source batch_id preserved.
+// Refuses if p_units exceeds the partner's current variant-scoped holding
+// (partner_insufficient_stock).
+export async function retractFromPartner({ partnerId, variant, units, reason = null, notes = null }) {
+  const { data, error } = await supabase.rpc('retract_from_partner', {
+    p_partner: partnerId,
+    p_variant: variant,
+    p_units: units,
+    p_reason: reason,
+    p_notes: notes,
+  })
+  if (error) throw error
+  await logAuditEvent({
+    actionType: 'UPDATE',
+    entityType: 'partner_inventory',
+    entityId: partnerId,
+    category: 'partner',
+    description: `Retracted ${units} × ${variantLabel(variant)} from partner (return to agent)`,
+    newValues: { partner_id: partnerId, variant, units, reason, notes, destination: 'agent' },
+  })
+  return Number(data) || units
+}
