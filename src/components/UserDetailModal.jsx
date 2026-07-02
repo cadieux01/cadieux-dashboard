@@ -11,7 +11,7 @@ import { displayLogin, isValidPhone, normalizePhone } from '../lib/phone'
 import { demoBlock, PARTNER_TYPES, PARTNER_TYPE_LABELS } from '../lib/demoData'
 import { useAuth } from '../context/AuthContext'
 import usePinGate from '../lib/usePinGate'
-import { Pencil, KeyRound, Send, Sparkles, Copy, Check } from 'lucide-react'
+import { Pencil, Send, Sparkles, Copy, Check } from 'lucide-react'
 
 // Generate a strong, readable password. Uses crypto.getRandomValues (never
 // Math.random), 14 chars from an ambiguity-free alphabet (no 0/O/o/1/l/I),
@@ -139,6 +139,7 @@ export default function UserDetailModal({
   const [confirmPassword, setConfirmPassword] = useState('')
   const [resetting, setResetting] = useState(false)
   const [resetError, setResetError] = useState(null)
+  const [resetSuccess, setResetSuccess] = useState(null)
   // When set, the admin used GENERATE — surface the plaintext so it can be
   // copied/shared before the modal closes. Manually editing either field
   // clears this (the shown value would no longer match).
@@ -147,10 +148,12 @@ export default function UserDetailModal({
 
   const onNewPasswordChange = (value) => {
     setNewPassword(value)
+    if (resetSuccess) setResetSuccess(null)
     if (generatedPassword && value !== generatedPassword) setGeneratedPassword('')
   }
   const onConfirmPasswordChange = (value) => {
     setConfirmPassword(value)
+    if (resetSuccess) setResetSuccess(null)
     if (generatedPassword && value !== generatedPassword) setGeneratedPassword('')
   }
   const handleGenerate = () => {
@@ -160,6 +163,7 @@ export default function UserDetailModal({
     setGeneratedPassword(pw)
     setCopied(false)
     setResetError(null)
+    setResetSuccess(null)
   }
   const handleCopyGenerated = async () => {
     if (!generatedPassword) return
@@ -185,6 +189,15 @@ export default function UserDetailModal({
       margin_plain: str(current.margin_percent_plain ?? current.margin_percent),
       payout_days: str(current.payout_days),
     })
+    // Password fields live inside edit mode but are independent of Save
+    // Changes — always start blank so a stale value never lands on a fresh
+    // "Update Password" click.
+    setNewPassword('')
+    setConfirmPassword('')
+    setGeneratedPassword('')
+    setCopied(false)
+    setResetError(null)
+    setResetSuccess(null)
     setMode('edit')
   }
 
@@ -328,6 +341,7 @@ export default function UserDetailModal({
 
   const doReset = async () => {
     setResetError(null)
+    setResetSuccess(null)
     setResetting(true)
     try {
       await adminSetPassword(current.id, newPassword)
@@ -338,16 +352,17 @@ export default function UserDetailModal({
         description: `Admin changed password for ${roleLabel}: ${current.full_name || phone} (${phone})`,
       })
       const pw = newPassword
+      const wasGenerated = generatedPassword && generatedPassword === pw
+      // Stay in edit mode so profile edits can continue independently.
+      // Clear the type fields; keep the generated reveal strip visible if the
+      // admin used Generate (so they can still copy the value).
       setNewPassword('')
       setConfirmPassword('')
-      setGeneratedPassword('')
-      setCopied(false)
-      setMode('view')
-      setBanner({
-        type: 'success',
-        title: 'Password changed successfully',
-        message: `A new password was set for ${current.full_name || phone}. They can log in with it now.`,
-      })
+      if (!wasGenerated) {
+        setGeneratedPassword('')
+        setCopied(false)
+      }
+      setResetSuccess(`New password set for ${current.full_name || phone}. They can log in with it now.`)
       onShareNewPassword?.({
         name: current.full_name || '',
         phone,
@@ -365,7 +380,6 @@ export default function UserDetailModal({
   const titleByMode = {
     view: `${roleLabel} Details`,
     edit: `Edit ${roleLabel}`,
-    reset: 'Change Password',
   }
 
   return (
@@ -410,15 +424,6 @@ export default function UserDetailModal({
             >
               <Pencil size={16} /> Edit Details
             </button>
-            {isAdmin && (
-              <button
-                type="button"
-                onClick={() => { setResetError(null); setNewPassword(''); setConfirmPassword(''); setGeneratedPassword(''); setCopied(false); setMode('reset') }}
-                className="flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-[#fbf3d4] transition-colors hover:bg-indigo-500"
-              >
-                <KeyRound size={16} /> Change Password
-              </button>
-            )}
             <button
               type="button"
               onClick={() => onShareLogin(current)}
@@ -498,9 +503,18 @@ export default function UserDetailModal({
           <div className="mt-6 flex gap-3">
             <button
               type="button"
-              onClick={() => { setMode('view'); setEditError(null) }}
+              onClick={() => {
+                setMode('view')
+                setEditError(null)
+                setNewPassword('')
+                setConfirmPassword('')
+                setGeneratedPassword('')
+                setCopied(false)
+                setResetError(null)
+                setResetSuccess(null)
+              }}
               className="flex-1 rounded-lg bg-slate-800 px-4 py-2 text-slate-100 transition-colors hover:bg-slate-700"
-              disabled={saving}
+              disabled={saving || resetting}
             >
               Cancel
             </button>
@@ -513,6 +527,98 @@ export default function UserDetailModal({
               {saving ? 'Saving...' : 'Save Changes'}
             </button>
           </div>
+
+          {/* Set New Password — admin-only, PIN-gated, independent of Save
+              Changes above. Leaving the fields blank and clicking Save
+              Changes never touches the password; only the Update Password
+              button here calls the service-role Edge Function. The current
+              password can't be retrieved (one-way hashed) — this only sets
+              a new one. */}
+          {isAdmin && (
+            <div className="mt-6 border-t border-slate-800 pt-4">
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-slate-500">Set New Password</p>
+              <p className="mb-3 text-xs text-slate-500">
+                The current password cannot be shown. Enter a new one to reset it. Leave blank to keep it unchanged.
+              </p>
+
+              {resetError && (
+                <div className="mb-3">
+                  <AlertBanner
+                    type="error"
+                    title="Could not change password"
+                    message={resetError}
+                    onDismiss={() => setResetError(null)}
+                  />
+                </div>
+              )}
+              {resetSuccess && (
+                <div className="mb-3">
+                  <AlertBanner
+                    type="success"
+                    title="Password updated"
+                    message={resetSuccess}
+                    onDismiss={() => setResetSuccess(null)}
+                  />
+                </div>
+              )}
+
+              <FormField
+                label="New Password"
+                type="password"
+                value={newPassword}
+                onChange={onNewPasswordChange}
+                placeholder="Minimum 8 characters"
+                minLength={8}
+              />
+              <FormField
+                label="Confirm New Password"
+                type="password"
+                value={confirmPassword}
+                onChange={onConfirmPasswordChange}
+                placeholder="Re-enter the new password"
+                minLength={8}
+              />
+
+              <div className="mt-3 flex gap-3">
+                <button
+                  type="button"
+                  onClick={handleGenerate}
+                  disabled={resetting}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-indigo-500/40 bg-indigo-500/10 px-4 py-2 text-sm font-medium text-indigo-200 transition-colors hover:bg-indigo-500/20 disabled:opacity-50"
+                >
+                  <Sparkles size={16} /> Generate
+                </button>
+                <button
+                  type="button"
+                  onClick={handleReset}
+                  disabled={resetting || !newPassword}
+                  className="flex-1 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-[#fbf3d4] transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {resetting ? 'Updating…' : 'Update Password'}
+                </button>
+              </div>
+
+              {generatedPassword && (
+                <div className="mt-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5">
+                  <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-emerald-300">
+                    Generated — copy now, it won't be shown again
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 select-all rounded bg-slate-900/60 px-2 py-1.5 font-mono text-sm text-emerald-100 break-all">
+                      {generatedPassword}
+                    </code>
+                    <button
+                      type="button"
+                      onClick={handleCopyGenerated}
+                      className="flex items-center gap-1 rounded-md bg-emerald-500/20 px-2.5 py-1.5 text-xs font-medium text-emerald-200 transition-colors hover:bg-emerald-500/30"
+                    >
+                      {copied ? <><Check size={14} /> Copied</> : <><Copy size={14} /> Copy</>}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Account controls — kept out of the list; live at the bottom of Edit. */}
           <div className="mt-6 border-t border-slate-800 pt-4">
@@ -551,94 +657,6 @@ export default function UserDetailModal({
             <p className="mt-2 text-xs text-slate-500">
               Deactivate blocks login but keeps data. Remove hides the account; both are recoverable with Reactivate.
             </p>
-          </div>
-        </div>
-      )}
-
-      {mode === 'reset' && isAdmin && (
-        <div>
-          {resetError && (
-            <div className="mb-4">
-              <AlertBanner
-                type="error"
-                title="Could not change password"
-                message={resetError}
-                onDismiss={() => setResetError(null)}
-              />
-            </div>
-          )}
-
-          <p className="mb-4 text-sm text-slate-400">
-            Set a new password for <span className="font-medium text-slate-100">{current.full_name || phone}</span>. They can log in with it immediately.
-          </p>
-
-          <FormField
-            label="New Password"
-            type="password"
-            value={newPassword}
-            onChange={onNewPasswordChange}
-            placeholder="Minimum 8 characters"
-            minLength={8}
-            required
-          />
-          <FormField
-            label="Confirm New Password"
-            type="password"
-            value={confirmPassword}
-            onChange={onConfirmPasswordChange}
-            placeholder="Re-enter the new password"
-            minLength={8}
-            required
-          />
-
-          <div className="mt-3">
-            <button
-              type="button"
-              onClick={handleGenerate}
-              disabled={resetting}
-              className="flex w-full items-center justify-center gap-2 rounded-lg border border-indigo-500/40 bg-indigo-500/10 px-4 py-2 text-sm font-medium text-indigo-200 transition-colors hover:bg-indigo-500/20 disabled:opacity-50"
-            >
-              <Sparkles size={16} /> Generate strong password
-            </button>
-          </div>
-
-          {generatedPassword && (
-            <div className="mt-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2.5">
-              <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-emerald-300">
-                Generated — copy now, it won't be shown again
-              </p>
-              <div className="flex items-center gap-2">
-                <code className="flex-1 select-all rounded bg-slate-900/60 px-2 py-1.5 font-mono text-sm text-emerald-100 break-all">
-                  {generatedPassword}
-                </code>
-                <button
-                  type="button"
-                  onClick={handleCopyGenerated}
-                  className="flex items-center gap-1 rounded-md bg-emerald-500/20 px-2.5 py-1.5 text-xs font-medium text-emerald-200 transition-colors hover:bg-emerald-500/30"
-                >
-                  {copied ? <><Check size={14} /> Copied</> : <><Copy size={14} /> Copy</>}
-                </button>
-              </div>
-            </div>
-          )}
-
-          <div className="mt-6 flex gap-3">
-            <button
-              type="button"
-              onClick={() => { setMode('view'); setResetError(null); setNewPassword(''); setConfirmPassword(''); setGeneratedPassword(''); setCopied(false) }}
-              className="flex-1 rounded-lg bg-slate-800 px-4 py-2 text-slate-100 transition-colors hover:bg-slate-700"
-              disabled={resetting}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={handleReset}
-              className="flex-1 rounded-lg bg-indigo-600 px-4 py-2 font-medium text-[#fbf3d4] transition-colors hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={resetting}
-            >
-              {resetting ? 'Saving...' : 'Change Password'}
-            </button>
           </div>
         </div>
       )}
