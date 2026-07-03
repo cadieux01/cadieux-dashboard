@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ShoppingCart, RefreshCw } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
-import FormField from '../components/FormField'
 import UnitWheel from '../components/UnitWheel'
 import RefreshButton from '../components/RefreshButton'
 import useRefreshable from '../lib/useRefreshable'
@@ -348,8 +347,18 @@ export default function SellForPartner() {
               {holdingsLoading ? 'Loading holdings…' : 'Numbers show real in-hand units'}
             </p>
           </header>
-          <FormField label="Partner" required>
+          {/* Inline <label>+<select>: FormField discards children (renders its
+              own <input> for unknown types) — using it here silently produced
+              a text input instead of the dropdown. */}
+          <div className="mb-1">
+            <label
+              htmlFor="sfp-partner"
+              className="mb-1 block text-xs font-semibold text-slate-300"
+            >
+              Partner<span className="ml-1 text-rose-400">*</span>
+            </label>
             <select
+              id="sfp-partner"
               className="dashboard-select"
               value={form.partner_id}
               onChange={(e) => onPartnerChange(e.target.value)}
@@ -357,7 +366,11 @@ export default function SellForPartner() {
               required
             >
               <option value="">
-                {loading ? 'Loading partners…' : 'Choose a partner'}
+                {loading
+                  ? 'Loading partners…'
+                  : partners.length === 0
+                  ? 'No partners available'
+                  : 'Choose a partner'}
               </option>
               {partners.map((p) => {
                 const summary = summariseHoldings(holdingsByPartner[p.id])
@@ -368,7 +381,7 @@ export default function SellForPartner() {
                 )
               })}
             </select>
-          </FormField>
+          </div>
         </section>
 
         {/* ---------------------------------------------------------------- */}
@@ -402,8 +415,15 @@ export default function SellForPartner() {
               This partner holds no units. Nothing to sell.
             </div>
           ) : (
-            <FormField label="Variant" required>
+            <div className="mb-1">
+              <label
+                htmlFor="sfp-variant"
+                className="mb-1 block text-xs font-semibold text-slate-300"
+              >
+                Variant<span className="ml-1 text-rose-400">*</span>
+              </label>
               <select
+                id="sfp-variant"
                 className="dashboard-select"
                 value={form.variant}
                 onChange={(e) => onVariantChange(e.target.value)}
@@ -418,7 +438,7 @@ export default function SellForPartner() {
                   </option>
                 ))}
               </select>
-            </FormField>
+            </div>
           )}
         </section>
 
@@ -455,7 +475,11 @@ export default function SellForPartner() {
               Partner has 0 units in hand for {VARIANTS[form.variant].short}.
             </div>
           ) : (
-            <FormField label={`Units to record as sold (max ${maxUnits})`} required>
+            <div className="mb-1">
+              <label className="mb-1 block text-xs font-semibold text-slate-300">
+                Units to record as sold (max {maxUnits})
+                <span className="ml-1 text-rose-400">*</span>
+              </label>
               <UnitWheel
                 value={form.units}
                 onChange={(v) => onChange('units', v)}
@@ -463,14 +487,22 @@ export default function SellForPartner() {
                 max={maxUnits}
                 hint="Server enforces the cap"
               />
-            </FormField>
+            </div>
           )}
         </section>
 
-        {/* Buyer / notes — optional metadata for the sale. */}
+        {/* Buyer / notes — optional metadata for the sale. Inline label+control
+            for the same reason as Steps 1/2/3: FormField discards children. */}
         <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-          <FormField label="Buyer name (optional)">
+          <div className="mb-1">
+            <label
+              htmlFor="sfp-buyer-name"
+              className="mb-1 block text-xs font-semibold text-slate-300"
+            >
+              Buyer name (optional)
+            </label>
             <input
+              id="sfp-buyer-name"
               className="dashboard-input"
               type="text"
               value={form.buyer_name}
@@ -478,9 +510,16 @@ export default function SellForPartner() {
               placeholder="Walk-in"
               maxLength={120}
             />
-          </FormField>
-          <FormField label="Buyer contact (optional)">
+          </div>
+          <div className="mb-1">
+            <label
+              htmlFor="sfp-buyer-contact"
+              className="mb-1 block text-xs font-semibold text-slate-300"
+            >
+              Buyer contact (optional)
+            </label>
             <input
+              id="sfp-buyer-contact"
               className="dashboard-input"
               type="text"
               value={form.buyer_contact}
@@ -488,19 +527,26 @@ export default function SellForPartner() {
               placeholder="Phone or note"
               maxLength={120}
             />
-          </FormField>
+          </div>
         </div>
 
         <div className="mt-4">
-          <FormField label="Notes (optional)">
+          <div className="mb-1">
+            <label
+              htmlFor="sfp-notes"
+              className="mb-1 block text-xs font-semibold text-slate-300"
+            >
+              Notes (optional)
+            </label>
             <textarea
+              id="sfp-notes"
               className="dashboard-input min-h-[72px]"
               value={form.customer_notes}
               onChange={(e) => onChange('customer_notes', e.target.value)}
               placeholder="Anything worth remembering for this sale"
               maxLength={500}
             />
-          </FormField>
+          </div>
         </div>
 
         {errMsg && (
