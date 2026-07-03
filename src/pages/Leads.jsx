@@ -13,8 +13,9 @@ import { logAuditEvent, createAuditDescription } from '../lib/audit'
 import { getBatchFreshnessMap, batchMsLeft, fmtBatchLeft, listBatches } from '../lib/batches'
 import { getBatchHolders } from '../lib/batchHolders'
 import BatchHoldersCell from '../components/BatchHoldersCell'
-import { getAgentBalance, getAgentHoldingsByBatch, recordReturn, retractAgentToCentral, retractSaleToCentral } from '../lib/agentInventory'
-import { getPartnerVariantAvailable, retractFromPartner } from '../lib/partnerInventory'
+import { getAgentBalance, getAgentHoldingsByBatch, retractAgentToCentral, retractSaleToCentral } from '../lib/agentInventory'
+import { getPartnerVariantAvailable, retractFromPartner, recordAgentSaleForPartner } from '../lib/partnerInventory'
+import { createAssignment, variantLabel } from '../lib/partnerWorkflow'
 import { verifyPayment, getProofSignedUrl } from '../lib/payments'
 import { formatDateDDMMYY, formatDateTimeDDMMYY } from '../lib/date'
 import { useAuth } from '../context/AuthContext'
@@ -128,11 +129,18 @@ export default function Leads() {
   const [editingLeadData, setEditingLeadData] = useState(null) // Store original lead data for audit
   const [editingTrainerId, setEditingTrainerId] = useState(null)
   const [editingTrainerData, setEditingTrainerData] = useState(null) // Store original trainer data for audit
+  // Sealed Add-Sale (Phase-4): agent records a sale on behalf of a partner.
+  // record_agent_sale_for_partner FIFO-walks the partner's PA + sales sources
+  // and bumps units_sold / converts PA → sales row. Bounded by partner in-hand.
   const [saleEntryFormData, setSaleEntryFormData] = useState({
     trainer_id: '',
-    sale_id: '',
+    variant: 'multigrain',
     units: '',
+    buyer_name: '',
+    buyer_contact: '',
+    notes: '',
   })
+  const [saleEntryPartnerAvailable, setSaleEntryPartnerAvailable] = useState(null)
   const [retractFormData, setRetractFormData] = useState({
     target: 'partner',       // 'partner' | 'agent' (agent target is admin-only)
     destination: 'agent',    // partner branch: 'agent' (default) | 'central' (admin-only)
@@ -228,6 +236,27 @@ export default function Leads() {
   useEffect(() => {
     fetchData()
   }, [])
+
+  // Sealed Add-Sale (Phase-4): show the partner's variant-scoped in-hand so
+  // the units input caps at what record_agent_sale_for_partner will actually
+  // accept. Same partner_variant_available RPC the server uses to enforce.
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      if (isDemo) { setSaleEntryPartnerAvailable(null); return }
+      if (!isAddSaleEntryModalOpen) { setSaleEntryPartnerAvailable(null); return }
+      if (!saleEntryFormData.trainer_id || !saleEntryFormData.variant) { setSaleEntryPartnerAvailable(null); return }
+      try {
+        const n = await getPartnerVariantAvailable(saleEntryFormData.trainer_id, saleEntryFormData.variant)
+        if (!cancelled) setSaleEntryPartnerAvailable(n)
+      } catch (err) {
+        console.warn('getPartnerVariantAvailable (add sale) failed:', err.message)
+        if (!cancelled) setSaleEntryPartnerAvailable(null)
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [isAddSaleEntryModalOpen, saleEntryFormData.trainer_id, saleEntryFormData.variant, isDemo])
 
   // Phase 3: keep partnerAvailable in sync while the retract modal is open on
   // the partner + return-to-agent path (the only path that hits the atomic RPC).
@@ -1075,39 +1104,45 @@ export default function Leads() {
           },
         })
       } else {
-        // Agent -> partner handoff. The SECURITY DEFINER RPC FIFO-picks the
-        // caller's oldest non-expired batch lot that covers this assignment,
-        // stamps the new sales row with that batch_id (clock carries, no reset)
-        // and writes a 'delivered' ledger row to decrement the agent's in-hand
-        // units. When no covering batch exists (legacy / mixed / no stock) it
-        // inserts exactly as before with batch_id NULL — no countdown.
-        // Money snapshot for the credit/paid ledger: gross across both variants
-        // (mixed-safe). Owed is recomputed server-side from the partner's margin.
-        const assignGross =
-          multigrainAssigned * VARIANTS.multigrain.price +
-          plainAssigned * VARIANTS.plain.price
-        const { data, error } = await supabase
-          .rpc('assign_sale_fifo', {
-            p_partner_id: saleFormData.trainer_id,
-            p_multigrain: multigrainAssigned,
-            p_plain: plainAssigned,
-            p_date_of_assignment: assignmentDate,
-            p_product_variant: singleVariant?.name || null,
-            p_unit_price: singleVariant?.price || null,
-            p_payment_status: saleFormData.payment_method === 'paid' ? 'paid' : 'pending',
-            p_amount_gross: assignGross,
-          })
-
-
-        if (error) throw error
-
-        // Log audit event for create
+        // Sealed agent → partner handoff (Phase-2). create_partner_assignment_from_agent
+        // verifies the agent's variant-scoped in-hand, FIFO-picks their oldest
+        // non-expired batch, and ATOMICALLY writes the partner_assignments 'pending'
+        // row + agent_inventory_ledger 'delivered' debit. Raises agent_insufficient_stock
+        // when short. Each variant is a separate call because the RPC is single-variant.
         const trainer = trainers.find(t => t.id === saleFormData.trainer_id)
+        try {
+          if (multigrainAssigned > 0) {
+            await createAssignment({
+              partnerId: saleFormData.trainer_id,
+              salespersonId: profile.id,
+              variant: 'multigrain',
+              units: multigrainAssigned,
+            })
+          }
+          if (plainAssigned > 0) {
+            await createAssignment({
+              partnerId: saleFormData.trainer_id,
+              salespersonId: profile.id,
+              variant: 'plain',
+              units: plainAssigned,
+            })
+          }
+        } catch (err) {
+          if (err.code === 'agent_insufficient_stock') {
+            const m = /has\s+(\d+).*needs\s+(\d+)/i.exec(err.message || '')
+            const has = m ? m[1] : '?'
+            const needs = m ? m[2] : '?'
+            alert(`You have only ${has} × the requested variant in hand — need ${needs}. Assignment aborted.`)
+            return
+          }
+          throw err
+        }
+
         await logAuditEvent({
           actionType: 'CREATE',
-          entityType: 'sale',
-          entityId: data.id,
-          description: createAuditDescription('CREATE', 'sale', {
+          entityType: 'partner_assignment',
+          entityId: saleFormData.trainer_id,
+          description: createAuditDescription('CREATE', 'partner_assignment', {
             units_assigned: insertPayload.units_assigned,
           }, trainer, null, insertPayload),
           newValues: insertPayload,
@@ -1332,14 +1367,19 @@ export default function Leads() {
     })
   }
 
+  // Sealed Add-Sale (Phase-4). record_agent_sale_for_partner FIFO-walks the
+  // partner's own sources (sales + partner_assignments) oldest-first and either
+  // bumps units_sold on an existing sales row OR converts a partner_assignment
+  // into a fresh sales row. Refuses if requested units exceed the partner's
+  // variant-scoped in-hand (partner_insufficient_stock). No direct sales UPDATEs.
   const handleSaveSaleEntry = async () => {
     if (isDemo) return demoBlock()
     if (!saleEntryFormData.trainer_id) {
       alert('Please select a partner')
       return
     }
-    if (!saleEntryFormData.sale_id) {
-      alert('Please select an active sale')
+    if (!saleEntryFormData.variant) {
+      alert('Please select a variant')
       return
     }
     const units = parseInt(saleEntryFormData.units)
@@ -1347,66 +1387,61 @@ export default function Leads() {
       alert('Please enter valid units')
       return
     }
+    if (saleEntryPartnerAvailable !== null && units > saleEntryPartnerAvailable) {
+      const vLabel = saleEntryFormData.variant === 'plain' ? 'Plain' : 'Multi-Grain'
+      alert(`Partner has only ${saleEntryPartnerAvailable} × ${vLabel} in hand — cannot record ${units}.`)
+      return
+    }
 
     try {
-      const sale = sales.find(s => s.id === saleEntryFormData.sale_id)
-      if (!sale) {
-        alert('Selected sale not found')
-        return
-      }
-
-      const remainingUnsold = getRemainingUnsoldUnits(sale)
-      if (units > remainingUnsold) {
-        alert(`Units (${units}) cannot exceed remaining unsold units (${remainingUnsold})`)
-        return
-      }
-
-      const nextValues = {
-        units_sold: (sale.units_sold || 0) + units,
-        retracted_units: sale.retracted_units || 0,
-      }
-
-      const { error } = await supabase
-        .from('sales')
-        .update(nextValues)
-        .eq('id', saleEntryFormData.sale_id)
-
-      if (error) throw error
-
       const trainer = trainers.find(t => t.id === saleEntryFormData.trainer_id)
+      await recordAgentSaleForPartner({
+        agentId: profile.id,
+        partnerId: saleEntryFormData.trainer_id,
+        variant: saleEntryFormData.variant,
+        units,
+        buyerName: saleEntryFormData.buyer_name || null,
+        buyerContact: saleEntryFormData.buyer_contact || null,
+        customerNotes: saleEntryFormData.notes || null,
+      })
+
       await logAuditEvent({
-        actionType: 'UPDATE',
+        actionType: 'CREATE',
         entityType: 'sale',
-        entityId: saleEntryFormData.sale_id,
-        description: createAuditDescription('UPDATE', 'sale', {
-          units_sold: nextValues.units_sold,
-          retracted_units: nextValues.retracted_units,
-        }, trainer, {
-          units_sold: sale.units_sold || 0,
-          retracted_units: sale.retracted_units || 0,
-        }, nextValues),
-        oldValues: {
-          units_sold: sale.units_sold || 0,
-          retracted_units: sale.retracted_units || 0,
+        entityId: saleEntryFormData.trainer_id,
+        description: `Recorded ${units} × ${variantLabel(saleEntryFormData.variant)} sale for partner ${trainer?.name || ''}`.trim(),
+        newValues: {
+          trainer_id: saleEntryFormData.trainer_id,
+          variant: saleEntryFormData.variant,
+          units,
         },
-        newValues: nextValues,
         metadata: {
           trainer_id: saleEntryFormData.trainer_id,
           trainer_name: trainer?.name,
-          units_delta: units,
         },
       })
 
       setSaleEntryFormData({
         trainer_id: '',
-        sale_id: '',
+        variant: 'multigrain',
         units: '',
+        buyer_name: '',
+        buyer_contact: '',
+        notes: '',
       })
       setIsAddSaleEntryModalOpen(false)
       await fetchData()
     } catch (error) {
       console.error('Error saving sale entry:', error)
-      alert('Error saving sale entry: ' + error.message)
+      let message = error.message || 'Could not record sale.'
+      if ((error.message || '').startsWith('partner_insufficient_stock')) {
+        const m = /has\s+(\d+),\s*needs\s+(\d+)/i.exec(error.message || '')
+        const has = m ? m[1] : '?'
+        const needs = m ? m[2] : units
+        const vLabel = saleEntryFormData.variant === 'plain' ? 'Plain' : 'Multi-Grain'
+        message = `Partner has only ${has} × ${vLabel} in hand — cannot record ${needs}.`
+      }
+      alert(message)
     }
   }
 
@@ -1414,8 +1449,11 @@ export default function Leads() {
     setIsAddSaleEntryModalOpen(false)
     setSaleEntryFormData({
       trainer_id: '',
-      sale_id: '',
+      variant: 'multigrain',
       units: '',
+      buyer_name: '',
+      buyer_contact: '',
+      notes: '',
     })
   }
 
@@ -2803,7 +2841,7 @@ export default function Leads() {
               setSaleEntryFormData({
                 ...saleEntryFormData,
                 trainer_id: value,
-                sale_id: '',
+                units: '',
               })
             }}
             options={trainers.map((trainer) => ({
@@ -2813,54 +2851,64 @@ export default function Leads() {
             required
           />
 
+          <FormField
+            label="Variant"
+            type="select"
+            value={saleEntryFormData.variant}
+            onChange={(value) => setSaleEntryFormData({ ...saleEntryFormData, variant: value, units: '' })}
+            options={[
+              { value: 'multigrain', label: 'Multi-Grain' },
+              { value: 'plain', label: 'Plain' },
+            ]}
+            required
+          />
+
           {saleEntryFormData.trainer_id && (
-            <FormField
-              label="Active Sale"
-              type="select"
-              value={saleEntryFormData.sale_id}
-              onChange={(value) => setSaleEntryFormData({ ...saleEntryFormData, sale_id: value })}
-              options={getTrainerActiveSales(saleEntryFormData.trainer_id).map((sale) => {
-                const retractedUnits = sale.retracted_units || 0
-                const remainingUnsold = getRemainingUnsoldUnits(sale)
-                return {
-                  value: sale.id,
-                  label: `${sale.units_assigned} assigned (${sale.units_sold || 0} sold, ${retractedUnits} retracted, ${remainingUnsold} remaining) - ${sale.date_of_assignment ? formatDateDDMMYY(sale.date_of_assignment) : 'N/A'}`,
-                }
-              })}
-              required
-            />
+            <div className="mb-4 p-3 bg-slate-800 rounded-lg">
+              <p className="text-sm text-slate-400 mb-1">Partner in-hand:</p>
+              <p className="text-sm text-emerald-400">
+                {saleEntryPartnerAvailable === null
+                  ? 'Loading…'
+                  : `${saleEntryPartnerAvailable} × ${saleEntryFormData.variant === 'plain' ? 'Plain' : 'Multi-Grain'}`}
+              </p>
+            </div>
           )}
 
-          {saleEntryFormData.sale_id && (() => {
-            const selectedSale = sales.find(s => s.id === saleEntryFormData.sale_id)
-            const retractedUnits = selectedSale?.retracted_units || 0
-            const remainingUnsold = getRemainingUnsoldUnits(selectedSale)
-            return (
-              <div className="mb-4 p-3 bg-slate-800 rounded-lg">
-                <p className="text-sm text-slate-400 mb-1">Active Sale Details:</p>
-                <p className="text-sm text-slate-100">Units Assigned: {selectedSale?.units_assigned || 0}</p>
-                <p className="text-sm text-slate-100">Units Sold: {selectedSale?.units_sold || 0}</p>
-                <p className="text-sm text-[#7e22ce]">Already Retracted: {retractedUnits}</p>
-                <p className="text-sm text-emerald-400">Remaining Unsold: {remainingUnsold}</p>
-              </div>
-            )
-          })()}
+          <div className="mb-3">
+            <NumberStepper
+              label="Units Sold"
+              hint={saleEntryPartnerAvailable !== null ? `Max: ${saleEntryPartnerAvailable}` : undefined}
+              value={saleEntryFormData.units}
+              onChange={(value) => setSaleEntryFormData({ ...saleEntryFormData, units: value })}
+              max={saleEntryPartnerAvailable ?? 100}
+            />
+          </div>
 
-          {(() => {
-            const selectedSale = saleEntryFormData.sale_id ? sales.find(s => s.id === saleEntryFormData.sale_id) : null
-            const maxUnits = selectedSale ? getRemainingUnsoldUnits(selectedSale) : 100
-            return (
-              <div className="mb-3">
-                <NumberStepper
-                  label="Units Sold"
-                  hint={selectedSale ? `Max: ${maxUnits}` : undefined}
-                  value={saleEntryFormData.units}
-                  onChange={(value) => setSaleEntryFormData({ ...saleEntryFormData, units: value })}
-                  max={maxUnits}
-                />
-              </div>
-            )
-          })()}
+          <FormField
+            label="Buyer Name (optional)"
+            value={saleEntryFormData.buyer_name}
+            onChange={(value) => setSaleEntryFormData({ ...saleEntryFormData, buyer_name: value })}
+            placeholder="e.g. Ravi Kumar"
+          />
+          <FormField
+            label="Buyer Contact (optional)"
+            value={saleEntryFormData.buyer_contact}
+            onChange={(value) => setSaleEntryFormData({ ...saleEntryFormData, buyer_contact: value })}
+            placeholder="Phone or email"
+          />
+          <FormField
+            label="Notes (optional)"
+            type="textarea"
+            value={saleEntryFormData.notes}
+            onChange={(value) => setSaleEntryFormData({ ...saleEntryFormData, notes: value })}
+            placeholder="Any additional details"
+          />
+
+          {saleEntryFormData.trainer_id && saleEntryPartnerAvailable === 0 && (
+            <div className="mb-3 rounded-lg border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
+              Partner has 0 × {saleEntryFormData.variant === 'plain' ? 'Plain' : 'Multi-Grain'} in hand — nothing to sell.
+            </div>
+          )}
 
           <div className="flex flex-col sm:flex-row gap-3 mt-6">
             <button
@@ -2872,7 +2920,14 @@ export default function Leads() {
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-[#fbf3d4] rounded-lg transition-colors font-medium"
+              disabled={
+                !saleEntryFormData.trainer_id ||
+                !saleEntryFormData.variant ||
+                !parseInt(saleEntryFormData.units) ||
+                saleEntryPartnerAvailable === 0 ||
+                (saleEntryPartnerAvailable !== null && parseInt(saleEntryFormData.units) > saleEntryPartnerAvailable)
+              }
+              className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-[#fbf3d4] rounded-lg transition-colors font-medium disabled:cursor-not-allowed disabled:opacity-50"
             >
               Add Sale
             </button>
@@ -3135,6 +3190,12 @@ export default function Leads() {
             placeholder="Why is this product being returned?"
           />
 
+          {retractFormData.target === 'partner' && retractFormData.destination === 'agent' && retractFormData.trainer_id && partnerAvailable === 0 && (
+            <div className="mb-3 rounded-lg border border-rose-400/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-300">
+              Partner has 0 × {retractFormData.variant === 'plain' ? 'Plain' : 'Multi-Grain'} in hand — nothing to retract.
+            </div>
+          )}
+
           <div className="flex flex-col sm:flex-row gap-3 mt-6">
             <button
               type="button"
@@ -3145,7 +3206,14 @@ export default function Leads() {
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-[#fbf3d4] rounded-lg transition-colors font-medium"
+              disabled={
+                retractFormData.target === 'partner' &&
+                retractFormData.destination === 'agent' &&
+                (partnerAvailable === 0 ||
+                  (partnerAvailable !== null && parseInt(retractFormData.units) > partnerAvailable) ||
+                  !parseInt(retractFormData.units))
+              }
+              className="flex-1 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-[#fbf3d4] rounded-lg transition-colors font-medium disabled:cursor-not-allowed disabled:opacity-50"
             >
               Add Retract
             </button>
