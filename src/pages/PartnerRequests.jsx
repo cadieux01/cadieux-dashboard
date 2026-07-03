@@ -14,6 +14,7 @@ const STATUS_PILL = {
   pending:   { label: 'Pending',   cls: 'bg-amber-400/15 text-amber-700 border border-amber-400/30' },
   accepted:  { label: 'Accepted',  cls: 'bg-indigo-100 text-indigo-200 border border-indigo-300/30' },
   delivered: { label: 'Delivered', cls: 'bg-emerald-400/15 text-emerald-200 border border-emerald-400/30' },
+  rejected:  { label: 'Rejected',  cls: 'bg-rose-400/15 text-rose-300 border border-rose-400/30' },
 }
 
 export default function PartnerRequests() {

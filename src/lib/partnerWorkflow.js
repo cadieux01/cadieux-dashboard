@@ -105,6 +105,7 @@ export async function listMyRequests(partnerId) {
     let displayStatus = 'pending'
     if (asg && asg.status === 'confirmed') displayStatus = 'delivered'
     else if (r.status === 'accepted' || asg) displayStatus = 'accepted'
+    else if (r.status === 'rejected') displayStatus = 'rejected'
     return { ...r, assignment: asg || null, displayStatus }
   })
 }
@@ -145,6 +146,31 @@ export async function acceptRequest({ requestId, salespersonId }) {
     category: 'partner',
     description: `Accepted request for ${data.units_requested} × ${variantLabel(data.variant)}`,
     newValues: { status: 'accepted', accepted_by: salespersonId },
+  })
+  return data
+}
+
+// Reject a pending request → status 'rejected'. Metadata only: rejected_by
+// stamps the actor, rejected_at timestamps it. NO stock movement, NO ledger
+// writes, NO assignment created — it's a status flip and an audit line. RLS
+// pr_update already permits admin AND sales, and the status column has no
+// check-constraint, so 'rejected' is trivially allowed at DB level.
+export async function rejectRequest({ requestId, actorId }) {
+  const { data, error } = await supabase
+    .from('partner_requests')
+    .update({ status: 'rejected', rejected_by: actorId, rejected_at: new Date().toISOString() })
+    .eq('id', requestId)
+    .select()
+    .single()
+  if (error) throw error
+
+  await logAuditEvent({
+    actionType: 'UPDATE',
+    entityType: 'partner_request',
+    entityId: data.id,
+    category: 'partner',
+    description: `Rejected request for ${data.units_requested} × ${variantLabel(data.variant)}`,
+    newValues: { status: 'rejected', rejected_by: actorId },
   })
   return data
 }

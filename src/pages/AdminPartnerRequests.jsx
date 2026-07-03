@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Check, Package, Truck } from 'lucide-react'
+import { Check, Package, Truck, X } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import Modal from '../components/Modal'
 import { formatDateDDMMYY } from '../lib/date'
@@ -12,6 +12,7 @@ import {
   createAssignment,
   confirmAssignment,
   getAgentAvailableForVariant,
+  rejectRequest,
 } from '../lib/partnerWorkflow'
 
 function timeAgo(dateStr) {
@@ -131,6 +132,25 @@ export default function AdminPartnerRequests({ embedded = false }) {
       setPickerReq(null)
       setPickedSalesperson('')
       setPickerAvailable(null)
+    }
+  }
+
+  // --- Reject -------------------------------------------------------------
+  // Marks the request 'rejected' + stamps rejected_by/rejected_at. No stock
+  // moves, no assignment, no ledger writes. Both admin and sales can reject
+  // (RLS pr_update allows both). Simple confirm gate; no PIN.
+  const doReject = async (req) => {
+    if (!window.confirm(`Reject ${req.partner_name}'s request for ${req.units_requested} × ${variantLabel(req.variant)}?`)) return
+    setBusyId(req.id)
+    try {
+      await rejectRequest({ requestId: req.id, actorId: profile.id })
+      showToast('Request rejected')
+      await load()
+    } catch (err) {
+      console.error('rejectRequest failed:', err)
+      showToast(err.message || 'Could not reject')
+    } finally {
+      setBusyId(null)
     }
   }
 
@@ -301,15 +321,26 @@ export default function AdminPartnerRequests({ embedded = false }) {
                       </p>
                     )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => onAcceptClick(r)}
-                    disabled={busyId === r.id || isDemo || short}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-[#024628] px-4 py-2 text-sm font-semibold text-[#fbf3d4] transition hover:bg-[#035c36] disabled:opacity-50"
-                  >
-                    <Check size={15} />
-                    {busyId === r.id ? 'Accepting…' : 'Accept'}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => doReject(r)}
+                      disabled={busyId === r.id || isDemo}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-rose-400/40 bg-rose-500/10 px-3.5 py-2 text-sm font-semibold text-rose-300 transition hover:bg-rose-500/20 disabled:opacity-50"
+                    >
+                      <X size={15} />
+                      {busyId === r.id ? 'Rejecting…' : 'Reject'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onAcceptClick(r)}
+                      disabled={busyId === r.id || isDemo || short}
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-[#024628] px-4 py-2 text-sm font-semibold text-[#fbf3d4] transition hover:bg-[#035c36] disabled:opacity-50"
+                    >
+                      <Check size={15} />
+                      {busyId === r.id ? 'Accepting…' : 'Accept'}
+                    </button>
+                  </div>
                 </div>
               )
             })}
