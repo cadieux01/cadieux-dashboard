@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { isValidPhone, normalizePhone, buildLoginEmail } from '../lib/phone'
 import { matchDemoAccount, setDemoSession } from '../lib/demoData'
+import { startAdminReset, verifyAdminReset } from '../lib/adminReset'
 
 // One message for every login failure so we never reveal whether a given
 // name/phone exists or which field was wrong.
@@ -15,6 +16,19 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+
+  // "Forgot password?" (super-admin SMS-OTP recovery). Kept in this file so
+  // the whole auth entry point stays in one place. The server restricts who
+  // actually receives a code to active super-admins only.
+  const [mode, setMode] = useState('login') // 'login' | 'reset'
+  const [resetStep, setResetStep] = useState('phone') // 'phone' | 'code' | 'done'
+  const [resetPhone, setResetPhone] = useState('')
+  const [resetCode, setResetCode] = useState('')
+  const [resetPassword, setResetPassword] = useState('')
+  const [resetMsg, setResetMsg] = useState('')
+  const [resetError, setResetError] = useState('')
+  const [resetLoading, setResetLoading] = useState(false)
+
   const { signIn, user, profile } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
@@ -162,6 +176,64 @@ export default function Login() {
     }
   }
 
+  const backToLogin = () => {
+    setMode('login')
+    setResetStep('phone')
+    setResetCode('')
+    setResetPassword('')
+    setResetMsg('')
+    setResetError('')
+  }
+
+  const handleResetStart = async (e) => {
+    e.preventDefault()
+    setResetError('')
+    setResetMsg('')
+    if (!isValidPhone(resetPhone)) {
+      setResetError('Enter a valid 10-digit phone number.')
+      return
+    }
+    setResetLoading(true)
+    try {
+      const res = await startAdminReset(normalizePhone(resetPhone))
+      // Response is intentionally generic — it never reveals whether the
+      // number belongs to an admin. We advance to the code step regardless.
+      setResetMsg(res?.message || "If this number is registered, you'll receive a code.")
+      setResetStep('code')
+    } catch (err) {
+      setResetError(err?.message || 'Something went wrong. Please try again.')
+    } finally {
+      setResetLoading(false)
+    }
+  }
+
+  const handleResetVerify = async (e) => {
+    e.preventDefault()
+    setResetError('')
+    setResetMsg('')
+    if (!/^\d{6}$/.test(resetCode.trim())) {
+      setResetError('Enter the 6-digit code.')
+      return
+    }
+    if (
+      resetPassword.length < 10 ||
+      !/[A-Za-z]/.test(resetPassword) ||
+      !/\d/.test(resetPassword)
+    ) {
+      setResetError('Password must be at least 10 characters and include a letter and a number.')
+      return
+    }
+    setResetLoading(true)
+    try {
+      await verifyAdminReset(normalizePhone(resetPhone), resetCode.trim(), resetPassword)
+      setResetStep('done')
+    } catch (err) {
+      setResetError(err?.message || 'Invalid or expired code.')
+    } finally {
+      setResetLoading(false)
+    }
+  }
+
   // Check if Supabase is configured
   const supabaseConfigured = import.meta.env.VITE_SUPABASE_URL &&
     !import.meta.env.VITE_SUPABASE_URL.includes('placeholder')
@@ -187,7 +259,9 @@ export default function Login() {
         {/* Login Card */}
         <div className="bg-white border border-[#E8E0D4] rounded-2xl p-8 shadow-xl">
           <div className="mb-6">
-            <h2 className="text-xl font-semibold text-[#1A2B1F]">Sign in</h2>
+            <h2 className="text-xl font-semibold text-[#1A2B1F]">
+              {mode === 'reset' ? 'Reset password' : 'Sign in'}
+            </h2>
           </div>
 
           {!supabaseConfigured && (
@@ -204,7 +278,7 @@ export default function Login() {
             </div>
           )}
 
-          {error && (
+          {mode === 'login' && error && (
             <div className="mb-6 p-4 bg-rose-500/10 border border-rose-500/30 rounded-lg">
               <div className="flex items-center gap-3">
                 <svg className="w-5 h-5 text-rose-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -215,6 +289,8 @@ export default function Login() {
             </div>
           )}
 
+          {mode === 'login' && (
+          <>
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label htmlFor="identifier" className="block text-sm font-medium text-slate-300 mb-2">
@@ -285,11 +361,149 @@ export default function Login() {
             </button>
           </form>
 
+          <div className="mt-4 text-center">
+            <button
+              type="button"
+              onClick={() => { setMode('reset'); setError('') }}
+              className="text-sm text-[#024628] hover:text-[#035c36] underline underline-offset-2"
+            >
+              Forgot password?
+            </button>
+          </div>
+
           <div className="mt-6 pt-6 border-t border-slate-800">
             <p className="text-xs text-slate-500 text-center">
               Authorized personnel only
             </p>
           </div>
+          </>
+          )}
+
+          {mode === 'reset' && (
+            <div className="space-y-5">
+              {resetError && (
+                <div className="p-4 bg-rose-500/10 border border-rose-500/30 rounded-lg">
+                  <p className="text-rose-500 text-sm">{resetError}</p>
+                </div>
+              )}
+              {resetMsg && resetStep !== 'done' && (
+                <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
+                  <p className="text-emerald-700 text-sm">{resetMsg}</p>
+                </div>
+              )}
+
+              {resetStep === 'phone' && (
+                <form onSubmit={handleResetStart} className="space-y-5">
+                  <p className="text-sm text-[#5C6D62]">
+                    Enter your registered admin phone number. If it matches an
+                    account, we'll text you a 6-digit code.
+                  </p>
+                  <div>
+                    <label htmlFor="resetPhone" className="block text-sm font-medium text-[#1A2B1F] mb-2">
+                      Phone number
+                    </label>
+                    <input
+                      id="resetPhone"
+                      type="tel"
+                      inputMode="numeric"
+                      autoComplete="tel"
+                      value={resetPhone}
+                      onChange={(e) => setResetPhone(e.target.value)}
+                      required
+                      className="w-full px-4 py-3 bg-white border border-[#D1C9BC] rounded-lg text-[#1A2B1F] placeholder-[#8A9890] focus:outline-none focus:ring-2 focus:ring-[#024628] focus:border-transparent transition-all"
+                      placeholder="10-digit mobile number"
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={resetLoading}
+                    className="w-full py-3 px-4 bg-[#024628] hover:bg-[#035c36] text-[#FBF3D4] font-semibold rounded-lg shadow-lg shadow-[#024628]/30 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {resetLoading ? (
+                      <>
+                        <div className="w-5 h-5 border-2 border-[#FBF3D4] border-t-transparent rounded-full animate-spin"></div>
+                        Sending...
+                      </>
+                    ) : (
+                      'Send code'
+                    )}
+                  </button>
+                </form>
+              )}
+
+              {resetStep === 'code' && (
+                <form onSubmit={handleResetVerify} className="space-y-5">
+                  <div>
+                    <label htmlFor="resetCode" className="block text-sm font-medium text-[#1A2B1F] mb-2">
+                      6-digit code
+                    </label>
+                    <input
+                      id="resetCode"
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      maxLength={6}
+                      value={resetCode}
+                      onChange={(e) => setResetCode(e.target.value.replace(/\D/g, ''))}
+                      required
+                      className="w-full px-4 py-3 bg-white border border-[#D1C9BC] rounded-lg text-[#1A2B1F] tracking-[0.3em] text-center focus:outline-none focus:ring-2 focus:ring-[#024628] focus:border-transparent transition-all"
+                      placeholder="••••••"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="resetPassword" className="block text-sm font-medium text-[#1A2B1F] mb-2">
+                      New password
+                    </label>
+                    <input
+                      id="resetPassword"
+                      type="password"
+                      autoComplete="new-password"
+                      value={resetPassword}
+                      onChange={(e) => setResetPassword(e.target.value)}
+                      required
+                      className="w-full px-4 py-3 bg-white border border-[#D1C9BC] rounded-lg text-[#1A2B1F] placeholder-[#8A9890] focus:outline-none focus:ring-2 focus:ring-[#024628] focus:border-transparent transition-all"
+                      placeholder="At least 10 characters"
+                    />
+                    <p className="mt-1 text-xs text-[#8A9890]">
+                      Minimum 10 characters, with a letter and a number.
+                    </p>
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={resetLoading}
+                    className="w-full py-3 px-4 bg-[#024628] hover:bg-[#035c36] text-[#FBF3D4] font-semibold rounded-lg shadow-lg shadow-[#024628]/30 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {resetLoading ? (
+                      <>
+                        <div className="w-5 h-5 border-2 border-[#FBF3D4] border-t-transparent rounded-full animate-spin"></div>
+                        Updating...
+                      </>
+                    ) : (
+                      'Set new password'
+                    )}
+                  </button>
+                </form>
+              )}
+
+              {resetStep === 'done' && (
+                <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
+                  <p className="text-emerald-700 text-sm">
+                    Password updated. You can now sign in with your new password.
+                  </p>
+                </div>
+              )}
+
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={backToLogin}
+                  className="text-sm text-[#024628] hover:text-[#035c36] underline underline-offset-2"
+                >
+                  Back to sign in
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Footer */}
