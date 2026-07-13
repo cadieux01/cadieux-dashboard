@@ -607,14 +607,23 @@ function MessageBubble({ msg }) {
   const isBot = !inbound && msg.ai_generated === true
   const isHuman = !inbound && !msg.ai_generated
   // Distinct colours for the three speakers, all high-contrast:
-  //   Customer (light)   : white / slate-900       ~16:1
-  //   Team human (mid)   : emerald-600 / white     ~4.9:1
+  //   Customer (light)   : white / #1A2B1F        ~15:1
+  //   Team human (mid)   : emerald-600 / white    ~4.9:1
   //   Bot (dark)         : emerald-800 / emerald-50 ~8.5:1  + "Bot" pill
+  //
+  // WHY THE INLINE STYLE ON THE CUSTOMER BUBBLE: index.css @theme block
+  // INVERTS Tailwind's slate scale so `text-slate-900` actually resolves
+  // to `#FFFFFF` (see --color-slate-900). Using the class produced white
+  // text on the white bubble — customer messages rendered invisible while
+  // the meta line (text-slate-500 → #8A9890) stayed readable. Explicit
+  // hex bypasses the remap entirely so this can never regress via a
+  // future token edit.
   const bubbleCls = inbound
-    ? 'rounded-bl-sm bg-white text-slate-900'
+    ? 'rounded-bl-sm bg-white'
     : isBot
     ? 'rounded-br-sm bg-emerald-800 text-emerald-50 ring-1 ring-emerald-900'
     : 'rounded-br-sm bg-emerald-600 text-white'
+  const bubbleStyle = inbound ? { color: '#1A2B1F' } : undefined
   const metaCls = inbound
     ? 'text-slate-500'
     : 'text-emerald-50/95'
@@ -631,7 +640,7 @@ function MessageBubble({ msg }) {
           {isBot && <Bot size={10} />}
           {senderLabel}
         </span>
-        <div className={`rounded-2xl px-3.5 py-2.5 text-sm shadow-sm ${bubbleCls}`}>
+        <div className={`rounded-2xl px-3.5 py-2.5 text-sm shadow-sm ${bubbleCls}`} style={bubbleStyle}>
           <div className="whitespace-pre-wrap break-words leading-snug">{msg.body}</div>
           <div className={`mt-1.5 flex flex-wrap items-center gap-1.5 text-[10px] ${metaCls}`}>
             <span>{formatWhen(msg.sent_at || msg.created_at)}</span>
