@@ -31,6 +31,7 @@ const OverviewAttributed = lazy(() => import('./pages/admin/OverviewAttributed')
 const PartnerProfile     = lazy(() => import('./pages/admin/PartnerProfile'))
 const AgentProfile       = lazy(() => import('./pages/admin/AgentProfilePage'))
 const VariantDetail      = lazy(() => import('./pages/admin/VariantDetail'))
+const Chat               = lazy(() => import('./pages/Chat'))
 
 const PageLoader = () => (
   <div className="dashboard-page flex min-h-[50vh] w-full items-center justify-center">
@@ -186,6 +187,11 @@ export const router = createBrowserRouter([
       {
         path: 'audit-logs',
         element: <ProtectedRoute requiredRole="admin">{withSuspense(AuditLogs)}</ProtectedRoute>,
+      },
+      {
+        // Super-admin only — the WhatsApp Chat queue never appears for sales.
+        path: 'chat',
+        element: <ProtectedRoute requiredRole="admin">{withSuspense(Chat)}</ProtectedRoute>,
       },
     ],
   },

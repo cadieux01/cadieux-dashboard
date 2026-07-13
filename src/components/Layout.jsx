@@ -25,6 +25,7 @@ import {
   ChevronRight,
   ChevronRight as ChevronRightIcon,
   MoreHorizontal,
+  MessageCircle,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import SessionTimeout from './SessionTimeout'
@@ -69,6 +70,7 @@ const adminNavigation = [
   { name: 'CTA', href: '/admin/cta', Icon: Megaphone },
   { name: 'Team', href: '/admin/team', Icon: Users },
   { name: 'Requests', href: '/admin/requests', badge: 'pendingRequests', Icon: Inbox },
+  { name: 'Chat', href: '/admin/chat', Icon: MessageCircle },
   { name: 'Stock', href: '/admin/stock', Icon: Package },
   { name: 'Payments', href: '/admin/payments', Icon: Wallet },
   { name: 'Unsold', href: '/admin/unsold', Icon: Trash2 },
