@@ -223,7 +223,13 @@ export async function callAdmin(path, { method = 'GET', body, retry = true } = {
       (parsed && (parsed.error || parsed.message)) ||
       (raw && raw.trim()) ||
       `Admin API returned HTTP ${res.status}`
-    throw new Error(msg)
+    // Attach the HTTP status + parsed JSON body to the thrown error so
+    // callers can react to specific server signals (e.g. 409 window_closed
+    // for the WhatsApp reply box) without string-matching the message.
+    const err = new Error(msg)
+    err.status = res.status
+    err.data = parsed || null
+    throw err
   }
   return parsed
 }
