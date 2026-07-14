@@ -34,14 +34,24 @@ import useRefreshable from '../lib/useRefreshable'
 // The internal DB values are unchanged — this rename is UI-only so a
 // non-developer isn't reading "needs_human" / "handoff" jargon.
 //
-// COLOURS (all verified ≥ 4.5:1 on the dashboard's slate-950 page):
-//   Customer bubble (LEFT)  bg-white           / text-slate-900      ~16:1
-//   Team bubble    (RIGHT)  bg-emerald-600     / text-white          ~4.9:1
-//   Bot bubble     (RIGHT)  bg-emerald-800     / text-emerald-50     ~8.5:1
-//     + small "Bot" pill so a glance tells you who spoke
-//   In-bubble meta          text-slate-500 (light) / emerald-50/95 (dark)
-//   List timestamps         text-slate-400 on slate-900              ~5.2:1
-//   Needs-reply accent      rose-500 left rail + rose-950/40 bg tint
+// COLOURS — DO NOT TRUST TAILWIND TOKEN CLASSES IN THIS CODEBASE.
+//   src/index.css contains an @theme block that REMAPS the slate/emerald/
+//   rose/amber palettes into a warm, LIGHT-THEME palette AND INVERTS the
+//   slate lightness scale (slate-900 → #FFFFFF, slate-100 → #1A2B1F).
+//   Any --color-<name>-50 is NOT remapped and stays at Tailwind's default
+//   near-white — so `text-slate-50` renders as `#f8fafc` on a white card
+//   and is invisible. To stay honest, every text/bg colour that matters
+//   is set with an inline hex here so it can never regress via a future
+//   token edit. Palette used:
+//     PAGE_BG      #F7F3ED  (warm off-white — body bg)
+//     PANEL_BG     #FFFFFF  (white cards)
+//     TEXT_MAIN    #1A2B1F  (primary dark text)      contrast on white ≈ 14:1
+//     TEXT_MUTED   #5C6D62  (secondary dark text)    contrast on white ≈ 7:1
+//     TEXT_SOFT    #8A9890  (helper — LABEL/META ONLY, decorative, ≈ 3.4:1)
+//     BRAND_GREEN  #024628  (Foundation Green solid)
+//     BRAND_CREAM  #FBF3D4  (Grain Cream — text on BRAND_GREEN, ≈ 15:1)
+//     DANGER       #B91C1C  (dark rose text) / #FEE2E2 pale tint bg
+//     WARN         #92400E  (dark amber text) / #FEF3C7 pale tint bg
 //
 // 24-HOUR RULE: Meta only allows free-form replies within 24h of the
 // customer's LAST inbound message. The conversation payload already
@@ -50,6 +60,34 @@ import useRefreshable from '../lib/useRefreshable'
 // button and plain-language explanation instead of ever letting a send
 // silently fail. The server /send route mirrors the same 24h check —
 // belt-and-braces.
+
+// Explicit colour palette — bypasses the @theme remap in index.css.
+// Any text/bg where the tokenised class would either fail contrast or
+// resolve to a nonsensical value (slate-50 → near-white, etc.) uses one
+// of these instead. See the block comment above for the reasoning.
+const CX = {
+  pageBg: '#F7F3ED',
+  panel: '#FFFFFF',
+  textMain: '#1A2B1F',
+  textMuted: '#5C6D62',
+  textSoft: '#8A9890',
+  brandGreen: '#024628',
+  brandGreenHover: '#035C36',
+  brandCream: '#FBF3D4',
+  dangerText: '#B91C1C',
+  dangerTextStrong: '#7F1D1D',
+  dangerBg: '#FEE2E2',
+  dangerBorder: 'rgba(185,28,28,0.4)',
+  warnText: '#92400E',
+  warnTextStrong: '#78350F',
+  warnBg: '#FEF3C7',
+  warnBorder: 'rgba(146,64,14,0.4)',
+  successText: '#047857',
+  needsBg: 'rgba(220,38,38,0.08)',
+  needsBgHover: 'rgba(220,38,38,0.14)',
+  needsRail: '#DC2626',
+  selectedBg: 'rgba(2,70,40,0.10)',
+}
 
 // Plain-language tabs. Order = the user's mental order: everything, then
 // the to-do list, then in-progress, then archive.
@@ -310,8 +348,8 @@ export default function Chat() {
     <div className="dashboard-page px-4 py-6 lg:px-8">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="flex items-center gap-2 text-xl font-bold text-slate-100">
-            <MessageCircle size={20} className="text-emerald-400" />
+          <h1 className="flex items-center gap-2 text-xl font-bold" style={{ color: CX.textMain }}>
+            <MessageCircle size={20} style={{ color: CX.brandGreen }} />
             WhatsApp chat
           </h1>
           <p className="mt-1 text-sm text-slate-300">
@@ -328,24 +366,35 @@ export default function Chat() {
           // "Needs reply" is my to-do — highlight it more strongly than
           // the other tabs so it draws the eye.
           const emphasise = tab.key === 'needs_human'
-          const activeCls = emphasise
-            ? 'border-rose-400 bg-rose-500/25 text-rose-50 shadow-sm shadow-rose-500/30'
-            : 'border-emerald-500 bg-emerald-500/20 text-emerald-50'
-          const idleCls = emphasise
-            ? 'border-rose-500/60 bg-rose-500/10 text-rose-100 hover:border-rose-400'
-            : 'border-slate-600 bg-slate-800/60 text-slate-200 hover:border-slate-400'
+          // Explicit inline styles — the Tailwind token classes for
+          // active tabs (rose-50 / emerald-50 on 20-25% tinted bg) all
+          // render invisible under the index.css @theme remap. Solid
+          // pairs (white on red, brand cream on brand green) are the
+          // only safe way to signal "active".
+          const style = active
+            ? emphasise
+              ? { background: CX.needsRail, borderColor: CX.needsRail, color: '#FFFFFF' }
+              : { background: CX.brandGreen, borderColor: CX.brandGreen, color: CX.brandCream }
+            : emphasise
+            ? { background: CX.needsBg, borderColor: CX.dangerBorder, color: CX.dangerTextStrong }
+            : { background: CX.panel, borderColor: 'rgba(2,70,40,0.25)', color: CX.textMain }
           return (
             <button
               key={tab.key}
               type="button"
               onClick={() => setStatusFilter(tab.key)}
-              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
-                active ? activeCls : idleCls
-              }`}
+              className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors"
+              style={style}
             >
               {tab.label}
               {showBadge && (
-                <span className="rounded-full bg-rose-500 px-1.5 text-[10px] font-bold text-white">
+                <span
+                  className="rounded-full px-1.5 text-[10px] font-bold"
+                  style={{
+                    background: active ? '#FFFFFF' : CX.needsRail,
+                    color: active ? CX.needsRail : '#FFFFFF',
+                  }}
+                >
                   {needsReplyCount}
                 </span>
               )}
@@ -380,37 +429,41 @@ export default function Chat() {
               const active = c.id === selectedId
               const needsReply = c.status === 'needs_human'
               const name = c.customer?.full_name || c.phone
-              const base = 'w-full border-l-4 px-3 py-3 text-left transition-colors'
-              const accent = needsReply ? 'border-l-rose-500' : 'border-l-transparent'
-              const bg = active
-                ? 'bg-emerald-500/20'
+              // Inline styles — Tailwind rose-950 (undeclared) resolves
+              // to Tailwind's default #4c0519 dark maroon, which mixed
+              // badly with the remapped slate scale (slate-50 stayed
+              // near-white, slate-200/400 became DARK). Pale rose tint +
+              // uniformly dark text renders correctly.
+              const rowStyle = active
+                ? { background: CX.selectedBg, borderLeftColor: CX.brandGreen }
                 : needsReply
-                ? 'bg-rose-950/40 hover:bg-rose-950/60'
-                : 'hover:bg-slate-800/60'
+                ? { background: CX.needsBg, borderLeftColor: CX.needsRail }
+                : { background: 'transparent', borderLeftColor: 'transparent' }
               return (
                 <li key={c.id}>
                   <button
                     type="button"
                     onClick={() => setSelectedId(c.id)}
-                    className={`${base} ${accent} ${bg}`}
+                    className="w-full border-l-4 px-3 py-3 text-left transition-colors"
+                    style={rowStyle}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <span className="truncate text-sm font-semibold text-slate-50">{name}</span>
+                          <span className="truncate text-sm font-semibold" style={{ color: CX.textMain }}>{name}</span>
                           <StatusPill status={c.status} />
                         </div>
-                        <div className="mt-0.5 truncate text-[11px] text-slate-400">
+                        <div className="mt-0.5 truncate text-[11px]" style={{ color: CX.textMuted }}>
                           {c.phone}
                           {c.customer?.full_name ? ` · ${c.customer.full_name}` : ''}
                         </div>
-                        <div className="mt-1 truncate text-xs text-slate-200">
+                        <div className="mt-1 truncate text-xs" style={{ color: CX.textMain }}>
                           {c.last_message
                             ? `${c.last_message.direction === 'in' ? '↙' : '↗'} ${truncate(c.last_message.body, 60)}`
                             : 'No messages yet'}
                         </div>
                       </div>
-                      <div className="flex flex-col items-end gap-1 text-[10px] text-slate-400">
+                      <div className="flex flex-col items-end gap-1 text-[10px]" style={{ color: CX.textMuted }}>
                         <span>{formatWhen(c.last_message_at)}</span>
                       </div>
                     </div>
@@ -487,8 +540,8 @@ function ThreadView({ thread, loading, error, actionBusy, now, onResolve, onClos
           )}
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <User size={16} className="shrink-0 text-slate-300" />
-              <span className="truncate text-base font-bold text-slate-50">
+              <User size={16} className="shrink-0" style={{ color: CX.textMuted }} />
+              <span className="truncate text-base font-bold" style={{ color: CX.textMain }}>
                 {conv?.customer?.full_name || conv?.phone || 'Conversation'}
               </span>
             </div>
@@ -526,7 +579,8 @@ function ThreadView({ thread, loading, error, actionBusy, now, onResolve, onClos
               type="button"
               onClick={onResolve}
               disabled={actionBusy}
-              className="inline-flex items-center gap-1.5 rounded-md border-2 border-emerald-400 bg-emerald-500/25 px-3 py-2 text-xs font-bold text-emerald-50 hover:bg-emerald-500/40 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-md border-2 px-3 py-2 text-xs font-bold disabled:opacity-50"
+              style={{ background: CX.brandGreen, borderColor: CX.brandGreen, color: CX.brandCream }}
             >
               <CheckCircle2 size={13} />
               Mark done
@@ -623,20 +677,26 @@ function MessageBubble({ msg }) {
     : isBot
     ? 'rounded-br-sm bg-emerald-800 text-emerald-50 ring-1 ring-emerald-900'
     : 'rounded-br-sm bg-emerald-600 text-white'
-  const bubbleStyle = inbound ? { color: '#1A2B1F' } : undefined
+  const bubbleStyle = inbound ? { color: CX.textMain } : undefined
+  // Inbound meta on white bubble — text-slate-500 (#8A9890) is 3.4:1,
+  // fails 4.5:1. Bumped to text-slate-400 (#5C6D62) = 7:1 on white.
   const metaCls = inbound
-    ? 'text-slate-500'
+    ? 'text-slate-400'
     : 'text-emerald-50/95'
   const senderLabel = inbound ? 'Customer' : isBot ? 'Bot' : 'You'
-  const senderLabelCls = inbound
-    ? 'text-slate-400'
+  // Sender labels sit on the PAGE bg (off-white), NOT inside the bubble.
+  // amber-300 (#fcd34d bright yellow) and emerald-300 (#6ee7b7 pale
+  // mint) are Tailwind defaults — undeclared in @theme so they stay
+  // vivid-but-pale, invisible on off-white. Solid darks fix that.
+  const senderLabelStyle = inbound
+    ? { color: CX.textMuted }
     : isBot
-    ? 'text-amber-300'
-    : 'text-emerald-300'
+    ? { color: CX.warnText }
+    : { color: CX.successText }
   return (
     <div className={`flex ${inbound ? 'justify-start' : 'justify-end'}`}>
       <div className={`flex max-w-[85%] flex-col ${inbound ? 'items-start' : 'items-end'}`}>
-        <span className={`mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider ${senderLabelCls}`}>
+        <span className="mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider" style={senderLabelStyle}>
           {isBot && <Bot size={10} />}
           {senderLabel}
         </span>
@@ -708,20 +768,26 @@ function ReplyBox({ conversationId, canReply, msLeft, tel, onSent }) {
   if (!canReply) {
     // 24h passed since customer's last message. Meta forbids free-form
     // sends here — we DISABLE the input entirely and point them to Call.
+    // Explicit warn palette because amber-50 (undeclared) resolves to a
+    // near-white Tailwind default that was invisible on the panel bg.
     return (
-      <div className="border-t border-slate-800 bg-slate-900 px-4 py-3">
-        <div className="rounded-lg border border-amber-500/40 bg-amber-950/40 p-3 text-sm text-amber-100">
-          <p className="font-semibold text-amber-50">
+      <div className="border-t px-4 py-3" style={{ background: CX.panel, borderColor: 'rgba(2,70,40,0.15)' }}>
+        <div
+          className="rounded-lg border p-3 text-sm"
+          style={{ background: CX.warnBg, borderColor: CX.warnBorder, color: CX.warnText }}
+        >
+          <p className="font-semibold" style={{ color: CX.warnTextStrong }}>
             You can't message this customer right now.
           </p>
-          <p className="mt-1 text-amber-100/90">
+          <p className="mt-1" style={{ color: CX.warnText }}>
             WhatsApp only allows replies within 24 hours of their last message. That window has passed.
             Call them instead — they'll usually reply on WhatsApp after that, and the window will re-open.
           </p>
           {tel && (
             <a
               href={tel}
-              className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-emerald-400 bg-emerald-600 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-500"
+              className="mt-3 inline-flex items-center gap-1.5 rounded-md border px-3 py-2 text-xs font-bold"
+              style={{ background: CX.brandGreen, borderColor: CX.brandGreen, color: '#FFFFFF' }}
             >
               <Phone size={13} />
               Call now
@@ -736,14 +802,27 @@ function ReplyBox({ conversationId, canReply, msLeft, tel, onSent }) {
   const remaining = fmtRemaining(msLeft)
 
   return (
-    <div className="border-t border-slate-800 bg-slate-900 px-3 py-3">
+    <div className="border-t px-3 py-3" style={{ background: CX.panel, borderColor: 'rgba(2,70,40,0.15)' }}>
       {error && (
-        <div className="mb-2 rounded-lg border border-rose-500/50 bg-rose-950/40 px-3 py-2 text-sm text-rose-100">
-          <span className="font-semibold text-rose-50">Couldn't send: </span>
+        // Rose-950 (undeclared) resolves to Tailwind default #4c0519 —
+        // dark maroon that mixed with the remapped light rose-100 text.
+        // Pale danger tint + solid dark text renders correctly.
+        <div
+          className="mb-2 rounded-lg border px-3 py-2 text-sm"
+          style={{ background: CX.dangerBg, borderColor: CX.dangerBorder, color: CX.dangerText }}
+        >
+          <span className="font-semibold" style={{ color: CX.dangerTextStrong }}>Couldn't send: </span>
           {error}
         </div>
       )}
       <div className="flex items-end gap-2">
+        {/* Textarea — explicit hex on bg + color. Tailwind classes here
+            are actively broken by the @theme remap in index.css:
+              bg-slate-950  → #F2ECE2 (very light warm), NOT dark
+              text-slate-50 → Tailwind default #f8fafc near-WHITE
+            → typed text was near-white on a light bg = invisible.
+            Placeholder text-slate-400 correctly resolves to #5C6D62,
+            a visible muted grey (7:1 on white) — user asked to verify. */}
         <textarea
           ref={textRef}
           rows={2}
@@ -752,26 +831,32 @@ function ReplyBox({ conversationId, canReply, msLeft, tel, onSent }) {
           onKeyDown={onKeyDown}
           disabled={sending}
           placeholder="Type a message"
-          className="flex-1 resize-none rounded-lg border border-slate-600 bg-slate-950 px-3 py-2 text-sm text-slate-50 placeholder:text-slate-400 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 disabled:opacity-50"
+          className="flex-1 resize-none rounded-lg border px-3 py-2 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 disabled:opacity-50"
+          style={{
+            background: '#FFFFFF',
+            color: CX.textMain,
+            borderColor: 'rgba(2,70,40,0.3)',
+          }}
         />
         <button
           type="button"
           onClick={doSend}
           disabled={sending || !text.trim()}
-          className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-emerald-400 bg-emerald-600 px-4 text-sm font-bold text-white hover:bg-emerald-500 disabled:opacity-50"
+          className="inline-flex h-10 items-center gap-1.5 rounded-lg border px-4 text-sm font-bold disabled:opacity-50"
+          style={{ background: CX.brandGreen, borderColor: CX.brandGreen, color: '#FFFFFF' }}
           aria-label="Send message"
         >
           <Send size={14} />
           {sending ? 'Sending…' : 'Send'}
         </button>
       </div>
-      <div className="mt-1.5 flex items-center justify-between text-[11px] text-slate-400">
+      <div className="mt-1.5 flex items-center justify-between text-[11px]" style={{ color: CX.textMuted }}>
         <span>Enter to send · Shift+Enter for a new line</span>
         <span>
           {status === 'sent' ? (
-            <span className="font-semibold text-emerald-300">Sent</span>
+            <span className="font-semibold" style={{ color: CX.successText }}>Sent</span>
           ) : (
-            <>Window: <span className="text-slate-200">{remaining} left</span></>
+            <>Window: <span style={{ color: CX.textMain }}>{remaining} left</span></>
           )}
         </span>
       </div>
